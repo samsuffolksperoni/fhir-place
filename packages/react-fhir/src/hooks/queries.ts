@@ -1,4 +1,5 @@
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -72,6 +73,36 @@ export function useSearch<T extends Resource = Resource>(
     queryKey: fhirQueryKeys.search(client.baseUrl, type, params),
     queryFn: ({ signal }) => client.search<T>(type, params, { signal }),
     ...options,
+  });
+}
+
+/** Returns the absolute URL of a Bundle's next page, or undefined when done. */
+export const nextPageUrl = <T extends Resource>(
+  bundle: Bundle<T> | undefined,
+): string | undefined =>
+  bundle?.link?.find((l) => l.relation === "next")?.url;
+
+/**
+ * Page-aware search. Each page is a FHIR Bundle; `fetchNextPage` follows
+ * `Bundle.link[rel=next]` (an absolute URL on most servers including HAPI).
+ * `hasNextPage` mirrors the presence of that link on the most recent page.
+ */
+export function useInfiniteSearch<T extends Resource = Resource>(
+  type: string,
+  params?: SearchParams,
+) {
+  const client = useFhirClient();
+  return useInfiniteQuery({
+    queryKey: [
+      ...fhirQueryKeys.search(client.baseUrl, type, params),
+      "infinite",
+    ] as const,
+    queryFn: ({ signal, pageParam }): Promise<Bundle<T>> =>
+      pageParam
+        ? client.request<Bundle<T>>({ path: pageParam, signal })
+        : client.search<T>(type, params, { signal }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => nextPageUrl(lastPage) ?? undefined,
   });
 }
 
