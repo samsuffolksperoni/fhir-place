@@ -99,10 +99,16 @@ describe("walkResource", () => {
     expect(keys).toEqual(["id"]);
   });
 
-  it("uses the element.short as label when it fits", () => {
+  it("falls back to the path for enum-shaped short descriptions", () => {
     const walked = walkResource(PatientStructureDefinition, patient);
     const gender = walked.find((w) => w.key === "gender");
-    expect(gender?.label).toBe("male | female | other | unknown");
+    expect(gender?.label).toBe("Gender");
+  });
+
+  it("uses a short description when it looks like a label", () => {
+    const walked = walkResource(PatientStructureDefinition, patient);
+    const birth = walked.find((w) => w.key === "birthDate");
+    expect(birth?.label).toBe("The date of birth for the individual");
   });
 });
 

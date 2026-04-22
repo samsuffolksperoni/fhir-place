@@ -7,6 +7,7 @@ import type {
   ContactPoint,
   HumanName,
   Identifier,
+  Meta,
   Money,
   Period,
   Quantity,
@@ -280,6 +281,16 @@ const AttachmentRenderer: FhirTypeRenderer = (value) => {
   return <span>{label}</span>;
 };
 
+const MetaRenderer: FhirTypeRenderer = (value) => {
+  const m = value as Meta;
+  const parts = [
+    m.versionId && `v${m.versionId}`,
+    m.lastUpdated,
+    m.source,
+  ].filter(Boolean);
+  return <span className="text-slate-600">{parts.join(" · ")}</span>;
+};
+
 const AnnotationRenderer: FhirTypeRenderer = (value) => {
   const a = value as Annotation;
   return (
@@ -331,4 +342,5 @@ export const defaultTypeRenderers: TypeRenderers = {
   Reference: ReferenceRenderer,
   Attachment: AttachmentRenderer,
   Annotation: AnnotationRenderer,
+  Meta: MetaRenderer,
 };

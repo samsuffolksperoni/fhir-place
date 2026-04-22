@@ -23,7 +23,11 @@ export interface WalkedElement {
 const capitalize = (s: string): string => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
 const labelFromPath = (path: string, short?: string): string => {
-  if (short && short.length <= 60) return short;
+  // Prefer `short` only when it looks like a name, not a value enumeration
+  // ("male | female | other | unknown") or a sentence with punctuation.
+  if (short && short.length <= 40 && !short.includes("|") && !short.includes(".")) {
+    return short;
+  }
   const last = path.split(".").pop() ?? path;
   return last
     .replace(/\[x\]$/, "")
