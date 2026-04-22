@@ -1,4 +1,16 @@
-import type { Bundle, Observation, Patient, StructureDefinition } from "fhir/r4";
+import type {
+  AllergyIntolerance,
+  Bundle,
+  Condition,
+  Encounter,
+  Immunization,
+  MedicationRequest,
+  Observation,
+  Patient,
+  Procedure,
+  Resource,
+  StructureDefinition,
+} from "fhir/r4";
 
 const patient = (
   id: string,
@@ -78,34 +90,165 @@ export const patients: Patient[] = [
 
 export const observationsFor = (patientId: string): Observation[] => {
   if (patientId !== "ada") return [];
+  const subject = { reference: "Patient/ada", display: "Ada Lovelace" };
   return [
     {
       resourceType: "Observation",
       id: "obs-hr-ada",
       status: "final",
       code: {
-        coding: [
-          {
-            system: "http://loinc.org",
-            code: "8867-4",
-            display: "Heart rate",
-          },
-        ],
+        coding: [{ system: "http://loinc.org", code: "8867-4", display: "Heart rate" }],
         text: "Heart rate",
       },
-      subject: { reference: "Patient/ada", display: "Ada Lovelace" },
+      subject,
       effectiveDateTime: "2024-09-15T09:00:00Z",
-      valueQuantity: {
-        value: 72,
-        unit: "beats/minute",
-        system: "http://unitsofmeasure.org",
-        code: "/min",
+      valueQuantity: { value: 72, unit: "beats/minute", system: "http://unitsofmeasure.org", code: "/min" },
+    },
+    {
+      resourceType: "Observation",
+      id: "obs-bp-ada",
+      status: "final",
+      code: {
+        coding: [{ system: "http://loinc.org", code: "85354-9", display: "Blood pressure panel" }],
+        text: "Blood pressure",
       },
+      subject,
+      effectiveDateTime: "2024-09-15T09:02:00Z",
+      valueQuantity: { value: 128, unit: "mmHg", system: "http://unitsofmeasure.org", code: "mm[Hg]" },
+    },
+    {
+      resourceType: "Observation",
+      id: "obs-wt-ada",
+      status: "final",
+      code: {
+        coding: [{ system: "http://loinc.org", code: "29463-7", display: "Body weight" }],
+        text: "Body weight",
+      },
+      subject,
+      effectiveDateTime: "2024-09-10T08:00:00Z",
+      valueQuantity: { value: 68, unit: "kg", system: "http://unitsofmeasure.org", code: "kg" },
     },
   ];
 };
 
-export const searchBundle = <T extends Patient | Observation>(
+const adaSubject = { reference: "Patient/ada", display: "Ada Lovelace" };
+const adaPatientRef = { reference: "Patient/ada", display: "Ada Lovelace" };
+
+export const conditionsFor = (patientId: string): Condition[] => {
+  if (patientId !== "ada") return [];
+  return [
+    {
+      resourceType: "Condition",
+      id: "cond-htn-ada",
+      clinicalStatus: { text: "active" },
+      verificationStatus: { text: "confirmed" },
+      code: { text: "Essential hypertension" },
+      subject: adaSubject,
+      onsetDateTime: "2022-03-14",
+    },
+    {
+      resourceType: "Condition",
+      id: "cond-mig-ada",
+      clinicalStatus: { text: "remission" },
+      code: { text: "Migraine with aura" },
+      subject: adaSubject,
+      onsetDateTime: "2018-08-01",
+    },
+  ];
+};
+
+export const medicationRequestsFor = (patientId: string): MedicationRequest[] => {
+  if (patientId !== "ada") return [];
+  return [
+    {
+      resourceType: "MedicationRequest",
+      id: "mr-lis-ada",
+      status: "active",
+      intent: "order",
+      medicationCodeableConcept: { text: "Lisinopril 20 mg oral tablet" },
+      subject: adaSubject,
+      authoredOn: "2024-02-05T09:00:00Z",
+    },
+    {
+      resourceType: "MedicationRequest",
+      id: "mr-sum-ada",
+      status: "completed",
+      intent: "order",
+      medicationCodeableConcept: { text: "Sumatriptan 50 mg oral tablet" },
+      subject: adaSubject,
+      authoredOn: "2018-08-12T14:00:00Z",
+    },
+  ];
+};
+
+export const allergiesFor = (patientId: string): AllergyIntolerance[] => {
+  if (patientId !== "ada") return [];
+  return [
+    {
+      resourceType: "AllergyIntolerance",
+      id: "ai-pen-ada",
+      clinicalStatus: { text: "active" },
+      verificationStatus: { text: "confirmed" },
+      code: { text: "Penicillin" },
+      patient: adaPatientRef,
+      reaction: [
+        { manifestation: [{ text: "Hives" }], severity: "moderate" },
+      ],
+    },
+  ];
+};
+
+export const proceduresFor = (patientId: string): Procedure[] => {
+  if (patientId !== "ada") return [];
+  return [
+    {
+      resourceType: "Procedure",
+      id: "proc-colonoscopy-ada",
+      status: "completed",
+      code: { text: "Screening colonoscopy" },
+      subject: adaSubject,
+      performedDateTime: "2023-11-02T10:30:00Z",
+    },
+  ];
+};
+
+export const encountersFor = (patientId: string): Encounter[] => {
+  if (patientId !== "ada") return [];
+  return [
+    {
+      resourceType: "Encounter",
+      id: "enc-annual-ada",
+      status: "finished",
+      class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "AMB", display: "ambulatory" },
+      subject: adaSubject,
+      period: { start: "2024-09-15T09:00:00Z", end: "2024-09-15T09:45:00Z" },
+    },
+    {
+      resourceType: "Encounter",
+      id: "enc-er-ada",
+      status: "finished",
+      class: { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "EMER", display: "emergency" },
+      subject: adaSubject,
+      period: { start: "2018-08-12T13:30:00Z", end: "2018-08-12T17:10:00Z" },
+    },
+  ];
+};
+
+export const immunizationsFor = (patientId: string): Immunization[] => {
+  if (patientId !== "ada") return [];
+  return [
+    {
+      resourceType: "Immunization",
+      id: "imm-flu-ada",
+      status: "completed",
+      vaccineCode: { text: "Influenza, seasonal" },
+      patient: adaPatientRef,
+      occurrenceDateTime: "2024-10-04T08:30:00Z",
+    },
+  ];
+};
+
+export const searchBundle = <T extends Resource>(
   resources: T[],
 ): Bundle<T> => ({
   resourceType: "Bundle",
