@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Build the library first so the demo app can resolve its .d.ts files
+      # during typecheck (demo depends on @fhir-place/react-fhir via workspace).
+      - run: pnpm --filter @fhir-place/react-fhir build
+      - run: pnpm -r typecheck
+      - run: pnpm --filter @fhir-place/react-fhir test:run
+      - run: pnpm --filter @fhir-place/demo build
