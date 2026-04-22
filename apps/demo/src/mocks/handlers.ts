@@ -1,11 +1,17 @@
 import { http, HttpResponse } from "msw";
-import type { Patient } from "fhir/r4";
+import type { Patient, Resource } from "fhir/r4";
 import { FHIR_BASE_URL } from "../config.js";
 import {
+  allergiesFor,
+  conditionsFor,
+  encountersFor,
+  immunizationsFor,
+  medicationRequestsFor,
   observationsFor,
   observationStructureDefinition,
   patients,
   patientStructureDefinition,
+  proceduresFor,
   searchBundle,
 } from "./fixtures.js";
 
@@ -179,4 +185,29 @@ export const handlers = [
     const id = subject?.replace(/^Patient\//, "") ?? "";
     return okJson(searchBundle(observationsFor(id)));
   }),
+
+  // Compartment search handlers — each looks up the patient ref in ?patient=
+  // or ?subject= and returns the matching fixture records.
+  ...(() => {
+    const patientIdFromRequest = (request: Request): string => {
+      const qp = new URL(request.url).searchParams;
+      const ref = qp.get("patient") ?? qp.get("subject");
+      return ref?.replace(/^Patient\//, "") ?? "";
+    };
+    const compartmentHandler = <T extends Resource>(
+      type: string,
+      source: (id: string) => T[],
+    ) =>
+      http.get(`*${BASE}/${type}`, ({ request }) =>
+        okJson(searchBundle(source(patientIdFromRequest(request)))),
+      );
+    return [
+      compartmentHandler("Condition", conditionsFor),
+      compartmentHandler("MedicationRequest", medicationRequestsFor),
+      compartmentHandler("AllergyIntolerance", allergiesFor),
+      compartmentHandler("Procedure", proceduresFor),
+      compartmentHandler("Encounter", encountersFor),
+      compartmentHandler("Immunization", immunizationsFor),
+    ];
+  })(),
 ];
