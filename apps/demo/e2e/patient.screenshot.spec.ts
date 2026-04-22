@@ -13,7 +13,9 @@ test.describe("fhir-place demo", () => {
       fullPage: true,
     });
 
-    await page.getByTestId("patient-search").fill("hop");
+    const search = page.getByTestId("resource-search");
+    await search.getByRole("textbox", { name: "name" }).fill("hop");
+    await search.getByRole("button", { name: "Search" }).click();
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText("Grace Hopper");
 
