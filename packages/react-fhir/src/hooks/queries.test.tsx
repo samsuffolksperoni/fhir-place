@@ -14,6 +14,7 @@ import {
   useSearch,
   useStructureDefinition,
   useUpdateResource,
+  useValueSet,
 } from "./queries.js";
 
 const BASE = "https://fhir.example.test/fhir";
@@ -172,6 +173,74 @@ describe("query hooks", () => {
     });
     expect(hit).toHaveBeenCalledOnce();
     expect(result.current.isSuccess).toBe(true);
+  });
+
+  describe("useValueSet", () => {
+    it("prefers the $expand operation and returns the expanded ValueSet", async () => {
+      const url = "http://hl7.org/fhir/ValueSet/administrative-gender";
+      server.use(
+        http.get(`${BASE}/ValueSet/$expand`, ({ request }) => {
+          expect(new URL(request.url).searchParams.get("url")).toBe(url);
+          return HttpResponse.json({
+            resourceType: "ValueSet",
+            status: "active",
+            url,
+            expansion: {
+              identifier: "x",
+              timestamp: "2024-01-01T00:00:00Z",
+              contains: [
+                { system: "s", code: "male" },
+                { system: "s", code: "female" },
+              ],
+            },
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(() => useValueSet(url), { wrapper });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.expansion?.contains).toHaveLength(2);
+    });
+
+    it("falls back to ValueSet?url=... when $expand errors", async () => {
+      const url = "http://hl7.org/fhir/ValueSet/task-status";
+      server.use(
+        http.get(`${BASE}/ValueSet/$expand`, () =>
+          HttpResponse.json({ resourceType: "OperationOutcome" }, { status: 501 }),
+        ),
+        http.get(`${BASE}/ValueSet`, ({ request }) => {
+          expect(new URL(request.url).searchParams.get("url")).toBe(url);
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [
+              {
+                resource: {
+                  resourceType: "ValueSet",
+                  status: "active",
+                  url,
+                  compose: {
+                    include: [
+                      { system: "s", concept: [{ code: "draft" }, { code: "requested" }] },
+                    ],
+                  },
+                },
+              },
+            ],
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(() => useValueSet(url), { wrapper });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.compose?.include?.[0]?.concept).toHaveLength(2);
+    });
+
+    it("is disabled when canonical is undefined", () => {
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(() => useValueSet(undefined), { wrapper });
+      expect(result.current.fetchStatus).toBe("idle");
+    });
   });
 
   it("throws when useFhirClient is used without provider", async () => {
