@@ -12,10 +12,13 @@ Early alpha. R4 first. MIT licensed.
 ## Dev
 ```bash
 pnpm install
-pnpm dev          # runs the demo app against https://hapi.fhir.org/baseR4
-pnpm test         # unit + integration tests
-pnpm e2e          # Playwright screenshots against a local HAPI
+pnpm dev                                          # runs the demo app (MSW mock FHIR in-browser)
+pnpm test                                         # unit tests (jsdom + MSW)
+pnpm --filter @fhir-place/demo e2e                # Playwright screenshot suite
+pnpm --filter @fhir-place/react-fhir test:integration   # live-server integration (defaults to public HAPI R4)
 ```
+
+Integration tests target `FHIR_BASE_URL` (defaults to `https://hapi.fhir.org/baseR4`) and are also run nightly in CI — see [`packages/react-fhir/integration/README.md`](packages/react-fhir/integration/README.md).
 
 ## Design principles
 - **Spec-driven.** UI is generated from StructureDefinition / SearchParameter, not hand-written per resource type.

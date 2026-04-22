@@ -8,5 +8,5 @@
     "sourceMap": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "integration"]
 }
