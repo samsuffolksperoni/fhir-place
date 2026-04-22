@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw";
 import type { Patient } from "fhir/r4";
+import { FHIR_BASE_URL } from "../config.js";
 import {
   observationsFor,
   observationStructureDefinition,
@@ -8,7 +9,10 @@ import {
   searchBundle,
 } from "./fixtures.js";
 
-const BASE = "/fhir";
+// Share the base URL with the client. Dev → "/fhir"; GH Pages → "/fhir-place/fhir".
+// A hardcoded "/fhir" here caused a production-only 404 when the app was served
+// under a non-root base path (see #8).
+const BASE = FHIR_BASE_URL;
 
 // Mutable in-memory store so create/update/delete actually persist during the session.
 const store = {
@@ -26,7 +30,7 @@ const okJson = (data: any, init?: ResponseInit) =>
   });
 
 export const handlers = [
-  http.get(`${BASE}/metadata`, () =>
+  http.get(`*${BASE}/metadata`, () =>
     okJson({
       resourceType: "CapabilityStatement",
       status: "active",
@@ -78,14 +82,14 @@ export const handlers = [
     }),
   ),
 
-  http.get(`${BASE}/StructureDefinition/Patient`, () =>
+  http.get(`*${BASE}/StructureDefinition/Patient`, () =>
     okJson(patientStructureDefinition),
   ),
-  http.get(`${BASE}/StructureDefinition/Observation`, () =>
+  http.get(`*${BASE}/StructureDefinition/Observation`, () =>
     okJson(observationStructureDefinition),
   ),
 
-  http.get(`${BASE}/Patient`, ({ request }) => {
+  http.get(`*${BASE}/Patient`, ({ request }) => {
     const url = new URL(request.url);
     const qp = url.searchParams;
     const name = qp.get("name")?.toLowerCase();
@@ -109,7 +113,7 @@ export const handlers = [
     return okJson(searchBundle(filtered.slice(0, count)));
   }),
 
-  http.get(`${BASE}/Patient/:id`, ({ params }) => {
+  http.get(`*${BASE}/Patient/:id`, ({ params }) => {
     const p = store.patients.get(String(params.id));
     if (!p) {
       return okJson(
@@ -125,7 +129,7 @@ export const handlers = [
     return okJson(p);
   }),
 
-  http.post(`${BASE}/Patient`, async ({ request }) => {
+  http.post(`*${BASE}/Patient`, async ({ request }) => {
     const body = (await request.json()) as Patient;
     const id = body.id ?? `p-${Date.now()}`;
     const created: Patient = {
@@ -137,7 +141,7 @@ export const handlers = [
     return okJson(created, { status: 201 });
   }),
 
-  http.put(`${BASE}/Patient/:id`, async ({ params, request }) => {
+  http.put(`*${BASE}/Patient/:id`, async ({ params, request }) => {
     const id = String(params.id);
     const body = (await request.json()) as Patient;
     const prev = store.patients.get(id);
@@ -151,12 +155,12 @@ export const handlers = [
     return okJson(updated);
   }),
 
-  http.delete(`${BASE}/Patient/:id`, ({ params }) => {
+  http.delete(`*${BASE}/Patient/:id`, ({ params }) => {
     store.patients.delete(String(params.id));
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.get(`${BASE}/Observation`, ({ request }) => {
+  http.get(`*${BASE}/Observation`, ({ request }) => {
     const url = new URL(request.url);
     const subject = url.searchParams.get("subject") ?? url.searchParams.get("patient");
     const id = subject?.replace(/^Patient\//, "") ?? "";
