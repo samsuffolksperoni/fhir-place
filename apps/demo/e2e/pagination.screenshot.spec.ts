@@ -1,0 +1,41 @@
+import { expect, test } from "@playwright/test";
+
+test.describe("Patient index pagination (#15)", () => {
+  test("Load more appends the next page; button hides when exhausted", async ({
+    page,
+  }) => {
+    await page.goto("/Patient");
+    const rows = page.getByTestId("patient-row");
+    await expect(rows).toHaveCount(20); // first page: _count=20 of 36
+
+    const loadMore = page.getByTestId("load-more");
+    await expect(loadMore).toBeVisible();
+    await expect(loadMore).toContainText("Load more");
+
+    await page.screenshot({
+      path: "../../screenshots/10-pagination-first-page.png",
+      fullPage: true,
+    });
+
+    await loadMore.click();
+    await expect(rows).toHaveCount(36);
+    await expect(loadMore).not.toBeVisible();
+
+    await page.screenshot({
+      path: "../../screenshots/11-pagination-loaded-all.png",
+      fullPage: true,
+    });
+  });
+
+  test("Search filter resets pagination", async ({ page }) => {
+    await page.goto("/Patient");
+    const search = page.getByTestId("resource-search");
+    await search.getByRole("textbox", { name: "family" }).fill("Nguyen");
+    await search.getByRole("button", { name: "Search" }).click();
+
+    const rows = page.getByTestId("patient-row");
+    // Filtered down below one-page threshold — no Load more.
+    await expect(rows.first()).toBeVisible();
+    await expect(page.getByTestId("load-more")).not.toBeVisible();
+  });
+});

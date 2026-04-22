@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Patient } from "fhir/r4";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -7,9 +7,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { FetchFhirClient } from "../client/FetchFhirClient.js";
 import { FhirClientProvider } from "./FhirClientProvider.js";
 import {
+  nextPageUrl,
   useCapabilities,
   useCreateResource,
   useDeleteResource,
+  useInfiniteSearch,
   useResource,
   useSearch,
   useStructureDefinition,
@@ -240,6 +242,91 @@ describe("query hooks", () => {
       const { wrapper } = mkWrapper();
       const { result } = renderHook(() => useValueSet(undefined), { wrapper });
       expect(result.current.fetchStatus).toBe("idle");
+    });
+  });
+
+  describe("nextPageUrl / useInfiniteSearch", () => {
+    it("nextPageUrl reads the rel='next' link from a Bundle", () => {
+      expect(
+        nextPageUrl({
+          resourceType: "Bundle",
+          type: "searchset",
+          link: [
+            { relation: "self", url: "https://fhir.example/fhir/Patient?_count=2" },
+            { relation: "next", url: "https://fhir.example/fhir/Patient?_getpages=abc" },
+          ],
+        }),
+      ).toBe("https://fhir.example/fhir/Patient?_getpages=abc");
+      expect(nextPageUrl(undefined)).toBeUndefined();
+      expect(
+        nextPageUrl({ resourceType: "Bundle", type: "searchset" }),
+      ).toBeUndefined();
+    });
+
+    it("follows Bundle.link[rel=next] across three pages", async () => {
+      const makePage = (
+        page: number,
+        ids: string[],
+        nextUrl?: string,
+      ) => ({
+        resourceType: "Bundle",
+        type: "searchset",
+        total: 6,
+        entry: ids.map((id) => ({ resource: { resourceType: "Patient", id } })),
+        ...(nextUrl ? { link: [{ relation: "next", url: nextUrl }] } : {}),
+      });
+      const nextUrl1 = `${BASE}/Patient?_getpages=page2`;
+      const nextUrl2 = `${BASE}/Patient?_getpages=page3`;
+      server.use(
+        http.get(`${BASE}/Patient`, ({ request }) => {
+          const pageParam = new URL(request.url).searchParams.get("_getpages");
+          if (pageParam === "page2") return HttpResponse.json(makePage(2, ["p3", "p4"], nextUrl2));
+          if (pageParam === "page3") return HttpResponse.json(makePage(3, ["p5", "p6"]));
+          return HttpResponse.json(makePage(1, ["p1", "p2"], nextUrl1));
+        }),
+      );
+
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useInfiniteSearch<Patient>("Patient", { _count: 2 }),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.hasNextPage).toBe(true);
+
+      // fetchNextPage resolves with the fresh query state (including appended
+      // pages); result.current updates on a subsequent React render.
+      let latest = await act(() => result.current.fetchNextPage());
+      expect(latest.data?.pages.length).toBe(2);
+
+      latest = await act(() => result.current.fetchNextPage());
+      expect(latest.data?.pages.length).toBe(3);
+      expect(latest.hasNextPage).toBe(false);
+
+      const allIds = latest.data!.pages.flatMap((b) =>
+        (b.entry ?? []).map((e) => e.resource?.id),
+      );
+      expect(allIds).toEqual(["p1", "p2", "p3", "p4", "p5", "p6"]);
+    });
+
+    it("stops at a single page when no next link is present", async () => {
+      server.use(
+        http.get(`${BASE}/Patient`, () =>
+          HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            total: 1,
+            entry: [{ resource: { resourceType: "Patient", id: "only" } }],
+          }),
+        ),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useInfiniteSearch<Patient>("Patient"),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.hasNextPage).toBe(false);
     });
   });
 
