@@ -181,19 +181,19 @@ The components are a toolbox, not a framework. Typical pattern for a new app:
 
 ### Known gaps (roadmap)
 
-Honest list of what's missing if you're building a real app today:
+Honest list of what's missing if you're building a real app today. Concrete issues are linked — comment / upvote if one is blocking you.
 
-- **ValueSet resolution.** `code` fields render as a `<select>` only when the SD's `short` contains `a | b | c` pasted by the spec authors. Most real bindings aren't inline — we need `useValueSet(canonical)` + a binding-aware code input.
-- **Reference picker.** `ReferenceInput` is a raw `Type/id` text box; real apps want "search Patient by name, pick one."
-- **`<ResourceTable>`** — we ship `<ResourceView>` (detail) and `<ResourceSearch>` (filter form) but not a list/table component.
-- **Pagination.** `useSearch` returns a single Bundle; it doesn't yet follow `Bundle.link[rel=next]`.
+- **[ValueSet resolution](https://github.com/samsuffolksperoni/fhir-place/issues/4).** `code` fields render as a `<select>` only when the SD's `short` contains `a | b | c` pasted by the spec authors. Most real bindings aren't inline — we need `useValueSet(canonical)` + a binding-aware code input.
+- **[`<ReferencePicker>`](https://github.com/samsuffolksperoni/fhir-place/issues/5).** `ReferenceInput` is a raw `Type/id` text box; real apps want "search Patient by name, pick one."
+- **[`<ResourceTable>`](https://github.com/samsuffolksperoni/fhir-place/issues/6)** — we ship `<ResourceView>` (detail) and `<ResourceSearch>` (filter form) but not a list/table component.
+- **[Pagination](https://github.com/samsuffolksperoni/fhir-place/issues/7).** `useSearch` returns a single Bundle; it doesn't yet follow `Bundle.link[rel=next]`.
 - **Extensions.** `<ResourceEditor>` skips `extension` / `modifierExtension` by default. Many real profiles lean on them.
 - **Profile support.** `useStructureDefinition` fetches base types; taking a profile canonical URL is a small change we haven't made.
 - **SMART on FHIR v2 auth.** Deferred. Bearer-token auth works via `FhirClient.getHeaders`; launch flows need a dedicated adapter.
 - **R4B / R5.** R4 only for v1. The `FhirClient` interface will grow a `fhirVersion` discriminator for version-specific code.
 - **Subscriptions / realtime.** Out of scope; poll with TanStack Query's `refetchInterval` for now.
 
-PRs welcome — see each item above as a good first issue. For gaps that block your app, open an issue describing the use case and we can prioritise.
+PRs welcome — the first four items above are tracked as issues, the rest become issues when a concrete use case surfaces. Open an issue describing your use case and we can prioritise.
 
 ## License
 
