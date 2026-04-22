@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 
 test.describe("fhir-place demo", () => {
   test("patient list renders and filters by name", async ({ page }) => {
@@ -45,5 +45,18 @@ test.describe("fhir-place demo", () => {
       path: "../../screenshots/03-patient-detail.png",
       fullPage: true,
     });
+  });
+
+  test("mobile viewport renders the detail view stacked", async ({ browser }) => {
+    const context = await browser.newContext({ ...devices["iPhone 13"] });
+    const page = await context.newPage();
+    await page.goto("/Patient/ada");
+    await expect(page.getByTestId("resource-view")).toBeVisible();
+    await expect(page.getByText("Ada Lovelace")).toBeVisible();
+    await page.screenshot({
+      path: "../../screenshots/04-patient-detail-mobile.png",
+      fullPage: true,
+    });
+    await context.close();
   });
 });

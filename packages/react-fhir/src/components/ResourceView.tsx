@@ -88,13 +88,13 @@ export function ResourceView(props: ResourceViewProps) {
         </details>
       )}
 
-      <dl className="grid grid-cols-[minmax(8rem,1fr)_3fr] gap-x-4 gap-y-2 text-sm">
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-[minmax(8rem,1fr)_3fr] sm:gap-y-2">
         {walked.map((w) => (
           <Fragment key={w.key}>
-            <dt className="font-medium text-slate-600" title={w.path}>
+            <dt className="font-medium text-slate-600 sm:pt-0" title={w.path}>
               {w.label}
             </dt>
-            <dd>
+            <dd className="-mt-2 sm:mt-0">
               <ElementValue
                 walked={w}
                 sd={sd}
@@ -219,7 +219,7 @@ function BackboneView({
     );
   }
   return (
-    <dl className="grid grid-cols-[minmax(6rem,1fr)_3fr] gap-x-3 gap-y-1 border-l-2 border-slate-200 pl-3">
+    <dl className="grid grid-cols-1 gap-x-3 gap-y-1 border-l-2 border-slate-200 pl-3 sm:grid-cols-[minmax(6rem,1fr)_3fr]">
       {children.map((c) => (
         <Fragment key={c.key}>
           <dt className="text-xs font-medium text-slate-500" title={c.path}>
