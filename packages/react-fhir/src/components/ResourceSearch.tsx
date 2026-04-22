@@ -3,8 +3,15 @@ import type {
   CapabilityStatement,
 } from "fhir/r4";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useCapabilities } from "../hooks/queries.js";
+import {
+  useCapabilities,
+  useStructureDefinition,
+  useValueSet,
+} from "../hooks/queries.js";
 import type { SearchParams } from "../client/types.js";
+import { bindingFor, codesFromValueSet } from "../structure/binding.js";
+import { elementPathForSearchParam } from "../structure/searchBinding.js";
+import { findElement } from "../structure/walker.js";
 
 export interface ResourceSearchProps {
   resourceType: string;
@@ -130,6 +137,7 @@ export function ResourceSearch(props: ResourceSearchProps) {
         {visible.map((p) => (
           <SearchField
             key={p.name}
+            base={resourceType}
             param={p}
             value={values[p.name!] ?? ""}
             onChange={(v) => setParam(p.name!, v)}
@@ -172,34 +180,104 @@ export function ResourceSearch(props: ResourceSearchProps) {
 }
 
 interface SearchFieldProps {
+  base: string;
   param: CapabilityStatementRestResourceSearchParam;
   value: string;
   onChange: (v: string) => void;
 }
 
-function SearchField({ param, value, onChange }: SearchFieldProps): ReactNode {
-  return (
-    <label className="block">
-      <span className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium text-slate-600">{param.name}</span>
-        <span className="text-[10px] uppercase text-slate-400">
-          {param.type}
-        </span>
+const fieldWrapper = (children: ReactNode, param: CapabilityStatementRestResourceSearchParam): ReactNode => (
+  <label className="block">
+    <span className="mb-1 flex items-baseline justify-between gap-2">
+      <span className="text-xs font-medium text-slate-600">{param.name}</span>
+      <span className="text-[10px] uppercase text-slate-400">{param.type}</span>
+    </span>
+    {children}
+    {param.documentation && (
+      <span className="mt-0.5 block text-[11px] text-slate-400">
+        {param.documentation}
       </span>
+    )}
+  </label>
+);
+
+function SearchField({ base, param, value, onChange }: SearchFieldProps): ReactNode {
+  if (param.type === "token") {
+    return (
+      <TokenSearchField base={base} param={param} value={value} onChange={onChange} />
+    );
+  }
+  return fieldWrapper(
+    <input
+      type={inputType(param.type)}
+      aria-label={param.name}
+      placeholder={inputPlaceholder(param.type)}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+    />,
+    param,
+  );
+}
+
+/**
+ * Token search field: look up the bound ValueSet via the spec (convention
+ * mapping name → element → binding) and render a <select> when available.
+ * Falls back to a plain text input when the binding can't be resolved or when
+ * the ValueSet is too large to enumerate in a dropdown.
+ */
+function TokenSearchField({ base, param, value, onChange }: SearchFieldProps): ReactNode {
+  const elementPath = elementPathForSearchParam(param, base);
+  const { data: sd } = useStructureDefinition(base, { enabled: Boolean(elementPath) });
+  const element = elementPath && sd ? findElement(sd, elementPath) : undefined;
+  const { valueSet: valueSetUrl } = bindingFor(element);
+  const { data: vs, isLoading } = useValueSet(valueSetUrl);
+  const codes = codesFromValueSet(vs);
+
+  const fallbackInput = (
+    <input
+      type="text"
+      aria-label={param.name}
+      placeholder={inputPlaceholder(param.type)}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+    />
+  );
+
+  if (valueSetUrl && isLoading) {
+    return fieldWrapper(
       <input
-        type={inputType(param.type)}
+        type="text"
         aria-label={param.name}
-        placeholder={inputPlaceholder(param.type)}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
-      />
-      {param.documentation && (
-        <span className="mt-0.5 block text-[11px] text-slate-400">
-          {param.documentation}
-        </span>
-      )}
-    </label>
+        readOnly
+        placeholder="Loading value set…"
+        className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm"
+      />,
+      param,
+    );
+  }
+
+  if (codes.length === 0 || codes.length > 100) {
+    return fieldWrapper(fallbackInput, param);
+  }
+
+  return fieldWrapper(
+    <select
+      aria-label={param.name}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+    >
+      <option value="">—</option>
+      {codes.map((c) => (
+        <option key={c.code} value={c.code}>
+          {c.display ? `${c.display} (${c.code})` : c.code}
+        </option>
+      ))}
+    </select>,
+    param,
   );
 }
 
