@@ -13,6 +13,7 @@ import type {
 import type { ReactNode } from "react";
 import { useValueSet } from "../hooks/queries.js";
 import { bindingFor, codesFromValueSet } from "../structure/binding.js";
+import { ReferencePicker, ReferencePickerFallback } from "./ReferencePicker.js";
 
 export interface InputContext {
   path: string;
@@ -399,31 +400,26 @@ const IdentifierInput: FhirTypeInput<Identifier> = ({ value, onChange }) => {
   );
 };
 
-const ReferenceInput: FhirTypeInput<Reference> = ({ value, onChange }) => {
-  const v = value ?? {};
-  const patch = (k: keyof Reference, val: unknown) =>
-    onChange({ ...v, [k]: val });
-  return (
-    <div className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[1fr_1fr]">
-      <label>
-        <span className={subLabel}>Reference (Type/id)</span>
-        <input
-          className={baseField}
-          placeholder="Patient/123"
-          value={v.reference ?? ""}
-          onChange={(e) => patch("reference", e.target.value || undefined)}
-        />
-      </label>
-      <label>
-        <span className={subLabel}>Display</span>
-        <input
-          className={baseField}
-          value={v.display ?? ""}
-          onChange={(e) => patch("display", e.target.value || undefined)}
-        />
-      </label>
-    </div>
-  );
+/**
+ * Prefers the search-and-pick ReferencePicker when the ElementDefinition
+ * advertises allowed `targetProfile`s. Falls back to the raw Reference/display
+ * text inputs when targets can't be derived (e.g. `Reference(Any)`).
+ */
+const ReferenceInput: FhirTypeInput<Reference> = ({ value, onChange, context }) => {
+  const targets = targetTypesFromElement(context.element);
+  if (targets.length > 0) {
+    return <ReferencePicker targets={targets} value={value} onChange={onChange} />;
+  }
+  return <ReferencePickerFallback value={value} onChange={onChange} />;
+};
+
+const targetTypesFromElement = (element: ElementDefinition): string[] => {
+  const refType = element.type?.find((t) => t.code === "Reference");
+  const profiles = refType?.targetProfile ?? [];
+  return profiles
+    .map((p) => p.split("/").pop() ?? "")
+    .filter(Boolean)
+    .filter((t) => t !== "Resource"); // Reference(Any) → empty, fall back to manual
 };
 
 const PeriodInput: FhirTypeInput<Period> = ({ value, onChange }) => {

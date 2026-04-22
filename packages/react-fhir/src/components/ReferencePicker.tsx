@@ -1,0 +1,230 @@
+import type { Reference, Resource } from "fhir/r4";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useSearch } from "../hooks/queries.js";
+
+export interface ReferencePickerProps {
+  /** Allowed target resource types (from element.type[].targetProfile). */
+  targets: string[];
+  value: Reference | undefined;
+  onChange: (ref: Reference | undefined) => void;
+  /** Default search param used for the free-text query (default: "name"). */
+  searchParam?: string;
+  /** Max results shown per search (default 10). */
+  limit?: number;
+  /** Debounce (ms) between keystrokes and the server search (default 250). */
+  debounceMs?: number;
+  className?: string;
+}
+
+/**
+ * Produces a human-readable label for a resource. Covers the common cases
+ * encountered when picking references in clinical apps; any resource type not
+ * specifically handled falls back to `{ResourceType}/{id}`.
+ */
+export function referenceLabel(resource: Resource): string {
+  const r = resource as unknown as Record<string, unknown>;
+  // HumanName-bearing resources
+  const names = r.name as Array<Record<string, unknown>> | string | undefined;
+  if (Array.isArray(names) && names[0]) {
+    const first = names[0];
+    if (typeof first.text === "string") return first.text;
+    const given = Array.isArray(first.given) ? (first.given as string[]).join(" ") : "";
+    const family = typeof first.family === "string" ? first.family : "";
+    const combined = [given, family].filter(Boolean).join(" ").trim();
+    if (combined) return combined;
+  }
+  // Organization / Location / Device / others with a single string `name`
+  if (typeof names === "string") return names;
+  // CodeableConcept-based, e.g. Observation.code
+  const code = r.code as { text?: string; coding?: Array<{ display?: string }> } | undefined;
+  if (code?.text) return code.text;
+  if (code?.coding?.[0]?.display) return code.coding[0].display!;
+  // Practitioner + Patient fallback if name was oddly absent
+  if (typeof r.title === "string") return r.title;
+  return `${resource.resourceType}/${resource.id ?? ""}`.replace(/\/$/, "");
+}
+
+/**
+ * Debounced search-and-pick picker for FHIR References. Pairs with the
+ * library's existing `<ResourceEditor>` by replacing the raw `Type/id` text
+ * box currently generated for `Reference` elements.
+ */
+export function ReferencePicker(props: ReferencePickerProps) {
+  const { targets, value, onChange, limit = 10, debounceMs = 250, className } = props;
+  const [selectedType, setSelectedType] = useState<string>(
+    targets[0] ?? "Resource",
+  );
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), debounceMs);
+    return () => clearTimeout(t);
+  }, [query, debounceMs]);
+
+  const searchField = props.searchParam ?? defaultSearchParamFor(selectedType);
+
+  const { data, isFetching } = useSearch<Resource>(
+    selectedType,
+    debouncedQuery
+      ? { [searchField]: debouncedQuery, _count: limit }
+      : undefined,
+    { enabled: Boolean(debouncedQuery) },
+  );
+
+  const results = useMemo(
+    () =>
+      (data?.entry ?? []).flatMap((e) => (e.resource ? [e.resource] : [])),
+    [data],
+  );
+
+  const pick = (resource: Resource) => {
+    onChange({
+      reference: `${resource.resourceType}/${resource.id ?? ""}`,
+      display: referenceLabel(resource),
+    });
+    setIsOpen(false);
+    setQuery("");
+  };
+
+  return (
+    <div
+      className={className ?? "relative space-y-2 rounded border border-slate-200 bg-slate-50 p-2"}
+      data-testid="reference-picker"
+    >
+      {value?.reference ? (
+        <div className="flex items-center gap-2">
+          <span className="flex-1 truncate text-sm">
+            {value.display ?? value.reference}{" "}
+            <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-500">
+              {value.reference}
+            </code>
+          </span>
+          <button
+            type="button"
+            aria-label="Clear reference"
+            onClick={() => onChange(undefined)}
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:border-red-400 hover:text-red-600"
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          {targets.length > 1 && (
+            <select
+              aria-label="target type"
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+            >
+              {targets.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          )}
+          <input
+            type="search"
+            aria-label={`Search ${selectedType}`}
+            placeholder={`Search ${selectedType} by ${searchField}…`}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+      )}
+
+      {!value?.reference && isOpen && debouncedQuery && (
+        <ul
+          role="listbox"
+          className="absolute left-2 right-2 z-10 max-h-64 overflow-auto rounded border border-slate-200 bg-white shadow-lg"
+        >
+          {isFetching && results.length === 0 && (
+            <li className="px-3 py-2 text-xs text-slate-500">Searching…</li>
+          )}
+          {!isFetching && results.length === 0 && (
+            <li className="px-3 py-2 text-xs text-slate-500">No matches</li>
+          )}
+          {results.map((r) => (
+            <li key={`${r.resourceType}/${r.id}`}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => pick(r)}
+                className="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
+              >
+                <span className="truncate">{referenceLabel(r)}</span>
+                <code className="shrink-0 text-xs text-slate-500">{r.id}</code>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const namedTypes = new Set([
+  "Patient",
+  "Practitioner",
+  "PractitionerRole",
+  "RelatedPerson",
+  "Person",
+  "Organization",
+  "HealthcareService",
+  "Location",
+  "Device",
+]);
+
+function defaultSearchParamFor(type: string): string {
+  if (namedTypes.has(type)) return "name";
+  if (type === "Observation") return "code";
+  if (type === "Medication" || type === "MedicationRequest") return "code";
+  return "name"; // safe default; user can override via prop
+}
+
+export interface ReferencePickerFallbackProps {
+  value: Reference | undefined;
+  onChange: (ref: Reference | undefined) => void;
+}
+
+/** Plain Reference / display text inputs — used when targetProfile can't be resolved. */
+export function ReferencePickerFallback({ value, onChange }: ReferencePickerFallbackProps) {
+  const v = value ?? {};
+  const patch = (k: keyof Reference, val: unknown) =>
+    onChange({ ...v, [k]: val });
+  return (
+    <div
+      className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[1fr_1fr]"
+      data-testid="reference-picker-fallback"
+    >
+      <label>
+        <span className="mb-1 block text-xs font-medium text-slate-500">
+          Reference (Type/id)
+        </span>
+        <input
+          className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+          placeholder="Patient/123"
+          value={v.reference ?? ""}
+          onChange={(e) => patch("reference", e.target.value || undefined)}
+        />
+      </label>
+      <label>
+        <span className="mb-1 block text-xs font-medium text-slate-500">Display</span>
+        <input
+          className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+          value={v.display ?? ""}
+          onChange={(e) => patch("display", e.target.value || undefined)}
+        />
+      </label>
+    </div>
+  );
+}
