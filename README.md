@@ -179,21 +179,33 @@ The components are a toolbox, not a framework. Typical pattern for a new app:
 5. **Override per-type UX** where needed — pass `renderers` or `inputs` to swap in app-specific widgets (e.g. a signature pad for `Signature`, a chart for repeated `Observation.valueQuantity`).
 6. **Resource-specific workflow** — put business logic (e.g. Task state transitions, Goal progress calculations) in your own hooks alongside the library's generic hooks.
 
-### Known gaps (roadmap)
+## Roadmap
 
-Honest list of what's missing if you're building a real app today. Concrete issues are linked — comment / upvote if one is blocking you.
+Honest list of what's missing if you're building a real app today.
 
-- **[ValueSet resolution](https://github.com/samsuffolksperoni/fhir-place/issues/4).** `code` fields render as a `<select>` only when the SD's `short` contains `a | b | c` pasted by the spec authors. Most real bindings aren't inline — we need `useValueSet(canonical)` + a binding-aware code input.
-- **[`<ReferencePicker>`](https://github.com/samsuffolksperoni/fhir-place/issues/5).** `ReferenceInput` is a raw `Type/id` text box; real apps want "search Patient by name, pick one."
-- **[`<ResourceTable>`](https://github.com/samsuffolksperoni/fhir-place/issues/6)** — we ship `<ResourceView>` (detail) and `<ResourceSearch>` (filter form) but not a list/table component.
-- **[Pagination](https://github.com/samsuffolksperoni/fhir-place/issues/7).** `useSearch` returns a single Bundle; it doesn't yet follow `Bundle.link[rel=next]`.
+### Tracked (has an issue)
+
+Comment / upvote if one of these is blocking you — or pick one up; each issue has a concrete API sketch and acceptance criteria.
+
+| # | Item | Why it matters |
+| --- | --- | --- |
+| [#4](https://github.com/samsuffolksperoni/fhir-place/issues/4) | ValueSet resolution + binding-aware code input | Every real `code` field (`Task.status`, `Goal.lifecycleStatus`, `Observation.status`) today falls back to a plain text input. |
+| [#5](https://github.com/samsuffolksperoni/fhir-place/issues/5) | `<ReferencePicker>` search-and-pick widget | Linking a Task to a Goal today means typing `Goal/abc123` into a raw text field. |
+| [#6](https://github.com/samsuffolksperoni/fhir-place/issues/6) | Generic `<ResourceTable>` with column picker | We ship `<ResourceView>` (detail) and `<ResourceSearch>` (filter form) but no list/table component. |
+| [#7](https://github.com/samsuffolksperoni/fhir-place/issues/7) | Pagination via `Bundle.link[rel=next]` in `useSearch` | `useSearch` returns one Bundle; browsing more than `_count` matches needs `useInfiniteSearch`. |
+| [#11](https://github.com/samsuffolksperoni/fhir-place/issues/11) | Auto-populate `<ResourceSearch>` token fields from their ValueSet binding | Search by `gender` should be a dropdown of `male / female / other / unknown`, not a free-text field. Builds on #4. |
+
+### Deferred (open an issue if you need it)
+
+These will become issues once a concrete use case surfaces — premature issues rot.
+
 - **Extensions.** `<ResourceEditor>` skips `extension` / `modifierExtension` by default. Many real profiles lean on them.
 - **Profile support.** `useStructureDefinition` fetches base types; taking a profile canonical URL is a small change we haven't made.
 - **SMART on FHIR v2 auth.** Deferred. Bearer-token auth works via `FhirClient.getHeaders`; launch flows need a dedicated adapter.
 - **R4B / R5.** R4 only for v1. The `FhirClient` interface will grow a `fhirVersion` discriminator for version-specific code.
 - **Subscriptions / realtime.** Out of scope; poll with TanStack Query's `refetchInterval` for now.
 
-PRs welcome — the first four items above are tracked as issues, the rest become issues when a concrete use case surfaces. Open an issue describing your use case and we can prioritise.
+PRs welcome on any tracked item. For a deferred item: open an issue describing your use case and we can prioritise.
 
 ## License
 
