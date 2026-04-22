@@ -27,10 +27,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @fhir-place/react-fhir build
-      - name: Build demo for GitHub Pages
+      - name: Build demo for GitHub Pages (live HAPI R4)
         run: pnpm --filter @fhir-place/demo build
         env:
-          VITE_USE_MOCK: "true"
+          VITE_USE_MOCK: "false"
+          VITE_FHIR_BASE_URL: "https://hapi.fhir.org/baseR4"
           VITE_BASE_PATH: "/${{ github.event.repository.name }}/"
       - name: SPA 404 fallback
         run: cp apps/demo/dist/index.html apps/demo/dist/404.html

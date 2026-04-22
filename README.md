@@ -2,7 +2,7 @@
 
 A React component library for building FHIR resource viewers and editors driven by the FHIR specification itself (`StructureDefinition`, `SearchParameter`, `CapabilityStatement`). Minimal resource-specific code — everything derives from the spec's own metadata, so the library works natively against any FHIR REST API.
 
-**Live demo:** <https://samsuffolksperoni.github.io/fhir-place/>
+**Live demo:** <https://samsuffolksperoni.github.io/fhir-place/> — hits the **public HAPI R4 server**. Patient data there is shared and reset periodically; creates / edits you make are visible to everyone (and won't last forever). Local `pnpm dev` uses an in-browser MSW mock by default so you can work offline.
 
 ## Status
 
