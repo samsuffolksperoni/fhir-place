@@ -1,6 +1,8 @@
 import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { PatientCreatePage } from "./pages/PatientCreatePage.js";
 import { PatientListPage } from "./pages/PatientListPage.js";
 import { ResourceDetailPage } from "./pages/ResourceDetailPage.js";
+import { ResourceEditPage } from "./pages/ResourceEditPage.js";
 import { FHIR_BASE_URL, USE_MOCK } from "./config.js";
 
 export function App() {
@@ -25,6 +27,8 @@ export function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/Patient" replace />} />
           <Route path="/Patient" element={<PatientListPage />} />
+          <Route path="/Patient/new" element={<PatientCreatePage />} />
+          <Route path="/:resourceType/:id/edit" element={<ResourceEditPage />} />
           <Route path="/:resourceType/:id" element={<ResourceDetailPage />} />
         </Routes>
       </main>

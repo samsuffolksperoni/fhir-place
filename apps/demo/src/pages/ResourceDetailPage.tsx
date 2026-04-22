@@ -1,11 +1,18 @@
-import { ResourceView, useResource } from "@fhir-place/react-fhir";
+import {
+  ResourceView,
+  useDeleteResource,
+  useResource,
+} from "@fhir-place/react-fhir";
 import type { Reference, Resource } from "fhir/r4";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 export function ResourceDetailPage() {
   const { resourceType = "", id = "" } = useParams();
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useResource<Resource>(resourceType, id);
+  const del = useDeleteResource();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const onReferenceClick = (ref: Reference) => {
     const r = ref.reference;
@@ -18,13 +25,64 @@ export function ResourceDetailPage() {
     if (type && refId) navigate(`/${type}/${refId}`);
   };
 
+  const handleDelete = async () => {
+    await del.mutateAsync({ type: resourceType, id });
+    navigate(`/${resourceType}`);
+  };
+
   return (
     <div className="space-y-4">
-      <nav className="text-sm text-slate-500">
-        <Link to="/Patient" className="underline">
-          ← All patients
+      <nav className="flex items-center justify-between text-sm">
+        <Link to={`/${resourceType}`} className="text-slate-500 underline">
+          ← All {resourceType.toLowerCase()}s
         </Link>
+        <div className="flex gap-2">
+          <Link
+            to={`/${resourceType}/${id}/edit`}
+            className="rounded border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+            data-testid="edit-resource"
+          >
+            Edit
+          </Link>
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="rounded border border-red-300 bg-white px-3 py-1 text-xs text-red-700 hover:bg-red-50"
+            data-testid="delete-resource"
+          >
+            Delete
+          </button>
+        </div>
       </nav>
+
+      {confirmingDelete && (
+        <div
+          data-testid="delete-confirm"
+          className="rounded border border-red-300 bg-red-50 p-3 text-sm"
+        >
+          <p className="mb-2 text-red-800">
+            Delete {resourceType}/{id}? This cannot be undone.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={del.isPending}
+              data-testid="delete-confirm-button"
+              className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {del.isPending ? "Deleting…" : "Yes, delete"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
       {isError && (

@@ -129,6 +129,7 @@ const CodeInput: FhirTypeInput<string> = (props) => {
   // Enumerate values from the element.short "a | b | c | d" pattern when present —
   // falls back to a plain text input otherwise.
   const short = props.context.element.short;
+  const fieldName = props.context.element.path?.split(".").pop() ?? "code";
   if (short && short.includes("|")) {
     const options = short
       .split("|")
@@ -136,6 +137,7 @@ const CodeInput: FhirTypeInput<string> = (props) => {
       .filter(Boolean);
     return (
       <select
+        aria-label={fieldName}
         className={baseField}
         value={props.value ?? ""}
         onChange={(e) =>

@@ -1,7 +1,8 @@
-import { useSearch } from "@fhir-place/react-fhir";
+import { ResourceSearch, useSearch } from "@fhir-place/react-fhir";
 import type { Patient } from "fhir/r4";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import type { SearchParams } from "@fhir-place/react-fhir";
 
 const formatName = (p: Patient): string => {
   const n = p.name?.[0];
@@ -11,30 +12,35 @@ const formatName = (p: Patient): string => {
 };
 
 export function PatientListPage() {
-  const [query, setQuery] = useState("");
-  const { data, isLoading, isError, error } = useSearch<Patient>("Patient", {
-    _count: 20,
-    ...(query ? { name: query } : {}),
-  });
+  const [params, setParams] = useState<SearchParams>({ _count: 20 });
+  const { data, isLoading, isError, error } = useSearch<Patient>("Patient", params);
 
   const patients =
     data?.entry?.flatMap((e) => (e.resource ? [e.resource] : [])) ?? [];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h1 className="text-xl font-semibold">Patients</h1>
-        <span className="text-sm text-slate-500">
-          {data ? `${data.total ?? patients.length} total` : "…"}
-        </span>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold">Patients</h1>
+          <p className="text-sm text-slate-500">
+            {data ? `${data.total ?? patients.length} total` : "…"}
+          </p>
+        </div>
+        <Link
+          to="/Patient/new"
+          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+          data-testid="create-patient"
+        >
+          + New patient
+        </Link>
       </div>
-      <input
-        data-testid="patient-search"
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by name…"
-        className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+
+      <ResourceSearch
+        resourceType="Patient"
+        initialVisible={6}
+        priorityParams={["name", "family", "given", "gender", "birthdate", "address-city"]}
+        onSubmit={(p) => setParams({ _count: 20, ...p })}
       />
 
       {isError && (
