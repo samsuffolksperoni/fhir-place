@@ -98,6 +98,7 @@ export const handlers = [
     const gender = qp.get("gender");
     const city = qp.get("address-city")?.toLowerCase();
     const count = Number(qp.get("_count") ?? 20);
+    const offset = Number(qp.get("_getpagesoffset") ?? 0);
     const all = Array.from(store.patients.values());
     const filtered = all.filter((p) => {
       if (name && !p.name?.some((n) =>
@@ -110,7 +111,19 @@ export const handlers = [
       if (city && !p.address?.some((a) => (a.city ?? "").toLowerCase().includes(city))) return false;
       return true;
     });
-    return okJson(searchBundle(filtered.slice(0, count)));
+    const page = filtered.slice(offset, offset + count);
+    const bundle = searchBundle(page);
+    bundle.total = filtered.length;
+    const nextOffset = offset + count;
+    if (nextOffset < filtered.length) {
+      const nextUrl = new URL(url);
+      nextUrl.searchParams.set("_getpagesoffset", String(nextOffset));
+      bundle.link = [
+        { relation: "self", url: request.url },
+        { relation: "next", url: nextUrl.toString() },
+      ];
+    }
+    return okJson(bundle);
   }),
 
   http.get(`*${BASE}/Patient/:id`, ({ params }) => {

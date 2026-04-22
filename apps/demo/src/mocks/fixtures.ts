@@ -61,6 +61,19 @@ export const patients: Patient[] = [
     gender: "female",
     birthDate: "1914-11-09",
   }),
+  // Synthetic bulk fixtures so pagination is demonstrable (one page = _count=20).
+  ...Array.from({ length: 32 }, (_, i) => {
+    const idx = i + 1;
+    const givens = ["Alex", "Bailey", "Casey", "Dakota", "Ellis", "Finley", "Gael", "Harper"];
+    const families = ["Nguyen", "Patel", "Garcia", "Kim", "Smith", "Johnson", "Martinez", "Wilson"];
+    const given = givens[idx % givens.length]!;
+    const family = families[idx % families.length]!;
+    return patient(`syn-${idx}`, {
+      name: [{ use: "official", given: [given], family }],
+      gender: idx % 2 === 0 ? "female" : "male",
+      birthDate: `19${40 + (idx % 60)}-0${1 + (idx % 9)}-${10 + (idx % 18)}`,
+    });
+  }),
 ];
 
 export const observationsFor = (patientId: string): Observation[] => {

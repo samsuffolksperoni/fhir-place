@@ -1,4 +1,4 @@
-import { ResourceSearch, useSearch } from "@fhir-place/react-fhir";
+import { ResourceSearch, useInfiniteSearch } from "@fhir-place/react-fhir";
 import type { Patient } from "fhir/r4";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -13,10 +13,21 @@ const formatName = (p: Patient): string => {
 
 export function PatientListPage() {
   const [params, setParams] = useState<SearchParams>({ _count: 20 });
-  const { data, isLoading, isError, error } = useSearch<Patient>("Patient", params);
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteSearch<Patient>("Patient", params);
 
   const patients =
-    data?.entry?.flatMap((e) => (e.resource ? [e.resource] : [])) ?? [];
+    data?.pages.flatMap(
+      (b) => b.entry?.flatMap((e) => (e.resource ? [e.resource] : [])) ?? [],
+    ) ?? [];
+  const totalAdvertised = data?.pages[0]?.total;
 
   return (
     <div className="space-y-4">
@@ -24,7 +35,11 @@ export function PatientListPage() {
         <div>
           <h1 className="text-xl font-semibold">Patients</h1>
           <p className="text-sm text-slate-500">
-            {data ? `${data.total ?? patients.length} total` : "…"}
+            {data
+              ? totalAdvertised !== undefined
+                ? `${patients.length} of ${totalAdvertised}`
+                : `${patients.length} loaded`
+              : "…"}
           </p>
         </div>
         <Link
@@ -72,6 +87,20 @@ export function PatientListPage() {
           </li>
         )}
       </ul>
+
+      {hasNextPage && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            data-testid="load-more"
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+          >
+            {isFetchingNextPage ? "Loading…" : "Load more"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

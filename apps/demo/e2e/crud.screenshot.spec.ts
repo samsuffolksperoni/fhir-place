@@ -8,8 +8,10 @@ test.describe("CRUD flows", () => {
     const search = page.getByTestId("resource-search");
     await expect(search).toBeVisible();
 
-    // Use the "gender" search param (token type, advertised by the mock server).
-    await search.getByRole("textbox", { name: "gender" }).fill("male");
+    // Use the "given" search param (string type, advertised by the mock server).
+    // "Alan" uniquely identifies the Turing fixture — other synthetic patients
+    // use different given names.
+    await search.getByRole("textbox", { name: "given" }).fill("Alan");
     await search.getByRole("button", { name: "Search" }).click();
 
     await expect(page.getByTestId("patient-row")).toHaveCount(1);
@@ -20,10 +22,10 @@ test.describe("CRUD flows", () => {
       fullPage: true,
     });
 
-    // Clear and verify results expand back.
+    // Clear and verify full page comes back.
     await search.getByRole("button", { name: "Clear" }).click();
     await search.getByRole("button", { name: "Search" }).click();
-    await expect(page.getByTestId("patient-row")).toHaveCount(4);
+    await expect(page.getByTestId("patient-row")).toHaveCount(20);
   });
 
   test("create → edit → delete a patient end-to-end", async ({ page }) => {
