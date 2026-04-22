@@ -11,6 +11,7 @@ import type {
   Reference,
   Resource,
   StructureDefinition,
+  ValueSet,
 } from "fhir/r4";
 import type { FhirClient, SearchParams } from "../client/types.js";
 import { resolveStructureDefinition } from "../structure/resolve.js";
@@ -26,6 +27,8 @@ export const fhirQueryKeys = {
     [...fhirQueryKeys.all(baseUrl), type, "search", params ?? {}] as const,
   structure: (baseUrl: string, type: string) =>
     [...fhirQueryKeys.all(baseUrl), "StructureDefinition", type] as const,
+  valueSet: (baseUrl: string, canonical: string) =>
+    [...fhirQueryKeys.all(baseUrl), "ValueSet", canonical] as const,
   reference: (baseUrl: string, ref: string) =>
     [...fhirQueryKeys.all(baseUrl), "ref", ref] as const,
 };
@@ -81,6 +84,49 @@ export function useStructureDefinition(
     queryKey: fhirQueryKeys.structure(client.baseUrl, type),
     queryFn: ({ signal }) => resolveStructureDefinition(client, type, { signal }),
     staleTime: 60 * 60_000,
+    ...options,
+  });
+}
+
+/**
+ * Resolves a ValueSet by canonical URL.
+ *
+ * Prefers `ValueSet/$expand?url={canonical}` when supported so we get a
+ * server-computed enumeration of codes; falls back to `ValueSet?url={canonical}`
+ * + the first matching resource so consumers can locally expand
+ * `compose.include[].concept[]` via {@link codesFromValueSet}.
+ */
+export function useValueSet(
+  canonical: string | undefined,
+  options?: ReadQueryOpts<ValueSet>,
+) {
+  const client = useFhirClient();
+  return useQuery({
+    queryKey: fhirQueryKeys.valueSet(client.baseUrl, canonical ?? ""),
+    queryFn: async ({ signal }) => {
+      const url = canonical!;
+      // Try $expand first — returns an already-flattened ValueSet.
+      try {
+        return await client.request<ValueSet>({
+          path: `/ValueSet/$expand?url=${encodeURIComponent(url)}`,
+          signal,
+        });
+      } catch {
+        // Fall back to the raw definition; caller can local-expand.
+        const bundle = await client.search<ValueSet>(
+          "ValueSet",
+          { url },
+          { signal },
+        );
+        const hit = bundle.entry?.[0]?.resource;
+        if (!hit) {
+          throw new Error(`ValueSet ${url} not found on this server`);
+        }
+        return hit;
+      }
+    },
+    enabled: Boolean(canonical),
+    staleTime: 24 * 60 * 60_000,
     ...options,
   });
 }

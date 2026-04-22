@@ -11,6 +11,8 @@ import type {
   Reference,
 } from "fhir/r4";
 import type { ReactNode } from "react";
+import { useValueSet } from "../hooks/queries.js";
+import { bindingFor, codesFromValueSet } from "../structure/binding.js";
 
 export interface InputContext {
   path: string;
@@ -125,35 +127,88 @@ const UriInput: FhirTypeInput<string> = ({ value, onChange }) => (
   />
 );
 
+/**
+ * Resolves a `code` element's binding to a list of acceptable values:
+ *   1. If binding.valueSet is set, fetch it via useValueSet and use its codes.
+ *   2. Fallback: parse pipe-separated enumeration out of element.short.
+ *   3. Last resort: plain text input.
+ *
+ * Required bindings lock to the enumeration; extensible / preferred also
+ * allow a free-text "other" entry.
+ */
 const CodeInput: FhirTypeInput<string> = (props) => {
-  // Enumerate values from the element.short "a | b | c | d" pattern when present —
-  // falls back to a plain text input otherwise.
-  const short = props.context.element.short;
-  const fieldName = props.context.element.path?.split(".").pop() ?? "code";
-  if (short && short.includes("|")) {
-    const options = short
-      .split("|")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    return (
+  const { element } = props.context;
+  const short = element.short;
+  const fieldName = element.path?.split(".").pop() ?? "code";
+  const { strength, valueSet } = bindingFor(element);
+
+  const { data: vs, isLoading } = useValueSet(valueSet);
+  const boundCodes = codesFromValueSet(vs);
+
+  const options: Array<{ value: string; label: string }> = [];
+  if (boundCodes.length > 0) {
+    for (const c of boundCodes) {
+      options.push({ value: c.code, label: c.display ? `${c.display} (${c.code})` : c.code });
+    }
+  } else if (short && short.includes("|")) {
+    for (const raw of short.split("|")) {
+      const v = raw.trim();
+      if (v) options.push({ value: v, label: v });
+    }
+  }
+
+  if (options.length === 0) {
+    if (valueSet && isLoading) {
+      return (
+        <input
+          aria-label={fieldName}
+          className={baseField}
+          value={props.value ?? ""}
+          readOnly
+          placeholder="Loading value set…"
+        />
+      );
+    }
+    return <TextInput {...(props as FhirInputProps<string>)} />;
+  }
+
+  const allowFreeText = strength !== "required";
+  const currentValue = props.value ?? "";
+  const valueMatches = options.some((o) => o.value === currentValue);
+  const usingFreeText = !valueMatches && currentValue !== "";
+
+  return (
+    <div className="flex gap-1">
       <select
         aria-label={fieldName}
         className={baseField}
-        value={props.value ?? ""}
-        onChange={(e) =>
-          props.onChange(e.target.value === "" ? undefined : e.target.value)
-        }
+        value={usingFreeText ? "__other__" : currentValue}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === "__other__") return; // keep free-text input value
+          props.onChange(v === "" ? undefined : v);
+        }}
       >
         <option value="">—</option>
         {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
+          <option key={o.value} value={o.value}>
+            {o.label}
           </option>
         ))}
+        {allowFreeText && <option value="__other__">Other…</option>}
       </select>
-    );
-  }
-  return <TextInput {...(props as FhirInputProps<string>)} />;
+      {allowFreeText && usingFreeText && (
+        <input
+          aria-label={`${fieldName} (custom)`}
+          className={baseField}
+          value={currentValue}
+          onChange={(e) =>
+            props.onChange(e.target.value === "" ? undefined : e.target.value)
+          }
+        />
+      )}
+    </div>
+  );
 };
 
 /* ---------- complex-type sub-forms ---------- */
