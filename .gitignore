@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+.turbo
+.vite
+coverage
+.env
+.env.local
+.DS_Store
+*.log
+playwright-report
+test-results
+screenshots/*.png
+!screenshots/.gitkeep
+*.tsbuildinfo
