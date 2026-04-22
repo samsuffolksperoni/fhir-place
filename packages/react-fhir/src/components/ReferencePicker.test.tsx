@@ -1,0 +1,164 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { Reference } from "fhir/r4";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { FetchFhirClient } from "../client/FetchFhirClient.js";
+import { FhirClientProvider } from "../hooks/FhirClientProvider.js";
+import { ReferencePicker, referenceLabel } from "./ReferencePicker.js";
+
+const BASE = "https://fhir.example.test/fhir";
+const server = setupServer();
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+const wrap = () => {
+  const client = new FetchFhirClient({ baseUrl: BASE });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 0 } },
+  });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>
+      <FhirClientProvider client={client}>{children}</FhirClientProvider>
+    </QueryClientProvider>
+  );
+};
+
+describe("referenceLabel", () => {
+  it("uses text on a HumanName", () => {
+    expect(
+      referenceLabel({
+        resourceType: "Patient",
+        id: "1",
+        name: [{ text: "Ada Lovelace" }],
+      } as never),
+    ).toBe("Ada Lovelace");
+  });
+
+  it("joins given + family when text is absent", () => {
+    expect(
+      referenceLabel({
+        resourceType: "Patient",
+        id: "1",
+        name: [{ given: ["Ada"], family: "Lovelace" }],
+      } as never),
+    ).toBe("Ada Lovelace");
+  });
+
+  it("uses organization name (string) when present", () => {
+    expect(
+      referenceLabel({
+        resourceType: "Organization",
+        id: "o1",
+        name: "Acme Health",
+      } as never),
+    ).toBe("Acme Health");
+  });
+
+  it("falls back to CodeableConcept.text on observation-shaped resources", () => {
+    expect(
+      referenceLabel({
+        resourceType: "Observation",
+        id: "obs1",
+        code: { text: "Heart rate" },
+      } as never),
+    ).toBe("Heart rate");
+  });
+
+  it("last-resort fallback: Type/id", () => {
+    expect(
+      referenceLabel({ resourceType: "Device", id: "dev-1" } as never),
+    ).toBe("Device/dev-1");
+  });
+});
+
+describe("ReferencePicker", () => {
+  const patients = [
+    { resourceType: "Patient", id: "p1", name: [{ given: ["Ada"], family: "Lovelace" }] },
+    { resourceType: "Patient", id: "p2", name: [{ given: ["Alan"], family: "Turing" }] },
+  ];
+
+  it("searches when the user types and picks a resource on click", async () => {
+    server.use(
+      http.get(`${BASE}/Patient`, ({ request }) => {
+        const q = new URL(request.url).searchParams.get("name");
+        const match = patients.filter((p) =>
+          (p.name[0]?.family ?? "").toLowerCase().includes((q ?? "").toLowerCase()),
+        );
+        return HttpResponse.json({
+          resourceType: "Bundle",
+          type: "searchset",
+          entry: match.map((r) => ({ resource: r })),
+        });
+      }),
+    );
+
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ReferencePicker targets={["Patient"]} value={undefined} onChange={onChange} debounceMs={0} />,
+      { wrapper: wrap() },
+    );
+
+    await user.type(screen.getByRole("searchbox", { name: /search patient/i }), "Lovelace");
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /Ada Lovelace/ })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("option", { name: /Ada Lovelace/ }));
+    expect(onChange).toHaveBeenCalledWith({
+      reference: "Patient/p1",
+      display: "Ada Lovelace",
+    });
+  });
+
+  it("shows a clear button for an already-selected reference and resets on click", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const value: Reference = { reference: "Patient/p1", display: "Ada Lovelace" };
+    render(<ReferencePicker targets={["Patient"]} value={value} onChange={onChange} />, {
+      wrapper: wrap(),
+    });
+    await user.click(screen.getByRole("button", { name: /clear reference/i }));
+    expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it("shows a target type switcher when multiple targets are allowed", () => {
+    render(
+      <ReferencePicker
+        targets={["Patient", "Practitioner"]}
+        value={undefined}
+        onChange={() => {}}
+      />,
+      { wrapper: wrap() },
+    );
+    const typeSelect = screen.getByRole("combobox", { name: "target type" });
+    expect(typeSelect).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Patient" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Practitioner" })).toBeInTheDocument();
+  });
+
+  it("surfaces empty-state when nothing matches", async () => {
+    server.use(
+      http.get(`${BASE}/Patient`, () =>
+        HttpResponse.json({
+          resourceType: "Bundle",
+          type: "searchset",
+          entry: [],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    render(
+      <ReferencePicker targets={["Patient"]} value={undefined} onChange={() => {}} debounceMs={0} />,
+      { wrapper: wrap() },
+    );
+    await user.type(screen.getByRole("searchbox", { name: /search patient/i }), "zzz");
+    await waitFor(() =>
+      expect(screen.getByText(/no matches/i)).toBeInTheDocument(),
+    );
+  });
+});
