@@ -1,27 +1,200 @@
 # fhir-place
 
-A React component library for building FHIR resource viewers and editors driven by the FHIR specification itself (StructureDefinition, SearchParameter, CapabilityStatement). Minimal resource-specific code — everything is derived from the spec's own metadata, so the library works natively against any FHIR REST API.
+A React component library for building FHIR resource viewers and editors driven by the FHIR specification itself (`StructureDefinition`, `SearchParameter`, `CapabilityStatement`). Minimal resource-specific code — everything derives from the spec's own metadata, so the library works natively against any FHIR REST API.
+
+**Live demo:** <https://samsuffolksperoni.github.io/fhir-place/>
 
 ## Status
-Early alpha. R4 first. MIT licensed.
+
+Early alpha. R4 first. MIT licensed. Safe to depend on for prototypes and side projects; expect breaking changes before 1.0.
+
+- **94 unit tests** (Vitest + MSW + jsdom)
+- **Playwright e2e + screenshots** (patient list, detail, mobile, create / edit / delete, search)
+- **Nightly live-HAPI integration suite** covers full CRUD, reference resolution, CapabilityStatement + StructureDefinition walks
 
 ## Packages
-- `packages/react-fhir` — the component library (client, hooks, generic renderers)
-- `apps/demo` — a development/demo app pointed at the public HAPI server
 
-## Dev
+| Path | What it is |
+| --- | --- |
+| `packages/react-fhir` | the component library (client, hooks, generic renderers, spec-driven view/edit/search) |
+| `apps/demo` | a development/demo app — ships with MSW in-browser mock FHIR so it runs offline |
+
+## Install (in your app)
+
 ```bash
-pnpm install
-pnpm dev                                          # runs the demo app (MSW mock FHIR in-browser)
-pnpm test                                         # unit tests (jsdom + MSW)
-pnpm --filter @fhir-place/demo e2e                # Playwright screenshot suite
-pnpm --filter @fhir-place/react-fhir test:integration   # live-server integration (defaults to public HAPI R4)
+pnpm add @fhir-place/react-fhir @tanstack/react-query react react-dom
 ```
 
-Integration tests target `FHIR_BASE_URL` (defaults to `https://hapi.fhir.org/baseR4`) and are also run nightly in CI — see [`packages/react-fhir/integration/README.md`](packages/react-fhir/integration/README.md).
+The package is workspace-only for now; while we're pre-1.0, either vendor it or install from this repo via pnpm `overrides`. A published npm release lands with 1.0.
+
+## Quick start
+
+```tsx
+import {
+  FetchFhirClient,
+  FhirClientProvider,
+  ResourceView,
+  ResourceEditor,
+  ResourceSearch,
+  useSearch,
+  useResource,
+  useCreateResource,
+} from "@fhir-place/react-fhir";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient();
+const fhir = new FetchFhirClient({
+  baseUrl: "https://hapi.fhir.org/baseR4",
+  // Optional: bearer token, per-request or static
+  // getHeaders: async () => ({ Authorization: `Bearer ${await getToken()}` }),
+});
+
+export function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <FhirClientProvider client={fhir}>
+        <YourPages />
+      </FhirClientProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+### Read a resource
+
+```tsx
+function PatientDetail({ id }: { id: string }) {
+  const { data: patient } = useResource<Patient>("Patient", id);
+  if (!patient) return null;
+  return <ResourceView resource={patient} />;
+}
+```
+
+### Edit / create
+
+```tsx
+function PatientEditor({ initial }: { initial: Patient }) {
+  const update = useUpdateResource<Patient>();
+  return (
+    <ResourceEditor
+      resource={initial}
+      saving={update.isPending}
+      onSave={(draft) => update.mutateAsync(draft as Patient & { id: string })}
+    />
+  );
+}
+```
+
+### Search
+
+```tsx
+function Patients() {
+  const [params, setParams] = useState<SearchParams>({ _count: 20 });
+  const { data } = useSearch<Patient>("Patient", params);
+  return (
+    <>
+      <ResourceSearch
+        resourceType="Patient"
+        priorityParams={["name", "family", "gender", "birthdate"]}
+        onSubmit={setParams}
+      />
+      <ul>
+        {data?.entry?.map((e) => (
+          <li key={e.resource!.id}>{e.resource!.name?.[0]?.family}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+## What's in the library
+
+### `client/`
+- **`FhirClient` interface** — `read`, `vread`, `history`, `search`, `create`, `update`, `patch` (JSON Patch), `delete`, `readReference` (relative + absolute), generic `request()` escape hatch
+- **`FetchFhirClient`** — the only shipped implementation. Supports `If-Match` / `If-None-Match` / `If-None-Exist`, static + dynamic headers, `AbortSignal`, custom `fetch`
+- **`FhirError`** — carries status, URL, and `OperationOutcome` from the server when available
+
+### `hooks/`
+- **`FhirClientProvider` / `useFhirClient`** — context
+- **`useResource`, `useSearch`, `useCapabilities`, `useStructureDefinition`, `useReadReference`** — TanStack Query wrappers with stable query keys (`fhirQueryKeys`)
+- **`useCreateResource`, `useUpdateResource`, `useDeleteResource`** — mutations that invalidate matching read queries on success
+
+### `structure/`
+- **`walkResource` / `walkObject`** — iterate a StructureDefinition snapshot, yield present elements in canonical order, resolve `[x]` choice types
+- **`directChildren`, `findElement`** — querying SDs
+- **`pathGet` / `pathSet` / `pathRemove` / `prune`** — immutable helpers used by the editor
+
+### `components/`
+- **`<ResourceView>`** — spec-driven read-only view. Dispatches by FHIR datatype; falls back to JSON for unknowns. Recurses into BackboneElements. Zero resource-specific code.
+- **`<ResourceEditor>`** — spec-driven form. Inputs for every R4 primitive + HumanName, Address, ContactPoint, Identifier, Reference, Period, Quantity, Coding, CodeableConcept. BackboneElement recursion. Arrays with add/remove; choice-type switching clears the other variant. `onChange` on every keystroke; `onSave` receives a pruned draft.
+- **`<ResourceSearch>`** — form driven by `CapabilityStatement.rest[].resource[].searchParam`. Type-aware placeholders (token, date, reference, number, quantity, uri). Priority params + "show more" toggle.
+- **`<Narrative>`** — the *only* place `dangerouslySetInnerHTML` is allowed. DOMPurify with a FHIR-appropriate allowlist: no `<script>`, no `on*`, no `javascript:`, no forms or inputs.
+- **`defaultTypeRenderers` / `defaultTypeInputs`** — the dispatch maps. Every built-in renderer/input is overridable by passing `renderers` / `inputs` props.
 
 ## Design principles
-- **Spec-driven.** UI is generated from StructureDefinition / SearchParameter, not hand-written per resource type.
-- **Server-agnostic.** Plain FHIR REST via a `FhirClient` interface. No SDK lock-in.
-- **Safe by default.** All narrative (`Resource.text.div`) is sanitized with DOMPurify.
-- **Tree-shakeable, typed.** Ships ESM + types.
+
+- **Spec-driven.** UI derives from StructureDefinition / SearchParameter, not hand-written per resource type.
+- **Server-agnostic.** Plain FHIR REST via a `FhirClient` interface; no vendor SDK lock-in. The demo works against the public HAPI server, a docker-compose HAPI, or (via MSW) no server at all.
+- **Safe by default.** Narrative sanitised with DOMPurify; a lint rule keeps `dangerouslySetInnerHTML` out of every other file.
+- **Escape hatches everywhere.** Pass `renderers` / `inputs` to override any datatype. Use `client.request()` for custom operations. Subclass `FetchFhirClient` for custom auth.
+- **Tree-shakeable, typed.** ESM + `.d.ts`; subpath exports `@fhir-place/react-fhir/client`, `/hooks`, `/structure`, `/components`.
+
+## Dev
+
+```bash
+pnpm install
+pnpm dev                                          # demo app + in-browser MSW mock FHIR (Vite on :5173)
+pnpm test                                         # unit tests (jsdom + MSW)
+pnpm -r typecheck                                 # all packages
+pnpm --filter @fhir-place/demo e2e                # Playwright incl. screenshots (screenshots/)
+pnpm --filter @fhir-place/react-fhir test:integration    # live-server integration, defaults to https://hapi.fhir.org/baseR4
+```
+
+The demo defaults to MSW in dev. To point it at a real server:
+
+```bash
+# public HAPI
+VITE_USE_MOCK=false VITE_FHIR_BASE_URL=https://hapi.fhir.org/baseR4 pnpm dev
+
+# local docker HAPI (starts a R4 server on :8080 with persistent data)
+docker compose up -d
+VITE_USE_MOCK=false VITE_FHIR_BASE_URL=http://localhost:8080/fhir pnpm dev
+```
+
+### CI layout
+
+- **`.github/workflows/ci.yml`** — typecheck + unit tests + library/demo build on every PR
+- **`.github/workflows/pages.yml`** — builds the demo (mock mode) and deploys to GitHub Pages on push to `main`
+- **`.github/workflows/integration.yml`** — runs the live-HAPI suite nightly at 05:00 UTC, on push to `main`, and via manual dispatch. PRs skip it so HAPI flakiness can't block unrelated work.
+
+## Building your own FHIR app on this library
+
+The components are a toolbox, not a framework. Typical pattern for a new app:
+
+1. **Wire a `FhirClient`** — point at your server, plug in auth via `headers` or `getHeaders`.
+2. **Hook a Resource list page** — call `useSearch<YourType>(...)` directly and render the results however you want. `<ResourceSearch>` gives you a driven filter form.
+3. **Hook a detail page** — `<ResourceView resource={...} />`.
+4. **Hook create/edit** — `<ResourceEditor resource={...} onSave={...} />`.
+5. **Override per-type UX** where needed — pass `renderers` or `inputs` to swap in app-specific widgets (e.g. a signature pad for `Signature`, a chart for repeated `Observation.valueQuantity`).
+6. **Resource-specific workflow** — put business logic (e.g. Task state transitions, Goal progress calculations) in your own hooks alongside the library's generic hooks.
+
+### Known gaps (roadmap)
+
+Honest list of what's missing if you're building a real app today:
+
+- **ValueSet resolution.** `code` fields render as a `<select>` only when the SD's `short` contains `a | b | c` pasted by the spec authors. Most real bindings aren't inline — we need `useValueSet(canonical)` + a binding-aware code input.
+- **Reference picker.** `ReferenceInput` is a raw `Type/id` text box; real apps want "search Patient by name, pick one."
+- **`<ResourceTable>`** — we ship `<ResourceView>` (detail) and `<ResourceSearch>` (filter form) but not a list/table component.
+- **Pagination.** `useSearch` returns a single Bundle; it doesn't yet follow `Bundle.link[rel=next]`.
+- **Extensions.** `<ResourceEditor>` skips `extension` / `modifierExtension` by default. Many real profiles lean on them.
+- **Profile support.** `useStructureDefinition` fetches base types; taking a profile canonical URL is a small change we haven't made.
+- **SMART on FHIR v2 auth.** Deferred. Bearer-token auth works via `FhirClient.getHeaders`; launch flows need a dedicated adapter.
+- **R4B / R5.** R4 only for v1. The `FhirClient` interface will grow a `fhirVersion` discriminator for version-specific code.
+- **Subscriptions / realtime.** Out of scope; poll with TanStack Query's `refetchInterval` for now.
+
+PRs welcome — see each item above as a good first issue. For gaps that block your app, open an issue describing the use case and we can prioritise.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
