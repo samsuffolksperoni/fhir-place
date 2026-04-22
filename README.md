@@ -25,7 +25,7 @@ Early alpha. R4 first. MIT licensed. Safe to depend on for prototypes and side p
 pnpm add @fhir-place/react-fhir @tanstack/react-query react react-dom
 ```
 
-The package is workspace-only for now; while we're pre-1.0, either vendor it or install from this repo via pnpm `overrides`. A published npm release lands with 1.0.
+Published on npm as of 0.1.0. Pre-1.0, expect minor-version bumps to include breaking changes — check the changelog before upgrading. Versioning is managed via [changesets](https://github.com/changesets/changesets); see [CONTRIBUTING](CONTRIBUTING.md) for how to ship a PR with a changeset.
 
 ## Quick start
 
