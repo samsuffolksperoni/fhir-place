@@ -17,6 +17,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Build the library first so the demo app can resolve its .d.ts files
+      # during typecheck (demo depends on @fhir-place/react-fhir via workspace).
+      - run: pnpm --filter @fhir-place/react-fhir build
       - run: pnpm -r typecheck
       - run: pnpm --filter @fhir-place/react-fhir test:run
-      - run: pnpm -r build
+      - run: pnpm --filter @fhir-place/demo build
