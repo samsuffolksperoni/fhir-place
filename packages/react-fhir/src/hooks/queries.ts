@@ -13,6 +13,7 @@ import type {
   StructureDefinition,
 } from "fhir/r4";
 import type { FhirClient, SearchParams } from "../client/types.js";
+import { resolveStructureDefinition } from "../structure/resolve.js";
 import { useFhirClient } from "./FhirClientProvider.js";
 
 /** Stable query keys so callers can target them with invalidate/refetch. */
@@ -78,8 +79,7 @@ export function useStructureDefinition(
   const client = useFhirClient();
   return useQuery({
     queryKey: fhirQueryKeys.structure(client.baseUrl, type),
-    queryFn: ({ signal }) =>
-      client.read<StructureDefinition>("StructureDefinition", type, { signal }),
+    queryFn: ({ signal }) => resolveStructureDefinition(client, type, { signal }),
     staleTime: 60 * 60_000,
     ...options,
   });
