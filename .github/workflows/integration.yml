@@ -1,0 +1,44 @@
+name: Integration tests (live HAPI)
+
+on:
+  schedule:
+    # 05:00 UTC nightly — catches HAPI protocol drift without blocking daytime merges.
+    - cron: "0 5 * * *"
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      fhir_base_url:
+        description: "FHIR server base URL to target"
+        required: false
+        default: "https://hapi.fhir.org/baseR4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    # Public HAPI can be flaky. The job should surface failures clearly in the
+    # Actions tab without forcing anyone to babysit it. continue-on-error is
+    # NOT set because we *do* want a red square when HAPI is genuinely broken
+    # — the nightly schedule means it's not blocking human work.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @fhir-place/react-fhir build
+      - name: Run integration suite against live FHIR server
+        env:
+          FHIR_BASE_URL: ${{ inputs.fhir_base_url || 'https://hapi.fhir.org/baseR4' }}
+          SKIP_IF_UNREACHABLE: "1"
+        run: pnpm --filter @fhir-place/react-fhir test:integration
