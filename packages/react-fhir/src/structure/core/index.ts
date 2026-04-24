@@ -20,10 +20,31 @@ export async function coreStructureDefinition(
       return (await import("./Patient.js")).PatientStructureDefinition;
     case "Observation":
       return (await import("./Observation.js")).ObservationStructureDefinition;
+    case "Condition":
+      return (await import("./Condition.js")).ConditionStructureDefinition;
+    case "MedicationRequest":
+      return (await import("./MedicationRequest.js")).MedicationRequestStructureDefinition;
+    case "AllergyIntolerance":
+      return (await import("./AllergyIntolerance.js")).AllergyIntoleranceStructureDefinition;
+    case "Procedure":
+      return (await import("./Procedure.js")).ProcedureStructureDefinition;
+    case "Encounter":
+      return (await import("./Encounter.js")).EncounterStructureDefinition;
+    case "Immunization":
+      return (await import("./Immunization.js")).ImmunizationStructureDefinition;
     default:
       return undefined;
   }
 }
 
 /** The resource types the library ships bundled core SDs for. */
-export const bundledCoreTypes = ["Patient", "Observation"] as const;
+export const bundledCoreTypes = [
+  "Patient",
+  "Observation",
+  "Condition",
+  "MedicationRequest",
+  "AllergyIntolerance",
+  "Procedure",
+  "Encounter",
+  "Immunization",
+] as const;

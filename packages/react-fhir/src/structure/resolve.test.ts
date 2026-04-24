@@ -123,7 +123,7 @@ describe("resolveStructureDefinition", () => {
 
   it("throws a friendly error when every fallback fails", async () => {
     server.use(
-      http.get(`${BASE}/StructureDefinition/Encounter`, () =>
+      http.get(`${BASE}/StructureDefinition/ServiceRequest`, () =>
         new HttpResponse(null, { status: 404 }),
       ),
       http.get(`${BASE}/StructureDefinition`, () =>
@@ -135,8 +135,8 @@ describe("resolveStructureDefinition", () => {
       ),
     );
     await expect(
-      resolveStructureDefinition(mkClient(), "Encounter"),
-    ).rejects.toThrow(/Could not resolve StructureDefinition for "Encounter"/);
+      resolveStructureDefinition(mkClient(), "ServiceRequest"),
+    ).rejects.toThrow(/Could not resolve StructureDefinition for "ServiceRequest"/);
   });
 
   it("does not mask genuine errors (500) with the bundled fallback", async () => {

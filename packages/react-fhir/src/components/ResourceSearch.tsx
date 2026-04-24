@@ -11,6 +11,7 @@ import {
 import type { SearchParams } from "../client/types.js";
 import { bindingFor, codesFromValueSet } from "../structure/binding.js";
 import { elementPathForSearchParam } from "../structure/searchBinding.js";
+import { clipSearchParamDoc } from "../structure/searchDoc.js";
 import { findElement } from "../structure/walker.js";
 
 export interface ResourceSearchProps {
@@ -186,20 +187,25 @@ interface SearchFieldProps {
   onChange: (v: string) => void;
 }
 
-const fieldWrapper = (children: ReactNode, param: CapabilityStatementRestResourceSearchParam): ReactNode => (
-  <label className="block">
-    <span className="mb-1 flex items-baseline justify-between gap-2">
-      <span className="text-xs font-medium text-slate-600">{param.name}</span>
-      <span className="text-[10px] uppercase text-slate-400">{param.type}</span>
-    </span>
-    {children}
-    {param.documentation && (
-      <span className="mt-0.5 block text-[11px] text-slate-400">
-        {param.documentation}
+const fieldWrapper = (
+  children: ReactNode,
+  param: CapabilityStatementRestResourceSearchParam,
+  base: string,
+): ReactNode => {
+  const doc = clipSearchParamDoc(param.documentation, base);
+  return (
+    <label className="block">
+      <span className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-xs font-medium text-slate-600">{param.name}</span>
+        <span className="text-[10px] uppercase text-slate-400">{param.type}</span>
       </span>
-    )}
-  </label>
-);
+      {children}
+      {doc && (
+        <span className="mt-0.5 block text-[11px] text-slate-400">{doc}</span>
+      )}
+    </label>
+  );
+};
 
 function SearchField({ base, param, value, onChange }: SearchFieldProps): ReactNode {
   if (param.type === "token") {
@@ -208,7 +214,7 @@ function SearchField({ base, param, value, onChange }: SearchFieldProps): ReactN
     );
   }
   if (param.type === "date") {
-    return <DateSearchField param={param} value={value} onChange={onChange} />;
+    return <DateSearchField base={base} param={param} value={value} onChange={onChange} />;
   }
   return fieldWrapper(
     <input
@@ -220,6 +226,7 @@ function SearchField({ base, param, value, onChange }: SearchFieldProps): ReactN
       className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
     />,
     param,
+    base,
   );
 }
 
@@ -259,11 +266,12 @@ function TokenSearchField({ base, param, value, onChange }: SearchFieldProps): R
         className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm"
       />,
       param,
+      base,
     );
   }
 
   if (codes.length === 0 || codes.length > 100) {
-    return fieldWrapper(fallbackInput, param);
+    return fieldWrapper(fallbackInput, param, base);
   }
 
   return fieldWrapper(
@@ -281,6 +289,7 @@ function TokenSearchField({ base, param, value, onChange }: SearchFieldProps): R
       ))}
     </select>,
     param,
+    base,
   );
 }
 
@@ -306,6 +315,7 @@ const DATE_PREFIXES: DatePrefixOption[] = [
 ];
 
 interface DateSearchFieldProps {
+  base: string;
   param: CapabilityStatementRestResourceSearchParam;
   value: string;
   onChange: (v: string) => void;
@@ -317,7 +327,7 @@ interface DateSearchFieldProps {
  * in sync with whatever the parent holds — e.g. `ge2024-01-01` splits into
  * prefix="ge" + date="2024-01-01".
  */
-function DateSearchField({ param, value, onChange }: DateSearchFieldProps): ReactNode {
+function DateSearchField({ base, param, value, onChange }: DateSearchFieldProps): ReactNode {
   const match = value.match(/^(eq|ne|lt|le|gt|ge|ap)?(\d{4}-\d{2}-\d{2})?$/);
   const prefix = (match?.[1] ?? "") as DatePrefix | "";
   const date = match?.[2] ?? "";
@@ -350,6 +360,7 @@ function DateSearchField({ param, value, onChange }: DateSearchFieldProps): Reac
       />
     </div>,
     param,
+    base,
   );
 }
 

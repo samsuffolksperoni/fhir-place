@@ -1,0 +1,35 @@
+import type { StructureDefinition } from "fhir/r4";
+
+export const MedicationRequestStructureDefinition: StructureDefinition = {
+  resourceType: "StructureDefinition",
+  id: "MedicationRequest",
+  url: "http://hl7.org/fhir/StructureDefinition/MedicationRequest",
+  name: "MedicationRequest",
+  status: "active",
+  kind: "resource",
+  abstract: false,
+  type: "MedicationRequest",
+  baseDefinition: "http://hl7.org/fhir/StructureDefinition/DomainResource",
+  derivation: "specialization",
+  snapshot: {
+    element: [
+      { id: "MedicationRequest", path: "MedicationRequest", min: 0, max: "*", short: "Ordering of medication for patient or group" },
+      { id: "MedicationRequest.id", path: "MedicationRequest.id", min: 0, max: "1", short: "Logical id of this artifact", type: [{ code: "id" }] },
+      { id: "MedicationRequest.meta", path: "MedicationRequest.meta", min: 0, max: "1", short: "Metadata about the resource", type: [{ code: "Meta" }] },
+      { id: "MedicationRequest.identifier", path: "MedicationRequest.identifier", min: 0, max: "*", short: "External ids for this request", type: [{ code: "Identifier" }] },
+      { id: "MedicationRequest.status", path: "MedicationRequest.status", min: 1, max: "1", short: "active | on-hold | cancelled | completed | entered-in-error | stopped | draft | unknown", type: [{ code: "code" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/medicationrequest-status" } },
+      { id: "MedicationRequest.statusReason", path: "MedicationRequest.statusReason", min: 0, max: "1", short: "Reason for current status", type: [{ code: "CodeableConcept" }] },
+      { id: "MedicationRequest.intent", path: "MedicationRequest.intent", min: 1, max: "1", short: "proposal | plan | order | original-order | reflex-order | filler-order | instance-order | option", type: [{ code: "code" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/medicationrequest-intent" } },
+      { id: "MedicationRequest.category", path: "MedicationRequest.category", min: 0, max: "*", short: "Type of medication usage", type: [{ code: "CodeableConcept" }] },
+      { id: "MedicationRequest.priority", path: "MedicationRequest.priority", min: 0, max: "1", short: "routine | urgent | asap | stat", type: [{ code: "code" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/request-priority" } },
+      { id: "MedicationRequest.medication[x]", path: "MedicationRequest.medication[x]", min: 1, max: "1", short: "Medication to be taken", type: [{ code: "CodeableConcept" }, { code: "Reference" }] },
+      { id: "MedicationRequest.subject", path: "MedicationRequest.subject", min: 1, max: "1", short: "Who or group medication request is for", type: [{ code: "Reference" }] },
+      { id: "MedicationRequest.encounter", path: "MedicationRequest.encounter", min: 0, max: "1", short: "Encounter created as part of encounter/admission/stay", type: [{ code: "Reference" }] },
+      { id: "MedicationRequest.authoredOn", path: "MedicationRequest.authoredOn", min: 0, max: "1", short: "When request was initially authored", type: [{ code: "dateTime" }] },
+      { id: "MedicationRequest.requester", path: "MedicationRequest.requester", min: 0, max: "1", short: "Who/What requested the Request", type: [{ code: "Reference" }] },
+      { id: "MedicationRequest.reasonCode", path: "MedicationRequest.reasonCode", min: 0, max: "*", short: "Reason or indication for ordering or not ordering the medication", type: [{ code: "CodeableConcept" }] },
+      { id: "MedicationRequest.reasonReference", path: "MedicationRequest.reasonReference", min: 0, max: "*", short: "Condition or observation that supports why the prescription is being written", type: [{ code: "Reference" }] },
+      { id: "MedicationRequest.note", path: "MedicationRequest.note", min: 0, max: "*", short: "Information about the prescription", type: [{ code: "Annotation" }] },
+    ],
+  },
+};

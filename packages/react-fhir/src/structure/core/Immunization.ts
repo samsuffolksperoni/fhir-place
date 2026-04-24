@@ -1,0 +1,38 @@
+import type { StructureDefinition } from "fhir/r4";
+
+export const ImmunizationStructureDefinition: StructureDefinition = {
+  resourceType: "StructureDefinition",
+  id: "Immunization",
+  url: "http://hl7.org/fhir/StructureDefinition/Immunization",
+  name: "Immunization",
+  status: "active",
+  kind: "resource",
+  abstract: false,
+  type: "Immunization",
+  baseDefinition: "http://hl7.org/fhir/StructureDefinition/DomainResource",
+  derivation: "specialization",
+  snapshot: {
+    element: [
+      { id: "Immunization", path: "Immunization", min: 0, max: "*", short: "Immunization event information" },
+      { id: "Immunization.id", path: "Immunization.id", min: 0, max: "1", short: "Logical id of this artifact", type: [{ code: "id" }] },
+      { id: "Immunization.meta", path: "Immunization.meta", min: 0, max: "1", short: "Metadata about the resource", type: [{ code: "Meta" }] },
+      { id: "Immunization.identifier", path: "Immunization.identifier", min: 0, max: "*", short: "Business identifier", type: [{ code: "Identifier" }] },
+      { id: "Immunization.status", path: "Immunization.status", min: 1, max: "1", short: "completed | entered-in-error | not-done", type: [{ code: "code" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/immunization-status" } },
+      { id: "Immunization.statusReason", path: "Immunization.statusReason", min: 0, max: "1", short: "Reason not done", type: [{ code: "CodeableConcept" }] },
+      { id: "Immunization.vaccineCode", path: "Immunization.vaccineCode", min: 1, max: "1", short: "Vaccine product administered", type: [{ code: "CodeableConcept" }] },
+      { id: "Immunization.patient", path: "Immunization.patient", min: 1, max: "1", short: "Who was immunized", type: [{ code: "Reference" }] },
+      { id: "Immunization.encounter", path: "Immunization.encounter", min: 0, max: "1", short: "Encounter immunization was part of", type: [{ code: "Reference" }] },
+      { id: "Immunization.occurrence[x]", path: "Immunization.occurrence[x]", min: 1, max: "1", short: "Vaccine administration date", type: [{ code: "dateTime" }, { code: "string" }] },
+      { id: "Immunization.recorded", path: "Immunization.recorded", min: 0, max: "1", short: "When the immunization was first captured in the subject's record", type: [{ code: "dateTime" }] },
+      { id: "Immunization.primarySource", path: "Immunization.primarySource", min: 0, max: "1", short: "Indicates context the data was recorded in", type: [{ code: "boolean" }] },
+      { id: "Immunization.location", path: "Immunization.location", min: 0, max: "1", short: "Where immunization occurred", type: [{ code: "Reference" }] },
+      { id: "Immunization.manufacturer", path: "Immunization.manufacturer", min: 0, max: "1", short: "Vaccine manufacturer", type: [{ code: "Reference" }] },
+      { id: "Immunization.lotNumber", path: "Immunization.lotNumber", min: 0, max: "1", short: "Vaccine lot number", type: [{ code: "string" }] },
+      { id: "Immunization.expirationDate", path: "Immunization.expirationDate", min: 0, max: "1", short: "Vaccine expiration date", type: [{ code: "date" }] },
+      { id: "Immunization.site", path: "Immunization.site", min: 0, max: "1", short: "Body site vaccine was administered", type: [{ code: "CodeableConcept" }] },
+      { id: "Immunization.route", path: "Immunization.route", min: 0, max: "1", short: "How vaccine entered body", type: [{ code: "CodeableConcept" }] },
+      { id: "Immunization.doseQuantity", path: "Immunization.doseQuantity", min: 0, max: "1", short: "Amount of vaccine administered", type: [{ code: "Quantity" }] },
+      { id: "Immunization.note", path: "Immunization.note", min: 0, max: "*", short: "Additional immunization notes", type: [{ code: "Annotation" }] },
+    ],
+  },
+};

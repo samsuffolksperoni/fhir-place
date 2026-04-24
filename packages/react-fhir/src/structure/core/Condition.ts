@@ -1,0 +1,36 @@
+import type { StructureDefinition } from "fhir/r4";
+
+export const ConditionStructureDefinition: StructureDefinition = {
+  resourceType: "StructureDefinition",
+  id: "Condition",
+  url: "http://hl7.org/fhir/StructureDefinition/Condition",
+  name: "Condition",
+  status: "active",
+  kind: "resource",
+  abstract: false,
+  type: "Condition",
+  baseDefinition: "http://hl7.org/fhir/StructureDefinition/DomainResource",
+  derivation: "specialization",
+  snapshot: {
+    element: [
+      { id: "Condition", path: "Condition", min: 0, max: "*", short: "Detailed information about conditions, problems or diagnoses" },
+      { id: "Condition.id", path: "Condition.id", min: 0, max: "1", short: "Logical id of this artifact", type: [{ code: "id" }] },
+      { id: "Condition.meta", path: "Condition.meta", min: 0, max: "1", short: "Metadata about the resource", type: [{ code: "Meta" }] },
+      { id: "Condition.identifier", path: "Condition.identifier", min: 0, max: "*", short: "External Ids for this condition", type: [{ code: "Identifier" }] },
+      { id: "Condition.clinicalStatus", path: "Condition.clinicalStatus", min: 0, max: "1", short: "active | recurrence | relapse | inactive | remission | resolved", type: [{ code: "CodeableConcept" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/condition-clinical" } },
+      { id: "Condition.verificationStatus", path: "Condition.verificationStatus", min: 0, max: "1", short: "unconfirmed | provisional | differential | confirmed | refuted | entered-in-error", type: [{ code: "CodeableConcept" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/condition-ver-status" } },
+      { id: "Condition.category", path: "Condition.category", min: 0, max: "*", short: "problem-list-item | encounter-diagnosis", type: [{ code: "CodeableConcept" }] },
+      { id: "Condition.severity", path: "Condition.severity", min: 0, max: "1", short: "Subjective severity of condition", type: [{ code: "CodeableConcept" }] },
+      { id: "Condition.code", path: "Condition.code", min: 0, max: "1", short: "Identification of the condition, problem or diagnosis", type: [{ code: "CodeableConcept" }] },
+      { id: "Condition.bodySite", path: "Condition.bodySite", min: 0, max: "*", short: "Anatomical location, if relevant", type: [{ code: "CodeableConcept" }] },
+      { id: "Condition.subject", path: "Condition.subject", min: 1, max: "1", short: "Who has the condition?", type: [{ code: "Reference" }] },
+      { id: "Condition.encounter", path: "Condition.encounter", min: 0, max: "1", short: "Encounter created as part of", type: [{ code: "Reference" }] },
+      { id: "Condition.onset[x]", path: "Condition.onset[x]", min: 0, max: "1", short: "Estimated or actual date, date-time, or age", type: [{ code: "dateTime" }, { code: "Age" }, { code: "Period" }, { code: "Range" }, { code: "string" }] },
+      { id: "Condition.abatement[x]", path: "Condition.abatement[x]", min: 0, max: "1", short: "When in resolution/remission", type: [{ code: "dateTime" }, { code: "Age" }, { code: "Period" }, { code: "Range" }, { code: "string" }] },
+      { id: "Condition.recordedDate", path: "Condition.recordedDate", min: 0, max: "1", short: "Date record was first recorded", type: [{ code: "dateTime" }] },
+      { id: "Condition.recorder", path: "Condition.recorder", min: 0, max: "1", short: "Who recorded the condition", type: [{ code: "Reference" }] },
+      { id: "Condition.asserter", path: "Condition.asserter", min: 0, max: "1", short: "Person who asserts this condition", type: [{ code: "Reference" }] },
+      { id: "Condition.note", path: "Condition.note", min: 0, max: "*", short: "Additional information about the Condition", type: [{ code: "Annotation" }] },
+    ],
+  },
+};
