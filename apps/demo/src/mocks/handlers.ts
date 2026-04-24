@@ -1,11 +1,18 @@
 import { http, HttpResponse } from "msw";
-import type { Patient } from "fhir/r4";
+import type { Patient, Resource } from "fhir/r4";
 import { FHIR_BASE_URL } from "../config.js";
 import {
+  allergiesFor,
+  compartmentStructureDefinitions,
+  conditionsFor,
+  encountersFor,
+  immunizationsFor,
+  medicationRequestsFor,
   observationsFor,
   observationStructureDefinition,
   patients,
   patientStructureDefinition,
+  proceduresFor,
   searchBundle,
 } from "./fixtures.js";
 
@@ -87,6 +94,12 @@ export const handlers = [
   ),
   http.get(`*${BASE}/StructureDefinition/Observation`, () =>
     okJson(observationStructureDefinition),
+  ),
+  // Minimal SDs for compartment types so ResourceView / ResourceEditor
+  // don't hard-fail when the user clicks into a Condition / MedicationRequest /
+  // AllergyIntolerance / etc.
+  ...compartmentStructureDefinitions.map((sd) =>
+    http.get(`*${BASE}/StructureDefinition/${sd.type}`, () => okJson(sd)),
   ),
 
   http.get(`*${BASE}/Patient`, ({ request }) => {
@@ -179,4 +192,73 @@ export const handlers = [
     const id = subject?.replace(/^Patient\//, "") ?? "";
     return okJson(searchBundle(observationsFor(id)));
   }),
+
+  // Compartment search + instance-read handlers. Searches scope by
+  // `?patient=` / `?subject=`; instance reads look the id up in the
+  // preseeded fixture set.
+  ...(() => {
+    const patientIdFromRequest = (request: Request): string => {
+      const qp = new URL(request.url).searchParams;
+      const ref = qp.get("patient") ?? qp.get("subject");
+      return ref?.replace(/^Patient\//, "") ?? "";
+    };
+    // All fixture patients we have data for. Today only "ada".
+    const ALL_PATIENT_IDS = ["ada"];
+    const compartmentHandlers = <T extends Resource>(
+      type: string,
+      source: (id: string) => T[],
+    ) => {
+      const store = new Map<string, T>();
+      for (const pid of ALL_PATIENT_IDS) {
+        for (const r of source(pid)) {
+          if (r.id) store.set(r.id, r);
+        }
+      }
+      return [
+        http.get(`*${BASE}/${type}`, ({ request }) =>
+          okJson(searchBundle(source(patientIdFromRequest(request)))),
+        ),
+        http.get(`*${BASE}/${type}/:id`, ({ params }) => {
+          const hit = store.get(String(params.id));
+          if (hit) return okJson(hit);
+          return okJson(
+            {
+              resourceType: "OperationOutcome",
+              issue: [
+                { severity: "error", code: "not-found", diagnostics: `${type}/${params.id} not found` },
+              ],
+            },
+            { status: 404 },
+          );
+        }),
+        http.put(`*${BASE}/${type}/:id`, async ({ params, request }) => {
+          const id = String(params.id);
+          const body = (await request.json()) as T;
+          const prev = store.get(id);
+          const versionId = String(
+            Number((prev as { meta?: { versionId?: string } } | undefined)?.meta?.versionId ?? "0") + 1,
+          );
+          const updated = {
+            ...body,
+            id,
+            meta: { versionId, lastUpdated: new Date().toISOString() },
+          } as T;
+          store.set(id, updated);
+          return okJson(updated);
+        }),
+        http.delete(`*${BASE}/${type}/:id`, ({ params }) => {
+          store.delete(String(params.id));
+          return new HttpResponse(null, { status: 204 });
+        }),
+      ];
+    };
+    return [
+      ...compartmentHandlers("Condition", conditionsFor),
+      ...compartmentHandlers("MedicationRequest", medicationRequestsFor),
+      ...compartmentHandlers("AllergyIntolerance", allergiesFor),
+      ...compartmentHandlers("Procedure", proceduresFor),
+      ...compartmentHandlers("Encounter", encountersFor),
+      ...compartmentHandlers("Immunization", immunizationsFor),
+    ];
+  })(),
 ];
