@@ -9,8 +9,10 @@ export { coreValueSet, coreValueSets, bundledValueSetUrls } from "./valuesets.js
  * `<ResourceView>` / `<ResourceEditor>` keep working even against servers
  * that don't store core SDs as instances (e.g. public HAPI).
  *
- * Implementation note: every case is a dynamic `import()` so the SD payloads
- * only land in bundles that actually ask for that resource type.
+ * Each SD is a canonical R4 snapshot copied verbatim from
+ * `@hl7/hl7.fhir.r4.core` by `scripts/fetch-core-sds.ts`. To refresh, run
+ * `pnpm fetch:core-sds`. Every case is a dynamic `import()` so the SD
+ * payloads only land in bundles that actually ask for that resource type.
  */
 export async function coreStructureDefinition(
   type: string,
@@ -32,6 +34,10 @@ export async function coreStructureDefinition(
       return (await import("./Encounter.js")).EncounterStructureDefinition;
     case "Immunization":
       return (await import("./Immunization.js")).ImmunizationStructureDefinition;
+    case "Goal":
+      return (await import("./Goal.js")).GoalStructureDefinition;
+    case "Task":
+      return (await import("./Task.js")).TaskStructureDefinition;
     default:
       return undefined;
   }
@@ -47,4 +53,6 @@ export const bundledCoreTypes = [
   "Procedure",
   "Encounter",
   "Immunization",
+  "Goal",
+  "Task",
 ] as const;
