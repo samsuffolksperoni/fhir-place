@@ -9,6 +9,8 @@ export interface CompartmentSectionProps {
   resourceType: string;
   /** Dotted FHIR paths to show as columns. */
   columns: string[];
+  /** Override column header labels. Prevents collisions like two "Text" columns. */
+  columnLabels?: Record<string, string>;
   /** Header shown above the table. */
   title: string;
   /**
@@ -27,6 +29,7 @@ export function CompartmentSection({
   patientId,
   resourceType,
   columns,
+  columnLabels,
   title,
   patientSearchParam = "patient",
   limit = 5,
@@ -66,6 +69,7 @@ export function CompartmentSection({
           <ResourceTable
             resources={resources}
             columns={columns}
+            columnLabels={columnLabels}
             onRowClick={(r) => {
               if (r.id) window.location.assign(`/${r.resourceType}/${r.id}`);
             }}

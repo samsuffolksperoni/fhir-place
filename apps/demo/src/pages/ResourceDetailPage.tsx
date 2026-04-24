@@ -7,6 +7,7 @@ import type { Reference, Resource } from "fhir/r4";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CompartmentSection } from "../components/CompartmentSection.js";
+import { PatientCompartmentLinks } from "../components/PatientCompartmentLinks.js";
 import { PATIENT_COMPARTMENT } from "../compartment.js";
 
 export function ResourceDetailPage() {
@@ -106,9 +107,12 @@ export function ResourceDetailPage() {
           data-testid="patient-compartment"
           aria-label="Patient compartment"
         >
-          <h2 className="border-t border-slate-200 pt-4 text-lg font-semibold text-slate-900">
-            Clinical data
-          </h2>
+          <div className="border-t border-slate-200 pt-4">
+            <h2 className="mb-3 text-lg font-semibold text-slate-900">
+              Clinical data
+            </h2>
+            <PatientCompartmentLinks patientId={id} />
+          </div>
           {PATIENT_COMPARTMENT.map((section) => (
             <CompartmentSection
               key={section.resourceType}
