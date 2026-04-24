@@ -192,6 +192,97 @@ export const coreValueSets: Map<string, ValueSet> = new Map(
         ],
         "http://hl7.org/fhir/publication-status",
       ),
+      mk(
+        "http://hl7.org/fhir/ValueSet/medicationrequest-intent",
+        [
+          { code: "proposal", display: "Proposal" },
+          { code: "plan", display: "Plan" },
+          { code: "order", display: "Order" },
+          { code: "original-order", display: "Original Order" },
+          { code: "reflex-order", display: "Reflex Order" },
+          { code: "filler-order", display: "Filler Order" },
+          { code: "instance-order", display: "Instance Order" },
+          { code: "option", display: "Option" },
+        ],
+        "http://hl7.org/fhir/CodeSystem/medicationrequest-intent",
+      ),
+      mk(
+        "http://hl7.org/fhir/ValueSet/medicationrequest-category",
+        [
+          { code: "inpatient", display: "Inpatient" },
+          { code: "outpatient", display: "Outpatient" },
+          { code: "community", display: "Community" },
+          { code: "discharge", display: "Discharge" },
+        ],
+        "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+      ),
+      mk(
+        "http://hl7.org/fhir/ValueSet/event-status",
+        [
+          { code: "preparation", display: "Preparation" },
+          { code: "in-progress", display: "In Progress" },
+          { code: "not-done", display: "Not Done" },
+          { code: "on-hold", display: "On Hold" },
+          { code: "stopped", display: "Stopped" },
+          { code: "completed", display: "Completed" },
+          { code: "entered-in-error", display: "Entered in Error" },
+          { code: "unknown", display: "Unknown" },
+        ],
+        "http://hl7.org/fhir/event-status",
+      ),
+      mk(
+        "http://hl7.org/fhir/ValueSet/immunization-status",
+        [
+          { code: "completed", display: "Completed" },
+          { code: "entered-in-error", display: "Entered in Error" },
+          { code: "not-done", display: "Not Done" },
+        ],
+        "http://hl7.org/fhir/event-status",
+      ),
+      mk(
+        "http://hl7.org/fhir/ValueSet/allergy-intolerance-category",
+        [
+          { code: "food", display: "Food" },
+          { code: "medication", display: "Medication" },
+          { code: "environment", display: "Environment" },
+          { code: "biologic", display: "Biologic" },
+        ],
+        "http://hl7.org/fhir/allergy-intolerance-category",
+      ),
+      mk(
+        "http://hl7.org/fhir/ValueSet/allergy-intolerance-criticality",
+        [
+          { code: "low", display: "Low Risk" },
+          { code: "high", display: "High Risk" },
+          { code: "unable-to-assess", display: "Unable to Assess Risk" },
+        ],
+        "http://hl7.org/fhir/allergy-intolerance-criticality",
+      ),
+      mk(
+        "http://hl7.org/fhir/ValueSet/allergy-intolerance-type",
+        [
+          { code: "allergy", display: "Allergy" },
+          { code: "intolerance", display: "Intolerance" },
+        ],
+        "http://hl7.org/fhir/allergy-intolerance-type",
+      ),
+      mk(
+        "http://terminology.hl7.org/ValueSet/v3-ActEncounterCode",
+        [
+          { code: "AMB", display: "Ambulatory" },
+          { code: "EMER", display: "Emergency" },
+          { code: "FLD", display: "Field" },
+          { code: "HH", display: "Home Health" },
+          { code: "IMP", display: "Inpatient Encounter" },
+          { code: "ACUTE", display: "Inpatient Acute" },
+          { code: "NONAC", display: "Inpatient Non-Acute" },
+          { code: "OBSENC", display: "Observation Encounter" },
+          { code: "PRENC", display: "Pre-Admission" },
+          { code: "SS", display: "Short Stay" },
+          { code: "VR", display: "Virtual" },
+        ],
+        "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+      ),
     ] as const
   ).map((vs): [string, ValueSet] => [vs.url!, vs]),
 );
