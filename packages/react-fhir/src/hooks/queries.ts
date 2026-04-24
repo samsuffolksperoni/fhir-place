@@ -15,6 +15,7 @@ import type {
   ValueSet,
 } from "fhir/r4";
 import type { FhirClient, SearchParams } from "../client/types.js";
+import { coreValueSet } from "../structure/core/valuesets.js";
 import { resolveStructureDefinition } from "../structure/resolve.js";
 import { useFhirClient } from "./FhirClientProvider.js";
 
@@ -122,10 +123,13 @@ export function useStructureDefinition(
 /**
  * Resolves a ValueSet by canonical URL.
  *
- * Prefers `ValueSet/$expand?url={canonical}` when supported so we get a
- * server-computed enumeration of codes; falls back to `ValueSet?url={canonical}`
- * + the first matching resource so consumers can locally expand
- * `compose.include[].concept[]` via {@link codesFromValueSet}.
+ * Three-step fallback so dropdowns work against every server:
+ *   1. `ValueSet/$expand?url={canonical}` — server-computed enumeration
+ *   2. `ValueSet?url={canonical}` + the first matching resource — consumers
+ *      can locally expand via {@link codesFromValueSet}
+ *   3. Library-bundled core R4 ValueSet (administrative-gender,
+ *      observation-status, task-status, etc.) — keeps dropdowns populated
+ *      even when the server serves nothing terminology-related
  */
 export function useValueSet(
   canonical: string | undefined,
@@ -136,25 +140,33 @@ export function useValueSet(
     queryKey: fhirQueryKeys.valueSet(client.baseUrl, canonical ?? ""),
     queryFn: async ({ signal }) => {
       const url = canonical!;
-      // Try $expand first — returns an already-flattened ValueSet.
+      // 1. $expand
       try {
         return await client.request<ValueSet>({
           path: `/ValueSet/$expand?url=${encodeURIComponent(url)}`,
           signal,
         });
       } catch {
-        // Fall back to the raw definition; caller can local-expand.
+        // fall through
+      }
+      // 2. search by url
+      try {
         const bundle = await client.search<ValueSet>(
           "ValueSet",
           { url },
           { signal },
         );
         const hit = bundle.entry?.[0]?.resource;
-        if (!hit) {
-          throw new Error(`ValueSet ${url} not found on this server`);
-        }
-        return hit;
+        if (hit) return hit;
+      } catch {
+        // fall through
       }
+      // 3. bundled fallback
+      const bundled = coreValueSet(url);
+      if (bundled) return bundled;
+      throw new Error(
+        `ValueSet ${url} could not be resolved from this server and is not bundled in the library`,
+      );
     },
     enabled: Boolean(canonical),
     staleTime: 24 * 60 * 60_000,

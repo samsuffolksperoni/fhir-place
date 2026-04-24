@@ -1,4 +1,5 @@
 import type { StructureDefinition } from "fhir/r4";
+export { coreValueSet, coreValueSets, bundledValueSetUrls } from "./valuesets.js";
 
 /**
  * Returns the library's bundled R4 core StructureDefinition for a resource

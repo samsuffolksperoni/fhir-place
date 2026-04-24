@@ -84,8 +84,10 @@ describe("ResourceSearch", () => {
       />,
     );
     // name, identifier, birthdate, gender, organization, address-city, phone, _id
+    // birthdate is a date input (role is not textbox), so textbox count is 7.
     const fields = screen.getAllByRole("textbox");
-    expect(fields.length).toBe(8);
+    expect(fields.length).toBe(7);
+    expect(screen.getByLabelText("birthdate")).toBeInTheDocument();
     expect(screen.getAllByPlaceholderText(/code or system\|code/i).length).toBeGreaterThan(0);
   });
 
@@ -149,7 +151,8 @@ describe("ResourceSearch", () => {
     );
     expect(screen.getAllByRole("textbox").length).toBe(3);
     await user.click(screen.getByRole("button", { name: /show.*more parameters/i }));
-    expect(screen.getAllByRole("textbox").length).toBe(8);
+    // birthdate is a date input, not a textbox — so 7 textboxes after expand.
+    expect(screen.getAllByRole("textbox").length).toBe(7);
   });
 
   it("shows a friendly message when no params are advertised", () => {
