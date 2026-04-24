@@ -11,9 +11,13 @@
     "test:run": "pnpm -r test:run",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "e2e": "pnpm --filter @fhir-place/demo e2e"
+    "e2e": "pnpm --filter @fhir-place/demo e2e",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "release": "pnpm --filter @fhir-place/react-fhir build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@types/node": "^22.10.0",
     "typescript": "^5.7.0"
   },

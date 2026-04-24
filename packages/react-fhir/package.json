@@ -3,6 +3,28 @@
   "version": "0.0.0",
   "description": "Spec-driven React components for FHIR (R4) built on the plain REST API.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samsuffolksperoni/fhir-place.git",
+    "directory": "packages/react-fhir"
+  },
+  "homepage": "https://github.com/samsuffolksperoni/fhir-place#readme",
+  "bugs": "https://github.com/samsuffolksperoni/fhir-place/issues",
+  "keywords": [
+    "fhir",
+    "fhir-r4",
+    "hl7",
+    "react",
+    "healthcare",
+    "ehr",
+    "smart-on-fhir",
+    "spec-driven"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "sideEffects": false,
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
