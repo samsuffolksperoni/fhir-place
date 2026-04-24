@@ -88,7 +88,9 @@ describe("ResourceTable", () => {
     // Headers derived from SD.short
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Gender")).toBeInTheDocument();
-    expect(screen.getByText("Birth date")).toBeInTheDocument();
+    // Header is derived from the column path (not element.short), so camelCase
+    // `birthDate` becomes "Birth Date".
+    expect(screen.getByText("Birth Date")).toBeInTheDocument();
     // Rows rendered
     const rows = screen.getAllByTestId("resource-row");
     expect(rows).toHaveLength(2);
