@@ -1,0 +1,159 @@
+name: Live site monitor
+
+# Hits the deployed GitHub Pages demo with Playwright on a nightly cron and
+# files (or comments on) GitHub issues for each failed test. Designed to
+# catch real-world breakage that local MSW e2e tests can't see — HAPI flakes,
+# Pages routing, prod-only data shapes.
+
+on:
+  schedule:
+    # 06:30 UTC nightly. After typical CI deploys, before the workday.
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: live-site-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @fhir-place/demo exec playwright install --with-deps chromium webkit
+
+      - name: Run live-site Playwright suite
+        id: live
+        run: pnpm --filter @fhir-place/demo exec playwright test --config=playwright.live.config.ts
+        continue-on-error: true
+
+      - name: Upload Playwright artifacts
+        if: steps.live.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-live-${{ github.run_id }}
+          path: |
+            apps/demo/playwright-report-live
+            apps/demo/test-results
+          if-no-files-found: ignore
+
+      - name: File / update GitHub issues for failed tests
+        if: steps.live.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const resultsPath = path.join(
+              process.env.GITHUB_WORKSPACE,
+              'apps/demo/test-results/live-results.json',
+            );
+            if (!fs.existsSync(resultsPath)) {
+              core.warning('No live-results.json — Playwright crashed before writing results.');
+              return;
+            }
+            const report = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+
+            // Walk the Playwright JSON tree and yield { title, projectName,
+            // error, location } for every failed test.
+            const failed = [];
+            const walk = (suites = [], parent = '') => {
+              for (const suite of suites) {
+                const here = parent ? `${parent} > ${suite.title}` : suite.title;
+                for (const spec of suite.specs ?? []) {
+                  for (const t of spec.tests ?? []) {
+                    const lastResult = (t.results ?? []).slice(-1)[0];
+                    if (lastResult && lastResult.status !== 'passed' && lastResult.status !== 'skipped') {
+                      failed.push({
+                        title: spec.title,
+                        suite: here,
+                        project: t.projectName,
+                        error: (lastResult.error?.message ?? lastResult.errors?.[0]?.message ?? '').slice(0, 4_000),
+                        file: spec.file,
+                        line: spec.line,
+                      });
+                    }
+                  }
+                }
+                walk(suite.suites, here);
+              }
+            };
+            walk(report.suites);
+
+            if (failed.length === 0) {
+              core.info('Playwright reported failure but no failed tests found in JSON. Skipping issue creation.');
+              return;
+            }
+
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            // Group by spec title — same test failing across projects becomes
+            // one issue with a list of affected projects.
+            const grouped = new Map();
+            for (const f of failed) {
+              const key = f.title;
+              if (!grouped.has(key)) grouped.set(key, { title: key, projects: [], error: f.error, file: f.file, line: f.line });
+              grouped.get(key).projects.push(f.project);
+            }
+
+            for (const g of grouped.values()) {
+              const issueTitle = `[live-monitor] ${g.title}`;
+              const body = [
+                `**Failed in run:** ${runUrl}`,
+                `**Affected projects:** ${g.projects.join(', ')}`,
+                `**Source:** \`${g.file}:${g.line}\``,
+                '',
+                '**Error:**',
+                '```',
+                g.error || '(no error message captured)',
+                '```',
+                '',
+                'Screenshots, traces, and the HTML report are attached to the workflow run as the `playwright-live-' + context.runId + '` artifact.',
+                '',
+                '_This issue was opened automatically by `.github/workflows/live-site-monitor.yml`. If the test passes on a future run, this issue will be commented on, not closed — close it manually once the underlying bug is fixed._',
+              ].join('\n');
+
+              // Dedupe: search for an open issue with the same title.
+              const existing = await github.rest.search.issuesAndPullRequests({
+                q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${issueTitle}"`,
+                per_page: 5,
+              });
+              const match = existing.data.items.find((i) => i.title === issueTitle);
+
+              if (match) {
+                core.info(`Adding comment to existing issue #${match.number}: ${issueTitle}`);
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: match.number,
+                  body: `Failed again in ${runUrl}\n\n\`\`\`\n${g.error || '(no error)'}\n\`\`\``,
+                });
+              } else {
+                core.info(`Creating issue: ${issueTitle}`);
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: issueTitle,
+                  body,
+                  labels: ['bug', 'live-monitor'],
+                });
+              }
+            }
+
+      - name: Fail the job if any tests failed
+        if: steps.live.outcome == 'failure'
+        run: exit 1

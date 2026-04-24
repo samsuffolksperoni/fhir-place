@@ -11,7 +11,8 @@
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
-    "e2e:screenshot": "playwright test --project=screenshots"
+    "e2e:screenshot": "playwright test --project=screenshots",
+    "e2e:live": "playwright test --config=playwright.live.config.ts"
   },
   "dependencies": {
     "@fhir-place/react-fhir": "workspace:*",
