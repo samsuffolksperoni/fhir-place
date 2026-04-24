@@ -1,0 +1,37 @@
+import type { StructureDefinition } from "fhir/r4";
+
+export const AllergyIntoleranceStructureDefinition: StructureDefinition = {
+  resourceType: "StructureDefinition",
+  id: "AllergyIntolerance",
+  url: "http://hl7.org/fhir/StructureDefinition/AllergyIntolerance",
+  name: "AllergyIntolerance",
+  status: "active",
+  kind: "resource",
+  abstract: false,
+  type: "AllergyIntolerance",
+  baseDefinition: "http://hl7.org/fhir/StructureDefinition/DomainResource",
+  derivation: "specialization",
+  snapshot: {
+    element: [
+      { id: "AllergyIntolerance", path: "AllergyIntolerance", min: 0, max: "*", short: "Allergy or Intolerance (generally: Risk of adverse reaction to a substance)" },
+      { id: "AllergyIntolerance.id", path: "AllergyIntolerance.id", min: 0, max: "1", short: "Logical id of this artifact", type: [{ code: "id" }] },
+      { id: "AllergyIntolerance.meta", path: "AllergyIntolerance.meta", min: 0, max: "1", short: "Metadata about the resource", type: [{ code: "Meta" }] },
+      { id: "AllergyIntolerance.identifier", path: "AllergyIntolerance.identifier", min: 0, max: "*", short: "External ids for this item", type: [{ code: "Identifier" }] },
+      { id: "AllergyIntolerance.clinicalStatus", path: "AllergyIntolerance.clinicalStatus", min: 0, max: "1", short: "active | inactive | resolved", type: [{ code: "CodeableConcept" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/allergyintolerance-clinical" } },
+      { id: "AllergyIntolerance.verificationStatus", path: "AllergyIntolerance.verificationStatus", min: 0, max: "1", short: "unconfirmed | confirmed | refuted | entered-in-error", type: [{ code: "CodeableConcept" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/allergyintolerance-verification" } },
+      { id: "AllergyIntolerance.type", path: "AllergyIntolerance.type", min: 0, max: "1", short: "allergy | intolerance - Underlying mechanism (if known)", type: [{ code: "code" }] },
+      { id: "AllergyIntolerance.category", path: "AllergyIntolerance.category", min: 0, max: "*", short: "food | medication | environment | biologic", type: [{ code: "code" }] },
+      { id: "AllergyIntolerance.criticality", path: "AllergyIntolerance.criticality", min: 0, max: "1", short: "low | high | unable-to-assess", type: [{ code: "code" }] },
+      { id: "AllergyIntolerance.code", path: "AllergyIntolerance.code", min: 0, max: "1", short: "Code that identifies the allergy or intolerance", type: [{ code: "CodeableConcept" }] },
+      { id: "AllergyIntolerance.patient", path: "AllergyIntolerance.patient", min: 1, max: "1", short: "Who the sensitivity is for", type: [{ code: "Reference" }] },
+      { id: "AllergyIntolerance.encounter", path: "AllergyIntolerance.encounter", min: 0, max: "1", short: "Encounter when the allergy or intolerance was asserted", type: [{ code: "Reference" }] },
+      { id: "AllergyIntolerance.onset[x]", path: "AllergyIntolerance.onset[x]", min: 0, max: "1", short: "When allergy or intolerance was identified", type: [{ code: "dateTime" }, { code: "Age" }, { code: "Period" }, { code: "Range" }, { code: "string" }] },
+      { id: "AllergyIntolerance.recordedDate", path: "AllergyIntolerance.recordedDate", min: 0, max: "1", short: "Date first version of the resource instance was recorded", type: [{ code: "dateTime" }] },
+      { id: "AllergyIntolerance.note", path: "AllergyIntolerance.note", min: 0, max: "*", short: "Additional text not captured in other fields", type: [{ code: "Annotation" }] },
+      { id: "AllergyIntolerance.reaction", path: "AllergyIntolerance.reaction", min: 0, max: "*", short: "Adverse Reaction Events linked to exposure to substance", type: [{ code: "BackboneElement" }] },
+      { id: "AllergyIntolerance.reaction.substance", path: "AllergyIntolerance.reaction.substance", min: 0, max: "1", short: "Specific substance or pharmaceutical product considered to be responsible for event", type: [{ code: "CodeableConcept" }] },
+      { id: "AllergyIntolerance.reaction.manifestation", path: "AllergyIntolerance.reaction.manifestation", min: 1, max: "*", short: "Clinical symptoms/signs associated with the Event", type: [{ code: "CodeableConcept" }] },
+      { id: "AllergyIntolerance.reaction.severity", path: "AllergyIntolerance.reaction.severity", min: 0, max: "1", short: "mild | moderate | severe (of event as a whole)", type: [{ code: "code" }] },
+    ],
+  },
+};

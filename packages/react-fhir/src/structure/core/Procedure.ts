@@ -1,0 +1,37 @@
+import type { StructureDefinition } from "fhir/r4";
+
+export const ProcedureStructureDefinition: StructureDefinition = {
+  resourceType: "StructureDefinition",
+  id: "Procedure",
+  url: "http://hl7.org/fhir/StructureDefinition/Procedure",
+  name: "Procedure",
+  status: "active",
+  kind: "resource",
+  abstract: false,
+  type: "Procedure",
+  baseDefinition: "http://hl7.org/fhir/StructureDefinition/DomainResource",
+  derivation: "specialization",
+  snapshot: {
+    element: [
+      { id: "Procedure", path: "Procedure", min: 0, max: "*", short: "An action that is being or was performed on a patient" },
+      { id: "Procedure.id", path: "Procedure.id", min: 0, max: "1", short: "Logical id of this artifact", type: [{ code: "id" }] },
+      { id: "Procedure.meta", path: "Procedure.meta", min: 0, max: "1", short: "Metadata about the resource", type: [{ code: "Meta" }] },
+      { id: "Procedure.identifier", path: "Procedure.identifier", min: 0, max: "*", short: "External Identifiers for this procedure", type: [{ code: "Identifier" }] },
+      { id: "Procedure.status", path: "Procedure.status", min: 1, max: "1", short: "preparation | in-progress | not-done | on-hold | stopped | completed | entered-in-error | unknown", type: [{ code: "code" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/event-status" } },
+      { id: "Procedure.statusReason", path: "Procedure.statusReason", min: 0, max: "1", short: "Reason for current status", type: [{ code: "CodeableConcept" }] },
+      { id: "Procedure.category", path: "Procedure.category", min: 0, max: "1", short: "Classification of the procedure", type: [{ code: "CodeableConcept" }] },
+      { id: "Procedure.code", path: "Procedure.code", min: 0, max: "1", short: "Identification of the procedure", type: [{ code: "CodeableConcept" }] },
+      { id: "Procedure.subject", path: "Procedure.subject", min: 1, max: "1", short: "Who the procedure was performed on", type: [{ code: "Reference" }] },
+      { id: "Procedure.encounter", path: "Procedure.encounter", min: 0, max: "1", short: "Encounter created as part of", type: [{ code: "Reference" }] },
+      { id: "Procedure.performed[x]", path: "Procedure.performed[x]", min: 0, max: "1", short: "When the procedure was performed", type: [{ code: "dateTime" }, { code: "Period" }, { code: "string" }, { code: "Age" }, { code: "Range" }] },
+      { id: "Procedure.recorder", path: "Procedure.recorder", min: 0, max: "1", short: "Who recorded the procedure", type: [{ code: "Reference" }] },
+      { id: "Procedure.asserter", path: "Procedure.asserter", min: 0, max: "1", short: "Person who asserts this procedure", type: [{ code: "Reference" }] },
+      { id: "Procedure.performer", path: "Procedure.performer", min: 0, max: "*", short: "The people who performed the procedure", type: [{ code: "BackboneElement" }] },
+      { id: "Procedure.location", path: "Procedure.location", min: 0, max: "1", short: "Where the procedure happened", type: [{ code: "Reference" }] },
+      { id: "Procedure.reasonCode", path: "Procedure.reasonCode", min: 0, max: "*", short: "Coded reason procedure performed", type: [{ code: "CodeableConcept" }] },
+      { id: "Procedure.bodySite", path: "Procedure.bodySite", min: 0, max: "*", short: "Target body sites", type: [{ code: "CodeableConcept" }] },
+      { id: "Procedure.outcome", path: "Procedure.outcome", min: 0, max: "1", short: "The result of procedure", type: [{ code: "CodeableConcept" }] },
+      { id: "Procedure.note", path: "Procedure.note", min: 0, max: "*", short: "Additional information about the procedure", type: [{ code: "Annotation" }] },
+    ],
+  },
+};
