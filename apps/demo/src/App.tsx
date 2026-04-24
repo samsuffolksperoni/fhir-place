@@ -3,6 +3,7 @@ import { PatientCreatePage } from "./pages/PatientCreatePage.js";
 import { PatientListPage } from "./pages/PatientListPage.js";
 import { ResourceDetailPage } from "./pages/ResourceDetailPage.js";
 import { ResourceEditPage } from "./pages/ResourceEditPage.js";
+import { ResourceIndexPage } from "./pages/ResourceIndexPage.js";
 import { FHIR_BASE_URL, USE_MOCK } from "./config.js";
 
 export function App() {
@@ -30,6 +31,7 @@ export function App() {
           <Route path="/Patient/new" element={<PatientCreatePage />} />
           <Route path="/:resourceType/:id/edit" element={<ResourceEditPage />} />
           <Route path="/:resourceType/:id" element={<ResourceDetailPage />} />
+          <Route path="/:resourceType" element={<ResourceIndexPage />} />
         </Routes>
       </main>
     </div>

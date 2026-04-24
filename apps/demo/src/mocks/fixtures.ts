@@ -305,3 +305,76 @@ export const observationStructureDefinition: StructureDefinition = {
     ],
   },
 };
+
+const mkSd = (
+  type: string,
+  elements: Array<{ path: string; short?: string; type?: string; array?: boolean }>,
+): StructureDefinition => ({
+  resourceType: "StructureDefinition",
+  id: type,
+  url: `http://hl7.org/fhir/StructureDefinition/${type}`,
+  name: type,
+  status: "active",
+  kind: "resource",
+  abstract: false,
+  type,
+  snapshot: {
+    element: [
+      { id: type, path: type, min: 0, max: "*" },
+      { id: `${type}.id`, path: `${type}.id`, min: 0, max: "1", type: [{ code: "id" }] },
+      { id: `${type}.meta`, path: `${type}.meta`, min: 0, max: "1", type: [{ code: "Meta" }] },
+      ...elements.map((e) => ({
+        id: `${type}.${e.path}`,
+        path: `${type}.${e.path}`,
+        min: 0,
+        max: e.array ? "*" : "1",
+        ...(e.short ? { short: e.short } : {}),
+        ...(e.type ? { type: [{ code: e.type }] } : {}),
+      })),
+    ],
+  },
+});
+
+/** Minimal SDs for the compartment resource types the demo lists under a Patient. */
+export const compartmentStructureDefinitions: StructureDefinition[] = [
+  mkSd("Condition", [
+    { path: "clinicalStatus", short: "active | recurrence | relapse | inactive | remission | resolved", type: "CodeableConcept" },
+    { path: "verificationStatus", short: "unconfirmed | provisional | differential | confirmed | refuted | entered-in-error", type: "CodeableConcept" },
+    { path: "code", short: "Identification of the condition", type: "CodeableConcept" },
+    { path: "subject", short: "Who the condition is about", type: "Reference" },
+    { path: "onsetDateTime", short: "Estimated or actual date, date-time, or age", type: "dateTime" },
+  ]),
+  mkSd("MedicationRequest", [
+    { path: "status", short: "active | on-hold | cancelled | completed | entered-in-error | stopped | draft | unknown", type: "code" },
+    { path: "intent", short: "proposal | plan | order | original-order | reflex-order | filler-order | instance-order | option", type: "code" },
+    { path: "priority", short: "routine | urgent | asap | stat", type: "code" },
+    { path: "medicationCodeableConcept", short: "Medication ordered", type: "CodeableConcept" },
+    { path: "subject", short: "Who the medication is for", type: "Reference" },
+    { path: "authoredOn", short: "When the request was initially authored", type: "dateTime" },
+  ]),
+  mkSd("AllergyIntolerance", [
+    { path: "clinicalStatus", short: "active | inactive | resolved", type: "CodeableConcept" },
+    { path: "verificationStatus", short: "unconfirmed | confirmed | refuted | entered-in-error", type: "CodeableConcept" },
+    { path: "code", short: "Code that identifies the allergy or intolerance", type: "CodeableConcept" },
+    { path: "patient", short: "Who the sensitivity is for", type: "Reference" },
+    { path: "reaction", short: "Adverse reaction events linked to exposure to substance", type: "BackboneElement", array: true },
+  ]),
+  mkSd("Procedure", [
+    { path: "status", short: "preparation | in-progress | not-done | on-hold | stopped | completed | entered-in-error | unknown", type: "code" },
+    { path: "code", short: "Identification of the procedure", type: "CodeableConcept" },
+    { path: "subject", short: "Who the procedure was performed on", type: "Reference" },
+    { path: "performedDateTime", short: "When the procedure was performed", type: "dateTime" },
+  ]),
+  mkSd("Encounter", [
+    { path: "status", short: "planned | arrived | triaged | in-progress | onleave | finished | cancelled | entered-in-error | unknown", type: "code" },
+    { path: "class", short: "Classification of the encounter", type: "Coding" },
+    { path: "subject", short: "The patient or group present", type: "Reference" },
+    { path: "period", short: "Start and end time of the encounter", type: "Period" },
+  ]),
+  mkSd("Immunization", [
+    { path: "status", short: "completed | entered-in-error | not-done", type: "code" },
+    { path: "vaccineCode", short: "Vaccine product administered", type: "CodeableConcept" },
+    { path: "patient", short: "Who was immunised", type: "Reference" },
+    { path: "occurrenceDateTime", short: "When the vaccine was administered", type: "dateTime" },
+  ]),
+];
