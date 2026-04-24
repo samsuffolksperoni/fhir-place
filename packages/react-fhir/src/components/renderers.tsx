@@ -153,22 +153,117 @@ const ContactPointRenderer: FhirTypeRenderer = (value) => {
   );
 };
 
+/**
+ * Short, human-friendly label for a FHIR code-system URI.
+ * Falls back to the last path segment of the URL when unknown.
+ */
+export function codeSystemLabel(system: string | undefined): string {
+  if (!system) return "";
+  const known: Record<string, string> = {
+    "http://snomed.info/sct": "SNOMED",
+    "http://loinc.org": "LOINC",
+    "http://hl7.org/fhir/sid/icd-10": "ICD-10",
+    "http://hl7.org/fhir/sid/icd-10-cm": "ICD-10-CM",
+    "http://hl7.org/fhir/sid/icd-9-cm": "ICD-9-CM",
+    "http://www.cms.gov/Medicare/Coding/ICD10": "ICD-10-PCS",
+    "http://www.ama-assn.org/go/cpt": "CPT",
+    "http://www.nlm.nih.gov/research/umls/rxnorm": "RxNorm",
+    "http://hl7.org/fhir/sid/ndc": "NDC",
+    "http://hl7.org/fhir/sid/cvx": "CVX",
+    "http://unitsofmeasure.org": "UCUM",
+  };
+  if (known[system]) return known[system]!;
+  // Heuristic: last non-empty segment capitalised.
+  return system.split(/[#/]/).filter(Boolean).pop() ?? system;
+}
+
+/**
+ * Priority-ordered system URIs used to pick the "best" coding out of a
+ * CodeableConcept when `.text` is empty. Keyed by full FHIR element path so
+ * Condition.code prefers ICD-10, Procedure.code prefers CPT, Observation.code
+ * prefers LOINC, etc.
+ *
+ * Consumers can override by passing a custom renderer via the `renderers`
+ * prop on `<ResourceView>` / `<ResourceTable>`.
+ */
+export const DEFAULT_CODING_PRIORITY: Record<string, readonly string[]> = {
+  "Condition.code": [
+    "http://hl7.org/fhir/sid/icd-10-cm",
+    "http://hl7.org/fhir/sid/icd-10",
+    "http://snomed.info/sct",
+    "http://loinc.org",
+  ],
+  "Procedure.code": [
+    "http://www.ama-assn.org/go/cpt",
+    "http://www.cms.gov/Medicare/Coding/ICD10",
+    "http://snomed.info/sct",
+  ],
+  "Observation.code": [
+    "http://loinc.org",
+    "http://snomed.info/sct",
+  ],
+  "MedicationRequest.medicationCodeableConcept": [
+    "http://www.nlm.nih.gov/research/umls/rxnorm",
+    "http://hl7.org/fhir/sid/ndc",
+    "http://snomed.info/sct",
+  ],
+  "Medication.code": [
+    "http://www.nlm.nih.gov/research/umls/rxnorm",
+    "http://hl7.org/fhir/sid/ndc",
+    "http://snomed.info/sct",
+  ],
+  "AllergyIntolerance.code": [
+    "http://www.nlm.nih.gov/research/umls/rxnorm",
+    "http://snomed.info/sct",
+  ],
+  "Immunization.vaccineCode": [
+    "http://hl7.org/fhir/sid/cvx",
+    "http://www.nlm.nih.gov/research/umls/rxnorm",
+    "http://snomed.info/sct",
+  ],
+};
+
+const FALLBACK_CODING_PRIORITY: readonly string[] = [
+  "http://snomed.info/sct",
+  "http://loinc.org",
+];
+
+export function preferredCoding(
+  cc: CodeableConcept | undefined,
+  path: string,
+): Coding | undefined {
+  if (!cc?.coding?.length) return undefined;
+  const priority = DEFAULT_CODING_PRIORITY[path] ?? FALLBACK_CODING_PRIORITY;
+  for (const system of priority) {
+    const hit = cc.coding.find((c) => c.system === system);
+    if (hit) return hit;
+  }
+  return cc.coding[0];
+}
+
 const CodingRenderer: FhirTypeRenderer = (value) => {
   const c = value as Coding;
+  const sys = codeSystemLabel(c.system);
   if (c.display) {
     return (
       <span>
-        {c.display}{" "}
-        <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs">
-          {c.system ? `${c.system}#` : ""}
+        {c.display}
+        <code
+          className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs"
+          title={c.system ? `${c.system}#${c.code}` : c.code}
+        >
+          {sys ? `${sys} ` : ""}
           {c.code}
         </code>
       </span>
     );
   }
   return (
-    <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">
-      {c.system ? `${c.system}#` : ""}
+    <code
+      className="rounded bg-slate-100 px-1 py-0.5 text-xs"
+      title={c.system ? `${c.system}#${c.code}` : c.code}
+    >
+      {sys ? `${sys} ` : ""}
       {c.code}
     </code>
   );
@@ -177,10 +272,14 @@ const CodingRenderer: FhirTypeRenderer = (value) => {
 const CodeableConceptRenderer: FhirTypeRenderer = (value, ctx) => {
   const cc = value as CodeableConcept;
   if (cc.text) {
-    return <span title={cc.coding?.map((c) => c.display ?? c.code).join(", ")}>{cc.text}</span>;
+    const codingSummary = cc.coding
+      ?.map((c) => [codeSystemLabel(c.system), c.code].filter(Boolean).join(" "))
+      .filter(Boolean)
+      .join(", ");
+    return <span title={codingSummary}>{cc.text}</span>;
   }
-  const first = cc.coding?.[0];
-  if (first) return CodingRenderer(first, ctx);
+  const chosen = preferredCoding(cc, ctx.path);
+  if (chosen) return CodingRenderer(chosen, ctx);
   return <span className="text-slate-400">—</span>;
 };
 

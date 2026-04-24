@@ -36,12 +36,17 @@ export interface ResourceTableProps<T extends Resource = Resource> {
   className?: string;
 }
 
-const headerFromPath = (path: string, short?: string): string => {
-  if (short && short.length <= 40 && !short.includes("|") && !short.includes(".")) {
-    return short;
-  }
+const headerFromPath = (path: string): string => {
+  // Always use the last path segment as the column header. Element.short
+  // descriptions from a StructureDefinition are long sentence fragments that
+  // read badly as table headers ("Who the condition is about" → just "Subject").
   const last = path.split(".").pop() ?? path;
-  return last.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim();
+  return last
+    .replace(/\[\d+\]/g, "")
+    .replace(/\[x\]$/, "")
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (c) => c.toUpperCase())
+    .trim();
 };
 
 export function getByPath(obj: unknown, path: string): unknown {
@@ -92,12 +97,10 @@ export function ResourceTable<T extends Resource = Resource>({
       columns.map((path) => {
         const label = columnLabels?.[path];
         if (label) return { path, label, typeCode: typeForPath(sd, resourceType, path) };
-        const qualified = `${resourceType}.${path.split("[")[0]!.replace(/\.\d+$/, "")}`;
-        const element = sd ? findElement(sd, qualified) : undefined;
         return {
           path,
-          label: headerFromPath(path, element?.short),
-          typeCode: element?.type?.[0]?.code,
+          label: headerFromPath(path),
+          typeCode: typeForPath(sd, resourceType, path),
         };
       }),
     [columns, columnLabels, sd, resourceType],
