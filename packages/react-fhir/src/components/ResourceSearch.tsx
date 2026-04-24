@@ -207,6 +207,9 @@ function SearchField({ base, param, value, onChange }: SearchFieldProps): ReactN
       <TokenSearchField base={base} param={param} value={value} onChange={onChange} />
     );
   }
+  if (param.type === "date") {
+    return <DateSearchField param={param} value={value} onChange={onChange} />;
+  }
   return fieldWrapper(
     <input
       type={inputType(param.type)}
@@ -277,6 +280,75 @@ function TokenSearchField({ base, param, value, onChange }: SearchFieldProps): R
         </option>
       ))}
     </select>,
+    param,
+  );
+}
+
+/* ---------- date ---------- */
+
+type DatePrefix = "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "ap";
+
+interface DatePrefixOption {
+  value: DatePrefix | "";
+  label: string;
+  title: string;
+}
+
+const DATE_PREFIXES: DatePrefixOption[] = [
+  { value: "", label: "=", title: "equals (default)" },
+  { value: "eq", label: "=", title: "equals" },
+  { value: "ne", label: "≠", title: "not equal" },
+  { value: "lt", label: "<", title: "less than" },
+  { value: "le", label: "≤", title: "less than or equal" },
+  { value: "gt", label: ">", title: "greater than" },
+  { value: "ge", label: "≥", title: "greater than or equal" },
+  { value: "ap", label: "~", title: "approximately" },
+];
+
+interface DateSearchFieldProps {
+  param: CapabilityStatementRestResourceSearchParam;
+  value: string;
+  onChange: (v: string) => void;
+}
+
+/**
+ * FHIR date search field: a prefix selector (eq/ne/lt/gt/ge/le/ap) paired with
+ * a native date picker. Parses the incoming `value` so the two controls stay
+ * in sync with whatever the parent holds — e.g. `ge2024-01-01` splits into
+ * prefix="ge" + date="2024-01-01".
+ */
+function DateSearchField({ param, value, onChange }: DateSearchFieldProps): ReactNode {
+  const match = value.match(/^(eq|ne|lt|le|gt|ge|ap)?(\d{4}-\d{2}-\d{2})?$/);
+  const prefix = (match?.[1] ?? "") as DatePrefix | "";
+  const date = match?.[2] ?? "";
+
+  const commit = (nextPrefix: string, nextDate: string) => {
+    if (!nextDate) return onChange("");
+    onChange(`${nextPrefix}${nextDate}`);
+  };
+
+  return fieldWrapper(
+    <div className="flex gap-1">
+      <select
+        aria-label={`${param.name} prefix`}
+        value={prefix}
+        onChange={(e) => commit(e.target.value, date)}
+        className="rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+      >
+        {DATE_PREFIXES.map((p) => (
+          <option key={`${p.value}-${p.label}`} value={p.value} title={p.title}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+      <input
+        type="date"
+        aria-label={param.name}
+        value={date}
+        onChange={(e) => commit(prefix, e.target.value)}
+        className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+      />
+    </div>,
     param,
   );
 }
