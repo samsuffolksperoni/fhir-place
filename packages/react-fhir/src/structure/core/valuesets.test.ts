@@ -48,4 +48,27 @@ describe("bundled core ValueSets", () => {
       expect(codes.length).toBeGreaterThan(0);
     }
   });
+
+  // Issue #44: token search params on these compartment resources should
+  // resolve through the offline bundle, not fall back to free-text inputs.
+  it.each([
+    // [resource, search-param, bound canonical, expected representative code]
+    ["MedicationRequest", "status", "http://hl7.org/fhir/ValueSet/medicationrequest-status", "active"],
+    ["MedicationRequest", "intent", "http://hl7.org/fhir/ValueSet/medicationrequest-intent", "order"],
+    ["MedicationRequest", "priority", "http://hl7.org/fhir/ValueSet/request-priority", "routine"],
+    ["MedicationRequest", "category", "http://hl7.org/fhir/ValueSet/medicationrequest-category", "outpatient"],
+    ["Procedure", "status", "http://hl7.org/fhir/ValueSet/event-status", "completed"],
+    ["AllergyIntolerance", "verification-status", "http://hl7.org/fhir/ValueSet/allergyintolerance-verification", "confirmed"],
+    ["AllergyIntolerance", "category", "http://hl7.org/fhir/ValueSet/allergy-intolerance-category", "medication"],
+    ["AllergyIntolerance", "criticality", "http://hl7.org/fhir/ValueSet/allergy-intolerance-criticality", "high"],
+    ["AllergyIntolerance", "type", "http://hl7.org/fhir/ValueSet/allergy-intolerance-type", "allergy"],
+    ["Encounter", "status", "http://hl7.org/fhir/ValueSet/encounter-status", "in-progress"],
+    ["Encounter", "class", "http://terminology.hl7.org/ValueSet/v3-ActEncounterCode", "AMB"],
+    ["Immunization", "status", "http://hl7.org/fhir/ValueSet/immunization-status", "completed"],
+  ])("ships ValueSet for %s.%s (%s)", (_resource, _param, canonical, expectedCode) => {
+    const vs = coreValueSet(canonical);
+    expect(vs).toBeDefined();
+    const codes = codesFromValueSet(vs).map((c) => c.code);
+    expect(codes).toContain(expectedCode);
+  });
 });
