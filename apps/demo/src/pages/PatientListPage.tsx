@@ -3,6 +3,7 @@ import type { Patient } from "fhir/r4";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { SearchParams } from "@fhir-place/react-fhir";
+import { PatientRowCounts } from "../components/PatientRowCounts.js";
 
 const formatName = (p: Patient): string => {
   const n = p.name?.[0];
@@ -71,13 +72,16 @@ export function PatientListPage() {
           <li key={p.id} data-testid="patient-row">
             <Link
               to={`/Patient/${p.id}`}
-              className="flex items-baseline justify-between gap-4 px-4 py-3 hover:bg-slate-50"
+              className="flex flex-col gap-1 px-4 py-3 hover:bg-slate-50"
             >
-              <span className="font-medium text-slate-900">{formatName(p)}</span>
-              <span className="text-xs text-slate-500">
-                {p.gender ?? "—"} · {p.birthDate ?? "—"} ·{" "}
-                <code className="rounded bg-slate-100 px-1 py-0.5">{p.id}</code>
-              </span>
+              <div className="flex items-baseline justify-between gap-4">
+                <span className="font-medium text-slate-900">{formatName(p)}</span>
+                <span className="text-xs text-slate-500">
+                  {p.gender ?? "—"} · {p.birthDate ?? "—"} ·{" "}
+                  <code className="rounded bg-slate-100 px-1 py-0.5">{p.id}</code>
+                </span>
+              </div>
+              {p.id && <PatientRowCounts patientId={p.id} />}
             </Link>
           </li>
         ))}
