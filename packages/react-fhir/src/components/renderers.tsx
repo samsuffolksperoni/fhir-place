@@ -16,6 +16,7 @@ import type {
   Reference,
 } from "fhir/r4";
 import type { ReactNode } from "react";
+import { formatAddress, formatHumanName } from "../structure/format.js";
 
 /** Context passed to every renderer. */
 export interface RendererContext {
@@ -70,17 +71,6 @@ const Uri_: FhirTypeRenderer = (value) => {
 
 /* ---------- complex datatypes ---------- */
 
-const formatHumanName = (n: HumanName): string => {
-  if (n.text) return n.text;
-  const parts = [
-    n.prefix?.join(" "),
-    n.given?.join(" "),
-    n.family,
-    n.suffix?.join(" "),
-  ].filter(Boolean);
-  return parts.join(" ").trim();
-};
-
 const HumanNameRenderer: FhirTypeRenderer = (value) => {
   const n = value as HumanName;
   const formatted = formatHumanName(n);
@@ -91,19 +81,6 @@ const HumanNameRenderer: FhirTypeRenderer = (value) => {
       {useLabel && <span className="text-slate-400">{useLabel}</span>}
     </span>
   );
-};
-
-const formatAddress = (a: Address): string => {
-  if (a.text) return a.text;
-  return [
-    a.line?.join(", "),
-    a.city,
-    a.state,
-    a.postalCode,
-    a.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
 };
 
 const AddressRenderer: FhirTypeRenderer = (value) => {

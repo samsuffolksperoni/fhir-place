@@ -19,7 +19,7 @@ import {
   JsonFallbackInput,
   type FhirTypeInput,
   type TypeInputs,
-} from "./inputs.js";
+} from "./inputs/index.js";
 
 export interface ResourceEditorProps {
   resource: Resource;

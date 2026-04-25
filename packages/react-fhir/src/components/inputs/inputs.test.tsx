@@ -5,9 +5,9 @@ import type { ElementDefinition } from "fhir/r4";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { FetchFhirClient } from "../client/FetchFhirClient.js";
-import { FhirClientProvider } from "../hooks/FhirClientProvider.js";
-import { defaultTypeInputs } from "./inputs.js";
+import { FetchFhirClient } from "../../client/FetchFhirClient.js";
+import { FhirClientProvider } from "../../hooks/FhirClientProvider.js";
+import { defaultTypeInputs } from "./index.js";
 
 const BASE = "https://fhir.example.test/fhir";
 const server = setupServer();

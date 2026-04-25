@@ -1,6 +1,7 @@
 import type { Reference, Resource } from "fhir/r4";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearch } from "../hooks/queries.js";
+import { formatReferenceLabel } from "../structure/format.js";
 
 export interface ReferencePickerProps {
   /** Allowed target resource types (from element.type[].targetProfile). */
@@ -16,33 +17,6 @@ export interface ReferencePickerProps {
   className?: string;
 }
 
-/**
- * Produces a human-readable label for a resource. Covers the common cases
- * encountered when picking references in clinical apps; any resource type not
- * specifically handled falls back to `{ResourceType}/{id}`.
- */
-export function referenceLabel(resource: Resource): string {
-  const r = resource as unknown as Record<string, unknown>;
-  // HumanName-bearing resources
-  const names = r.name as Array<Record<string, unknown>> | string | undefined;
-  if (Array.isArray(names) && names[0]) {
-    const first = names[0];
-    if (typeof first.text === "string") return first.text;
-    const given = Array.isArray(first.given) ? (first.given as string[]).join(" ") : "";
-    const family = typeof first.family === "string" ? first.family : "";
-    const combined = [given, family].filter(Boolean).join(" ").trim();
-    if (combined) return combined;
-  }
-  // Organization / Location / Device / others with a single string `name`
-  if (typeof names === "string") return names;
-  // CodeableConcept-based, e.g. Observation.code
-  const code = r.code as { text?: string; coding?: Array<{ display?: string }> } | undefined;
-  if (code?.text) return code.text;
-  if (code?.coding?.[0]?.display) return code.coding[0].display!;
-  // Practitioner + Patient fallback if name was oddly absent
-  if (typeof r.title === "string") return r.title;
-  return `${resource.resourceType}/${resource.id ?? ""}`.replace(/\/$/, "");
-}
 
 /**
  * Debounced search-and-pick picker for FHIR References. Pairs with the
@@ -82,7 +56,7 @@ export function ReferencePicker(props: ReferencePickerProps) {
   const pick = (resource: Resource) => {
     onChange({
       reference: `${resource.resourceType}/${resource.id ?? ""}`,
-      display: referenceLabel(resource),
+      display: formatReferenceLabel(resource),
     });
     setIsOpen(false);
     setQuery("");
@@ -161,7 +135,7 @@ export function ReferencePicker(props: ReferencePickerProps) {
                 onClick={() => pick(r)}
                 className="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
               >
-                <span className="truncate">{referenceLabel(r)}</span>
+                <span className="truncate">{formatReferenceLabel(r)}</span>
                 <code className="shrink-0 text-xs text-slate-500">{r.id}</code>
               </button>
             </li>

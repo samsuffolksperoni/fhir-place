@@ -7,7 +7,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { FetchFhirClient } from "../client/FetchFhirClient.js";
 import { FhirClientProvider } from "../hooks/FhirClientProvider.js";
-import { ReferencePicker, referenceLabel } from "./ReferencePicker.js";
+import { ReferencePicker } from "./ReferencePicker.js";
 
 const BASE = "https://fhir.example.test/fhir";
 const server = setupServer();
@@ -27,54 +27,6 @@ const wrap = () => {
     </QueryClientProvider>
   );
 };
-
-describe("referenceLabel", () => {
-  it("uses text on a HumanName", () => {
-    expect(
-      referenceLabel({
-        resourceType: "Patient",
-        id: "1",
-        name: [{ text: "Ada Lovelace" }],
-      } as never),
-    ).toBe("Ada Lovelace");
-  });
-
-  it("joins given + family when text is absent", () => {
-    expect(
-      referenceLabel({
-        resourceType: "Patient",
-        id: "1",
-        name: [{ given: ["Ada"], family: "Lovelace" }],
-      } as never),
-    ).toBe("Ada Lovelace");
-  });
-
-  it("uses organization name (string) when present", () => {
-    expect(
-      referenceLabel({
-        resourceType: "Organization",
-        id: "o1",
-        name: "Acme Health",
-      } as never),
-    ).toBe("Acme Health");
-  });
-
-  it("falls back to CodeableConcept.text on observation-shaped resources", () => {
-    expect(
-      referenceLabel({
-        resourceType: "Observation",
-        id: "obs1",
-        code: { text: "Heart rate" },
-      } as never),
-    ).toBe("Heart rate");
-  });
-
-  it("last-resort fallback: Type/id", () => {
-    expect(
-      referenceLabel({ resourceType: "Device", id: "dev-1" } as never),
-    ).toBe("Device/dev-1");
-  });
-});
 
 describe("ReferencePicker", () => {
   const patients = [
