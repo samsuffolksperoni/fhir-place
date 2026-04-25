@@ -244,6 +244,15 @@ export const coreValueSets: Map<string, ValueSet> = new Map(
         "http://snomed.info/sct",
       ),
       mk(
+        "http://hl7.org/fhir/ValueSet/immunization-status",
+        [
+          { code: "completed", display: "Completed" },
+          { code: "entered-in-error", display: "Entered in Error" },
+          { code: "not-done", display: "Not Done" },
+        ],
+        "http://hl7.org/fhir/event-status",
+      ),
+      mk(
         "http://hl7.org/fhir/ValueSet/allergy-intolerance-category",
         [
           { code: "food", display: "Food" },
@@ -271,15 +280,6 @@ export const coreValueSets: Map<string, ValueSet> = new Map(
         "http://hl7.org/fhir/allergy-intolerance-type",
       ),
       mk(
-        "http://hl7.org/fhir/ValueSet/immunization-status",
-        [
-          { code: "completed", display: "Completed" },
-          { code: "entered-in-error", display: "Entered in Error" },
-          { code: "not-done", display: "Not Done" },
-        ],
-        "http://terminology.hl7.org/CodeSystem/medication-admin-status",
-      ),
-      mk(
         "http://terminology.hl7.org/ValueSet/v3-ActEncounterCode",
         [
           { code: "AMB", display: "Ambulatory" },
@@ -288,7 +288,7 @@ export const coreValueSets: Map<string, ValueSet> = new Map(
           { code: "HH", display: "Home Health" },
           { code: "IMP", display: "Inpatient Encounter" },
           { code: "ACUTE", display: "Inpatient Acute" },
-          { code: "NONAC", display: "Inpatient Non Acute" },
+          { code: "NONAC", display: "Inpatient Non-Acute" },
           { code: "OBSENC", display: "Observation Encounter" },
           { code: "PRENC", display: "Pre-Admission" },
           { code: "SS", display: "Short Stay" },

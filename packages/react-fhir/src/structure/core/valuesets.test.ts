@@ -61,45 +61,45 @@ describe("bundled core ValueSets", () => {
   describe("token search params resolve to bundled VS via bundled SDs", () => {
     interface Case {
       sd: typeof MedicationRequestStructureDefinition;
-      cases: Array<{ path: string; expectedVs: string }>;
+      cases: Array<{ path: string; expectedVs: string; expectedCode: string }>;
     }
     const cases: Case[] = [
       {
         sd: MedicationRequestStructureDefinition,
         cases: [
-          { path: "MedicationRequest.status", expectedVs: "http://hl7.org/fhir/ValueSet/medicationrequest-status" },
-          { path: "MedicationRequest.intent", expectedVs: "http://hl7.org/fhir/ValueSet/medicationrequest-intent" },
-          { path: "MedicationRequest.priority", expectedVs: "http://hl7.org/fhir/ValueSet/request-priority" },
-          { path: "MedicationRequest.category", expectedVs: "http://hl7.org/fhir/ValueSet/medicationrequest-category" },
+          { path: "MedicationRequest.status", expectedVs: "http://hl7.org/fhir/ValueSet/medicationrequest-status", expectedCode: "active" },
+          { path: "MedicationRequest.intent", expectedVs: "http://hl7.org/fhir/ValueSet/medicationrequest-intent", expectedCode: "order" },
+          { path: "MedicationRequest.priority", expectedVs: "http://hl7.org/fhir/ValueSet/request-priority", expectedCode: "routine" },
+          { path: "MedicationRequest.category", expectedVs: "http://hl7.org/fhir/ValueSet/medicationrequest-category", expectedCode: "outpatient" },
         ],
       },
       {
         sd: ProcedureStructureDefinition,
         cases: [
-          { path: "Procedure.status", expectedVs: "http://hl7.org/fhir/ValueSet/event-status" },
-          { path: "Procedure.category", expectedVs: "http://hl7.org/fhir/ValueSet/procedure-category" },
+          { path: "Procedure.status", expectedVs: "http://hl7.org/fhir/ValueSet/event-status", expectedCode: "completed" },
+          { path: "Procedure.category", expectedVs: "http://hl7.org/fhir/ValueSet/procedure-category", expectedCode: "387713003" },
         ],
       },
       {
         sd: AllergyIntoleranceStructureDefinition,
         cases: [
-          { path: "AllergyIntolerance.verificationStatus", expectedVs: "http://hl7.org/fhir/ValueSet/allergyintolerance-verification" },
-          { path: "AllergyIntolerance.category", expectedVs: "http://hl7.org/fhir/ValueSet/allergy-intolerance-category" },
-          { path: "AllergyIntolerance.criticality", expectedVs: "http://hl7.org/fhir/ValueSet/allergy-intolerance-criticality" },
-          { path: "AllergyIntolerance.type", expectedVs: "http://hl7.org/fhir/ValueSet/allergy-intolerance-type" },
+          { path: "AllergyIntolerance.verificationStatus", expectedVs: "http://hl7.org/fhir/ValueSet/allergyintolerance-verification", expectedCode: "confirmed" },
+          { path: "AllergyIntolerance.category", expectedVs: "http://hl7.org/fhir/ValueSet/allergy-intolerance-category", expectedCode: "medication" },
+          { path: "AllergyIntolerance.criticality", expectedVs: "http://hl7.org/fhir/ValueSet/allergy-intolerance-criticality", expectedCode: "high" },
+          { path: "AllergyIntolerance.type", expectedVs: "http://hl7.org/fhir/ValueSet/allergy-intolerance-type", expectedCode: "allergy" },
         ],
       },
       {
         sd: EncounterStructureDefinition,
         cases: [
-          { path: "Encounter.status", expectedVs: "http://hl7.org/fhir/ValueSet/encounter-status" },
-          { path: "Encounter.class", expectedVs: "http://terminology.hl7.org/ValueSet/v3-ActEncounterCode" },
+          { path: "Encounter.status", expectedVs: "http://hl7.org/fhir/ValueSet/encounter-status", expectedCode: "in-progress" },
+          { path: "Encounter.class", expectedVs: "http://terminology.hl7.org/ValueSet/v3-ActEncounterCode", expectedCode: "AMB" },
         ],
       },
       {
         sd: ImmunizationStructureDefinition,
         cases: [
-          { path: "Immunization.status", expectedVs: "http://hl7.org/fhir/ValueSet/immunization-status" },
+          { path: "Immunization.status", expectedVs: "http://hl7.org/fhir/ValueSet/immunization-status", expectedCode: "completed" },
         ],
       },
     ];
@@ -113,7 +113,8 @@ describe("bundled core ValueSets", () => {
           expect(valueSet).toBe(tc.expectedVs);
           const vs = coreValueSet(valueSet);
           expect(vs).toBeDefined();
-          expect(codesFromValueSet(vs).length).toBeGreaterThan(0);
+          const codes = codesFromValueSet(vs).map((c) => c.code);
+          expect(codes).toContain(tc.expectedCode);
         });
       }
     }
