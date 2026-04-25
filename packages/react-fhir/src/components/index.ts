@@ -6,3 +6,4 @@ export * from "./ResourceEditor.js";
 export * from "./ResourceSearch.js";
 export * from "./ReferencePicker.js";
 export * from "./ResourceTable.js";
+export * from "./ColumnPicker.js";

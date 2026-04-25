@@ -1,7 +1,12 @@
-import { ResourceSearch, useInfiniteSearch } from "@fhir-place/react-fhir";
+import {
+  ColumnPicker,
+  ResourceSearch,
+  ResourceTable,
+  useInfiniteSearch,
+} from "@fhir-place/react-fhir";
 import type { Patient } from "fhir/r4";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import type { SearchParams } from "@fhir-place/react-fhir";
 import { PatientRowCounts } from "../components/PatientRowCounts.js";
 
@@ -12,8 +17,31 @@ const formatName = (p: Patient): string => {
   return [n.given?.join(" "), n.family].filter(Boolean).join(" ");
 };
 
+type Layout = "list" | "table";
+const LAYOUT_KEY = "fhir-place-demo-patient-layout";
+const COLUMN_KEY = "fhir-place-demo-patient-columns";
+
+const TABLE_COLUMNS: Array<{ path: string; label: string }> = [
+  { path: "name", label: "Name" },
+  { path: "gender", label: "Gender" },
+  { path: "birthDate", label: "Birth date" },
+  { path: "address.city", label: "City" },
+  { path: "id", label: "ID" },
+];
+
+const readLayout = (): Layout => {
+  if (typeof window === "undefined") return "list";
+  const v = window.localStorage.getItem(LAYOUT_KEY);
+  return v === "table" ? "table" : "list";
+};
+
 export function PatientListPage() {
   const [params, setParams] = useState<SearchParams>({ _count: 20 });
+  const [layout, setLayout] = useState<Layout>(readLayout);
+  const [columns, setColumns] = useState<string[]>(() =>
+    TABLE_COLUMNS.map((c) => c.path),
+  );
+  const navigate = useNavigate();
   const {
     data,
     isLoading,
@@ -29,6 +57,11 @@ export function PatientListPage() {
       (b) => b.entry?.flatMap((e) => (e.resource ? [e.resource] : [])) ?? [],
     ) ?? [];
   const totalAdvertised = data?.pages[0]?.total;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(LAYOUT_KEY, layout);
+  }, [layout]);
 
   return (
     <div className="space-y-4">
@@ -59,6 +92,40 @@ export function PatientListPage() {
         onSubmit={(p) => setParams({ _count: 20, ...p })}
       />
 
+      <div className="flex items-center justify-between gap-2">
+        <div
+          role="group"
+          aria-label="Layout"
+          className="inline-flex rounded border border-slate-300 bg-white text-sm shadow-sm"
+        >
+          <button
+            type="button"
+            onClick={() => setLayout("list")}
+            aria-pressed={layout === "list"}
+            data-testid="layout-list"
+            className={`rounded-l px-3 py-1 ${layout === "list" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            List view
+          </button>
+          <button
+            type="button"
+            onClick={() => setLayout("table")}
+            aria-pressed={layout === "table"}
+            data-testid="layout-table"
+            className={`rounded-r border-l border-slate-300 px-3 py-1 ${layout === "table" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            Table view
+          </button>
+        </div>
+        {layout === "table" && (
+          <ColumnPicker
+            options={TABLE_COLUMNS}
+            onChange={setColumns}
+            storageKey={COLUMN_KEY}
+          />
+        )}
+      </div>
+
       {isError && (
         <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {(error as Error)?.message ?? "Search failed"}
@@ -67,30 +134,44 @@ export function PatientListPage() {
 
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
 
-      <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
-        {patients.map((p) => (
-          <li key={p.id} data-testid="patient-row">
-            <Link
-              to={`/Patient/${p.id}`}
-              className="flex flex-col gap-1 px-4 py-3 hover:bg-slate-50"
-            >
-              <div className="flex items-baseline justify-between gap-4">
-                <span className="font-medium text-slate-900">{formatName(p)}</span>
-                <span className="text-xs text-slate-500">
-                  {p.gender ?? "—"} · {p.birthDate ?? "—"} ·{" "}
-                  <code className="rounded bg-slate-100 px-1 py-0.5">{p.id}</code>
-                </span>
-              </div>
-              {p.id && <PatientRowCounts patientId={p.id} />}
-            </Link>
-          </li>
-        ))}
-        {!isLoading && patients.length === 0 && (
-          <li className="px-4 py-6 text-center text-sm text-slate-500">
-            No patients match.
-          </li>
-        )}
-      </ul>
+      {layout === "list" ? (
+        <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
+          {patients.map((p) => (
+            <li key={p.id} data-testid="patient-row">
+              <Link
+                to={`/Patient/${p.id}`}
+                className="flex flex-col gap-1 px-4 py-3 hover:bg-slate-50"
+              >
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="font-medium text-slate-900">{formatName(p)}</span>
+                  <span className="text-xs text-slate-500">
+                    {p.gender ?? "—"} · {p.birthDate ?? "—"} ·{" "}
+                    <code className="rounded bg-slate-100 px-1 py-0.5">{p.id}</code>
+                  </span>
+                </div>
+                {p.id && <PatientRowCounts patientId={p.id} />}
+              </Link>
+            </li>
+          ))}
+          {!isLoading && patients.length === 0 && (
+            <li className="px-4 py-6 text-center text-sm text-slate-500">
+              No patients match.
+            </li>
+          )}
+        </ul>
+      ) : (
+        <ResourceTable<Patient>
+          resources={patients}
+          columns={TABLE_COLUMNS.map((c) => c.path).filter((p) => columns.includes(p))}
+          columnLabels={Object.fromEntries(TABLE_COLUMNS.map((c) => [c.path, c.label]))}
+          onRowClick={(p) => navigate(`/Patient/${p.id}`)}
+          emptyState={
+            <p className="px-4 py-6 text-center text-sm text-slate-500">
+              No patients match.
+            </p>
+          }
+        />
+      )}
 
       {hasNextPage && (
         <div className="flex justify-center">

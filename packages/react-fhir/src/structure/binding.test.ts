@@ -130,7 +130,7 @@ describe("codesFromValueSet", () => {
     expect(codesFromValueSet(vs).map((c) => c.code)).toEqual(["from-expansion"]);
   });
 
-  it("ignores compose.include entries that only reference other ValueSets", () => {
+  it("ignores compose.include entries that only reference other ValueSets when no resolver is provided", () => {
     const vs: ValueSet = {
       resourceType: "ValueSet",
       status: "active",
@@ -147,5 +147,131 @@ describe("codesFromValueSet", () => {
       },
     };
     expect(codesFromValueSet(vs).map((c) => c.code)).toEqual(["draft"]);
+  });
+
+  describe("recursive compose.include.valueSet resolution", () => {
+    it("resolves a single-level compose.include.valueSet reference via the resolver", () => {
+      const referenced: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example.com/colors",
+        compose: {
+          include: [
+            { system: "http://example.com/cs", concept: [{ code: "red" }, { code: "green" }] },
+          ],
+        },
+      };
+      const root: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example.com/root",
+        compose: {
+          include: [
+            { system: "http://example.com/cs", concept: [{ code: "blue" }] },
+            { valueSet: ["http://example.com/colors"] },
+          ],
+        },
+      };
+      const resolve = (url: string) => (url === referenced.url ? referenced : undefined);
+      expect(
+        codesFromValueSet(root, { resolve }).map((c) => c.code),
+      ).toEqual(["blue", "red", "green"]);
+    });
+
+    it("resolves two levels of compose.include.valueSet", () => {
+      const c: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example/c",
+        compose: { include: [{ system: "s", concept: [{ code: "c1" }] }] },
+      };
+      const b: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example/b",
+        compose: {
+          include: [
+            { system: "s", concept: [{ code: "b1" }] },
+            { valueSet: ["http://example/c"] },
+          ],
+        },
+      };
+      const a: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example/a",
+        compose: { include: [{ valueSet: ["http://example/b"] }] },
+      };
+      const map = new Map([["http://example/b", b], ["http://example/c", c]]);
+      expect(
+        codesFromValueSet(a, { resolve: (u) => map.get(u) }).map((c) => c.code),
+      ).toEqual(["b1", "c1"]);
+    });
+
+    it("guards against self-reference cycles", () => {
+      const a: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example/a",
+        compose: {
+          include: [
+            { system: "s", concept: [{ code: "a1" }] },
+            { valueSet: ["http://example/a"] }, // refers to itself
+          ],
+        },
+      };
+      const resolve = (u: string) => (u === a.url ? a : undefined);
+      // should not infinite-loop, and should yield exactly one round of codes
+      expect(codesFromValueSet(a, { resolve }).map((c) => c.code)).toEqual(["a1"]);
+    });
+
+    it("guards against transitive cycles (A → B → A)", () => {
+      const a: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example/a",
+        compose: {
+          include: [
+            { system: "s", concept: [{ code: "a1" }] },
+            { valueSet: ["http://example/b"] },
+          ],
+        },
+      };
+      const b: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example/b",
+        compose: {
+          include: [
+            { system: "s", concept: [{ code: "b1" }] },
+            { valueSet: ["http://example/a"] },
+          ],
+        },
+      };
+      const map = new Map([[a.url!, a], [b.url!, b]]);
+      const codes = codesFromValueSet(a, { resolve: (u) => map.get(u) }).map((c) => c.code);
+      // first traversal of A yields a1, then B yields b1, then B's reference
+      // back to A is short-circuited by the seen-set
+      expect(codes).toEqual(["a1", "b1"]);
+    });
+
+    it("strips optional `|version` suffix on referenced canonicals", () => {
+      const referenced: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        url: "http://example/v",
+        compose: { include: [{ system: "s", concept: [{ code: "v1" }] }] },
+      };
+      const root: ValueSet = {
+        resourceType: "ValueSet",
+        status: "active",
+        compose: { include: [{ valueSet: ["http://example/v|1.0.0"] }] },
+      };
+      expect(
+        codesFromValueSet(root, {
+          resolve: (u) => (u === "http://example/v" ? referenced : undefined),
+        }).map((c) => c.code),
+      ).toEqual(["v1"]);
+    });
   });
 });
