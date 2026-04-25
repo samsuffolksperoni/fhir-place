@@ -19,7 +19,7 @@ export const ProcedureStructureDefinition: StructureDefinition = {
       { id: "Procedure.identifier", path: "Procedure.identifier", min: 0, max: "*", short: "External Identifiers for this procedure", type: [{ code: "Identifier" }] },
       { id: "Procedure.status", path: "Procedure.status", min: 1, max: "1", short: "preparation | in-progress | not-done | on-hold | stopped | completed | entered-in-error | unknown", type: [{ code: "code" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/event-status" } },
       { id: "Procedure.statusReason", path: "Procedure.statusReason", min: 0, max: "1", short: "Reason for current status", type: [{ code: "CodeableConcept" }] },
-      { id: "Procedure.category", path: "Procedure.category", min: 0, max: "1", short: "Classification of the procedure", type: [{ code: "CodeableConcept" }] },
+      { id: "Procedure.category", path: "Procedure.category", min: 0, max: "1", short: "Classification of the procedure", type: [{ code: "CodeableConcept" }], binding: { strength: "example", valueSet: "http://hl7.org/fhir/ValueSet/procedure-category" } },
       { id: "Procedure.code", path: "Procedure.code", min: 0, max: "1", short: "Identification of the procedure", type: [{ code: "CodeableConcept" }] },
       { id: "Procedure.subject", path: "Procedure.subject", min: 1, max: "1", short: "Who the procedure was performed on", type: [{ code: "Reference" }] },
       { id: "Procedure.encounter", path: "Procedure.encounter", min: 0, max: "1", short: "Encounter created as part of", type: [{ code: "Reference" }] },

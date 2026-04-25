@@ -18,7 +18,7 @@ export const EncounterStructureDefinition: StructureDefinition = {
       { id: "Encounter.meta", path: "Encounter.meta", min: 0, max: "1", short: "Metadata about the resource", type: [{ code: "Meta" }] },
       { id: "Encounter.identifier", path: "Encounter.identifier", min: 0, max: "*", short: "Identifier(s) by which this encounter is known", type: [{ code: "Identifier" }] },
       { id: "Encounter.status", path: "Encounter.status", min: 1, max: "1", short: "planned | arrived | triaged | in-progress | onleave | finished | cancelled | entered-in-error | unknown", type: [{ code: "code" }], binding: { strength: "required", valueSet: "http://hl7.org/fhir/ValueSet/encounter-status" } },
-      { id: "Encounter.class", path: "Encounter.class", min: 1, max: "1", short: "Classification of patient encounter", type: [{ code: "Coding" }] },
+      { id: "Encounter.class", path: "Encounter.class", min: 1, max: "1", short: "Classification of patient encounter", type: [{ code: "Coding" }], binding: { strength: "extensible", valueSet: "http://terminology.hl7.org/ValueSet/v3-ActEncounterCode" } },
       { id: "Encounter.type", path: "Encounter.type", min: 0, max: "*", short: "Specific type of encounter", type: [{ code: "CodeableConcept" }] },
       { id: "Encounter.serviceType", path: "Encounter.serviceType", min: 0, max: "1", short: "Specific type of service", type: [{ code: "CodeableConcept" }] },
       { id: "Encounter.priority", path: "Encounter.priority", min: 0, max: "1", short: "Indicates the urgency of the encounter", type: [{ code: "CodeableConcept" }] },

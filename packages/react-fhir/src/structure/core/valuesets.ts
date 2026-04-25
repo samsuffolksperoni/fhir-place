@@ -231,6 +231,19 @@ export const coreValueSets: Map<string, ValueSet> = new Map(
         "http://hl7.org/fhir/event-status",
       ),
       mk(
+        "http://hl7.org/fhir/ValueSet/procedure-category",
+        [
+          { code: "24642003", display: "Psychiatry procedure or service" },
+          { code: "409063005", display: "Counselling" },
+          { code: "409073007", display: "Education" },
+          { code: "387713003", display: "Surgical procedure" },
+          { code: "103693007", display: "Diagnostic procedure" },
+          { code: "46947000", display: "Chiropractic manipulation" },
+          { code: "410606002", display: "Social service procedure" },
+        ],
+        "http://snomed.info/sct",
+      ),
+      mk(
         "http://hl7.org/fhir/ValueSet/immunization-status",
         [
           { code: "completed", display: "Completed" },

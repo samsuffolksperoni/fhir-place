@@ -14,6 +14,7 @@ import {
   useInfiniteSearch,
   useResource,
   useSearch,
+  useSearchParameter,
   useStructureDefinition,
   useUpdateResource,
   useValueSet,
@@ -242,6 +243,89 @@ describe("query hooks", () => {
       const { wrapper } = mkWrapper();
       const { result } = renderHook(() => useValueSet(undefined), { wrapper });
       expect(result.current.fetchStatus).toBe("idle");
+    });
+  });
+
+  describe("useSearchParameter", () => {
+    it("fetches SearchParameter?base=&code= and returns the first match", async () => {
+      let captured: URLSearchParams | null = null;
+      server.use(
+        http.get(`${BASE}/SearchParameter`, ({ request }) => {
+          captured = new URL(request.url).searchParams;
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [
+              {
+                resource: {
+                  resourceType: "SearchParameter",
+                  url: "http://example/sp/Patient-given",
+                  name: "given",
+                  status: "active",
+                  description: "Given names",
+                  code: "given",
+                  base: ["Patient"],
+                  type: "string",
+                  expression: "Patient.name.given",
+                },
+              },
+            ],
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useSearchParameter("Patient", "given"),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(captured!.get("base")).toBe("Patient");
+      expect(captured!.get("code")).toBe("given");
+      expect(result.current.data?.expression).toBe("Patient.name.given");
+    });
+
+    it("returns null (not undefined) when the server has no matching SearchParameter", async () => {
+      server.use(
+        http.get(`${BASE}/SearchParameter`, () =>
+          HttpResponse.json({ resourceType: "Bundle", type: "searchset", entry: [] }),
+        ),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useSearchParameter("Patient", "made-up"),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toBeNull();
+    });
+
+    it("returns null when the server errors out", async () => {
+      server.use(
+        http.get(`${BASE}/SearchParameter`, () =>
+          HttpResponse.json({ resourceType: "OperationOutcome" }, { status: 500 }),
+        ),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useSearchParameter("Patient", "given"),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toBeNull();
+    });
+
+    it("is disabled when base or code is empty", () => {
+      const { wrapper } = mkWrapper();
+      const { result: r1 } = renderHook(
+        () => useSearchParameter("", "given"),
+        { wrapper },
+      );
+      expect(r1.current.fetchStatus).toBe("idle");
+      const { result: r2 } = renderHook(
+        () => useSearchParameter("Patient", ""),
+        { wrapper },
+      );
+      expect(r2.current.fetchStatus).toBe("idle");
     });
   });
 

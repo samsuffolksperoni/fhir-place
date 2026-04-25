@@ -11,6 +11,7 @@ import type {
   CapabilityStatement,
   Reference,
   Resource,
+  SearchParameter,
   StructureDefinition,
   ValueSet,
 } from "fhir/r4";
@@ -33,6 +34,8 @@ export const fhirQueryKeys = {
     [...fhirQueryKeys.all(baseUrl), "ValueSet", canonical] as const,
   reference: (baseUrl: string, ref: string) =>
     [...fhirQueryKeys.all(baseUrl), "ref", ref] as const,
+  searchParameter: (baseUrl: string, base: string, code: string) =>
+    [...fhirQueryKeys.all(baseUrl), "SearchParameter", base, code] as const,
 };
 
 type ReadQueryOpts<T> = Omit<
@@ -170,6 +173,47 @@ export function useValueSet(
     },
     enabled: Boolean(canonical),
     staleTime: 24 * 60 * 60_000,
+    ...options,
+  });
+}
+
+/**
+ * Resolves the canonical `SearchParameter` resource for a `(base, code)` pair.
+ *
+ * Use the returned spec's `expression` to discover the actual FHIR element a
+ * search param targets — necessary for custom IG params and the rare core
+ * params whose code diverges from their `expression`. Falls through to
+ * `undefined` when the server does not advertise the param; callers should
+ * fall back to the kebab→camel naming convention.
+ *
+ * Implementation: searches `SearchParameter?base={base}&code={code}` and
+ * returns the first hit. Cached for an hour since SearchParameter is
+ * canonical metadata that changes rarely.
+ */
+export function useSearchParameter(
+  base: string,
+  code: string,
+  options?: ReadQueryOpts<SearchParameter | null>,
+) {
+  const client = useFhirClient();
+  return useQuery<SearchParameter | null>({
+    queryKey: fhirQueryKeys.searchParameter(client.baseUrl, base, code),
+    // TanStack Query treats `undefined` as "no data yet", so we explicitly
+    // return `null` for the no-result and error-fallback cases.
+    queryFn: async ({ signal }): Promise<SearchParameter | null> => {
+      try {
+        const bundle = await client.search<SearchParameter>(
+          "SearchParameter",
+          { base, code },
+          { signal },
+        );
+        return bundle.entry?.[0]?.resource ?? null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: Boolean(base && code),
+    staleTime: 60 * 60_000,
     ...options,
   });
 }

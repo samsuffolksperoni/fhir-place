@@ -5,6 +5,7 @@ import type {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   useCapabilities,
+  useSearchParameter,
   useStructureDefinition,
   useValueSet,
 } from "../hooks/queries.js";
@@ -237,7 +238,11 @@ function SearchField({ base, param, value, onChange }: SearchFieldProps): ReactN
  * the ValueSet is too large to enumerate in a dropdown.
  */
 function TokenSearchField({ base, param, value, onChange }: SearchFieldProps): ReactNode {
-  const elementPath = elementPathForSearchParam(param, base);
+  // Try the canonical SearchParameter first (covers custom IG params and the
+  // few core params whose `expression` doesn't match the kebab→camel rule).
+  // Falls through silently when the server doesn't expose SearchParameter.
+  const { data: spec } = useSearchParameter(base, param.name ?? "");
+  const elementPath = elementPathForSearchParam(param, base, spec ?? undefined);
   const { data: sd } = useStructureDefinition(base, { enabled: Boolean(elementPath) });
   const element = elementPath && sd ? findElement(sd, elementPath) : undefined;
   const { valueSet: valueSetUrl } = bindingFor(element);

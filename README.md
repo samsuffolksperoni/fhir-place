@@ -117,7 +117,7 @@ function Patients() {
 
 ### `hooks/`
 - **`FhirClientProvider` / `useFhirClient`** — context
-- **`useResource`, `useSearch`, `useCapabilities`, `useStructureDefinition`, `useReadReference`** — TanStack Query wrappers with stable query keys (`fhirQueryKeys`)
+- **`useResource`, `useSearch`, `useCapabilities`, `useStructureDefinition`, `useSearchParameter`, `useValueSet`, `useReadReference`** — TanStack Query wrappers with stable query keys (`fhirQueryKeys`). `useSearchParameter` resolves a `(base, code)` pair to its canonical `SearchParameter` resource so spec-aware code can prefer `expression` over the kebab→camel naming convention.
 - **`useCreateResource`, `useUpdateResource`, `useDeleteResource`** — mutations that invalidate matching read queries on success
 
 ### `structure/`
@@ -129,6 +129,8 @@ function Patients() {
 - **`<ResourceView>`** — spec-driven read-only view. Dispatches by FHIR datatype; falls back to JSON for unknowns. Recurses into BackboneElements. Zero resource-specific code.
 - **`<ResourceEditor>`** — spec-driven form. Inputs for every R4 primitive + HumanName, Address, ContactPoint, Identifier, Reference, Period, Quantity, Coding, CodeableConcept. BackboneElement recursion. Arrays with add/remove; choice-type switching clears the other variant. `onChange` on every keystroke; `onSave` receives a pruned draft.
 - **`<ResourceSearch>`** — form driven by `CapabilityStatement.rest[].resource[].searchParam`. Type-aware placeholders (token, date, reference, number, quantity, uri). Priority params + "show more" toggle.
+- **`<ResourceTable>`** — generic list/table renderer driven by the StructureDefinition; FHIR-datatype-aware cell formatting (HumanName, CodeableConcept, Reference, …) using the same renderer map as `<ResourceView>`. Supports controlled sort, row clicks, custom per-column renderers.
+- **`<ColumnPicker>`** — companion popover to `<ResourceTable>`: toggle column visibility with checkboxes, persist user choice to `localStorage` via `storageKey`. Keyboard-accessible (Esc closes, ArrowUp/Down navigate).
 - **`<Narrative>`** — the *only* place `dangerouslySetInnerHTML` is allowed. DOMPurify with a FHIR-appropriate allowlist: no `<script>`, no `on*`, no `javascript:`, no forms or inputs.
 - **`defaultTypeRenderers` / `defaultTypeInputs`** — the dispatch maps. Every built-in renderer/input is overridable by passing `renderers` / `inputs` props.
 
