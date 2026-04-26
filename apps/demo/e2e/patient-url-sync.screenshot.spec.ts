@@ -1,0 +1,46 @@
+import { expect, test } from "@playwright/test";
+
+test.describe("Patient list — URL sync", () => {
+  test.beforeEach(async ({ page }) => {
+    // Reset the layout/columns localStorage so the list view (with its
+    // search form) is the default and tests are deterministic.
+    await page.addInitScript(() => {
+      window.localStorage.removeItem("fhir-place-demo-patient-layout");
+      window.localStorage.removeItem("fhir-place-demo-patient-columns");
+    });
+  });
+
+  test("submitting the search form writes filters into the URL", async ({ page }) => {
+    await page.goto("/Patient");
+    const search = page.getByTestId("resource-search");
+    await search.getByRole("textbox", { name: "given" }).fill("Alan");
+    await search.getByRole("button", { name: /search/i }).click();
+    await expect(page).toHaveURL(/\?given=Alan/);
+    // Filter applied — exactly one synthetic match.
+    await expect(page.getByTestId("patient-row")).toHaveCount(1);
+  });
+
+  test("loading a URL with filters pre-fills the form and applies the filter", async ({
+    page,
+  }) => {
+    await page.goto("/Patient?given=Alan");
+    await expect(page.getByTestId("patient-row")).toHaveCount(1);
+    await expect(
+      page.getByTestId("resource-search").getByRole("textbox", { name: "given" }),
+    ).toHaveValue("Alan");
+  });
+
+  test("`_count` is not added to the URL", async ({ page }) => {
+    await page.goto("/Patient");
+    await page
+      .getByTestId("resource-search")
+      .getByRole("textbox", { name: "given" })
+      .fill("Alan");
+    await page
+      .getByTestId("resource-search")
+      .getByRole("button", { name: /search/i })
+      .click();
+    await expect(page).toHaveURL(/\?given=Alan/);
+    await expect(page).not.toHaveURL(/_count=/);
+  });
+});

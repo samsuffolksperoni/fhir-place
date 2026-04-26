@@ -195,6 +195,48 @@ describe("ResourceTable", () => {
     expect(within(row).queryByText(/"value":/)).not.toBeInTheDocument();
   });
 
+  it("renders a card layout on narrow viewports (layout=cards)", () => {
+    render(
+      <ResourceTable<Patient>
+        resources={patients}
+        columns={["name", "gender", "birthDate"]}
+        structureDefinition={sd}
+        layout="cards"
+      />,
+      { wrapper: wrap() },
+    );
+    // Each row is now a list item with a label/value pair per column.
+    const rows = screen.getAllByTestId("resource-row-card");
+    expect(rows).toHaveLength(2);
+    // Headers don't render in card mode; instead each cell is paired with
+    // its column label inline.
+    expect(within(rows[0]!).getByText("Name")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("Gender")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("Birth Date")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText(/Ada Lovelace/)).toBeInTheDocument();
+    // No HTML <table> in the DOM.
+    expect(document.querySelector("table")).toBeNull();
+  });
+
+  it("invokes onRowClick from the card layout via Enter / Space", async () => {
+    const onRowClick = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ResourceTable<Patient>
+        resources={patients}
+        columns={["name"]}
+        onRowClick={onRowClick}
+        structureDefinition={sd}
+        layout="cards"
+      />,
+      { wrapper: wrap() },
+    );
+    const firstRow = screen.getAllByTestId("resource-row-card")[0]!;
+    firstRow.focus();
+    await user.keyboard("{Enter}");
+    expect(onRowClick).toHaveBeenCalledWith(patients[0]);
+  });
+
   it("falls back to a friendly dash for missing cell values", () => {
     const partial: Patient = { resourceType: "Patient", id: "p3", gender: "other" };
     render(

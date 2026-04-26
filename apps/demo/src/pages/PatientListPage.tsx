@@ -5,8 +5,8 @@ import {
   useInfiniteSearch,
 } from "@fhir-place/react-fhir";
 import type { Patient } from "fhir/r4";
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { SearchParams } from "@fhir-place/react-fhir";
 import { PatientRowCounts } from "../components/PatientRowCounts.js";
 
@@ -20,6 +20,7 @@ const formatName = (p: Patient): string => {
 type Layout = "list" | "table";
 const LAYOUT_KEY = "fhir-place-demo-patient-layout";
 const COLUMN_KEY = "fhir-place-demo-patient-columns";
+const PAGE_SIZE = 20;
 
 const TABLE_COLUMNS: Array<{ path: string; label: string }> = [
   { path: "name", label: "Name" },
@@ -35,13 +36,41 @@ const readLayout = (): Layout => {
   return v === "table" ? "table" : "list";
 };
 
+/** Build the SearchParams object passed to `useInfiniteSearch` from the URL. */
+const paramsFromUrl = (urlParams: URLSearchParams): SearchParams => {
+  const out: SearchParams = { _count: PAGE_SIZE };
+  for (const [k, v] of urlParams.entries()) out[k] = v;
+  return out;
+};
+
+/** Build the form's pre-fill object from the URL (strings only — `_count` is layout, not a filter). */
+const formInitialFromUrl = (urlParams: URLSearchParams): Record<string, string> =>
+  Object.fromEntries(urlParams.entries());
+
 export function PatientListPage() {
-  const [params, setParams] = useState<SearchParams>({ _count: 20 });
+  const [searchParams, setSearchParams] = useSearchParams();
   const [layout, setLayout] = useState<Layout>(readLayout);
   const [columns, setColumns] = useState<string[]>(() =>
     TABLE_COLUMNS.map((c) => c.path),
   );
   const navigate = useNavigate();
+
+  // Derive search params from the URL so reload / share-link / browser back
+  // all replay the same query. `_count` is paging metadata; we keep it out of
+  // the URL so users see clean shareable links (`?name=hop`, not
+  // `?name=hop&_count=20`).
+  const params = useMemo(() => paramsFromUrl(searchParams), [searchParams]);
+  // Snapshot the URL state for the form's `initialParams` — re-read whenever
+  // the URL changes (e.g. browser back) so the form mirrors what's filtered.
+  const formInitial = useMemo(
+    () => formInitialFromUrl(searchParams),
+    [searchParams],
+  );
+  // Re-mount the form when the URL changes so its internal state resets to
+  // `formInitial`. Cheap (form is small) and avoids hand-syncing internal
+  // state when external state moves.
+  const formKey = searchParams.toString();
+
   const {
     data,
     isLoading,
@@ -62,6 +91,19 @@ export function PatientListPage() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(LAYOUT_KEY, layout);
   }, [layout]);
+
+  const submitFilters = (next: SearchParams) => {
+    // Coerce the SearchParams (string | number | string[]) shape down to
+    // strings for the URL. Numbers and arrays are rare in this filter form
+    // and round-trip through `String()` cleanly.
+    const entries: Array<[string, string]> = [];
+    for (const [k, v] of Object.entries(next)) {
+      if (v === undefined || v === "" || v === null) continue;
+      if (Array.isArray(v)) entries.push([k, v.join(",")]);
+      else entries.push([k, String(v)]);
+    }
+    setSearchParams(Object.fromEntries(entries), { replace: true });
+  };
 
   return (
     <div className="space-y-4">
@@ -86,10 +128,12 @@ export function PatientListPage() {
       </div>
 
       <ResourceSearch
+        key={formKey}
         resourceType="Patient"
         initialVisible={6}
+        initialParams={formInitial}
         priorityParams={["name", "family", "given", "gender", "birthdate", "address-city"]}
-        onSubmit={(p) => setParams({ _count: 20, ...p })}
+        onSubmit={submitFilters}
       />
 
       <div className="flex items-center justify-between gap-2">
