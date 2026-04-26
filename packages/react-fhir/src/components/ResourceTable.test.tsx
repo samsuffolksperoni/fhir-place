@@ -83,6 +83,10 @@ describe("ResourceTable", () => {
         resources={patients}
         columns={["name", "gender", "birthDate"]}
         structureDefinition={sd}
+        // Pin to the table layout — auto mode renders BOTH layouts in
+        // jsdom (no CSS), which would duplicate every label / value text
+        // node and break the count-based assertions below.
+        layout="table"
       />,
       { wrapper: wrap() },
     );
@@ -108,6 +112,7 @@ describe("ResourceTable", () => {
           name: (p) => <span data-testid="custom-name">{p.id}</span>,
         }}
         structureDefinition={sd}
+        layout="table"
       />,
       { wrapper: wrap() },
     );
@@ -205,5 +210,120 @@ describe("ResourceTable", () => {
     expect(within(row).getByText("—")).toBeInTheDocument();
     // Gender present → renders via code renderer
     expect(within(row).getByText("other")).toBeInTheDocument();
+  });
+
+  describe("responsive layouts", () => {
+    it("auto layout (default) renders both a table and a card stack", () => {
+      render(
+        <ResourceTable<Patient>
+          resources={patients}
+          columns={["name", "gender"]}
+          structureDefinition={sd}
+        />,
+        { wrapper: wrap() },
+      );
+      expect(screen.getByTestId("resource-table-table")).toBeInTheDocument();
+      expect(screen.getByTestId("resource-table-cards")).toBeInTheDocument();
+      // jsdom doesn't apply CSS, so both layouts are in the DOM. Existing
+      // unit tests counting `resource-row` still see only the table rows.
+      expect(screen.getAllByTestId("resource-row")).toHaveLength(2);
+      expect(screen.getAllByTestId("resource-row-card")).toHaveLength(2);
+    });
+
+    it('layout="table" omits the card stack entirely', () => {
+      render(
+        <ResourceTable<Patient>
+          resources={patients}
+          columns={["name", "gender"]}
+          structureDefinition={sd}
+          layout="table"
+        />,
+        { wrapper: wrap() },
+      );
+      expect(screen.getByTestId("resource-table-table")).toBeInTheDocument();
+      expect(screen.queryByTestId("resource-table-cards")).not.toBeInTheDocument();
+      expect(screen.queryAllByTestId("resource-row-card")).toHaveLength(0);
+    });
+
+    it('layout="cards" omits the table entirely', () => {
+      render(
+        <ResourceTable<Patient>
+          resources={patients}
+          columns={["name", "gender"]}
+          structureDefinition={sd}
+          layout="cards"
+        />,
+        { wrapper: wrap() },
+      );
+      expect(screen.queryByTestId("resource-table-table")).not.toBeInTheDocument();
+      expect(screen.getByTestId("resource-table-cards")).toBeInTheDocument();
+      expect(screen.getAllByTestId("resource-row-card")).toHaveLength(2);
+      // No table rows.
+      expect(screen.queryAllByTestId("resource-row")).toHaveLength(0);
+    });
+
+    it("renders each card as a label/value list and dispatches the same renderers", () => {
+      render(
+        <ResourceTable<Patient>
+          resources={patients}
+          columns={["name", "gender", "birthDate"]}
+          structureDefinition={sd}
+          layout="cards"
+        />,
+        { wrapper: wrap() },
+      );
+      const card = screen.getAllByTestId("resource-row-card")[0]!;
+      // Labels (column headers) + values render side by side in the dl.
+      expect(within(card).getByText("Name")).toBeInTheDocument();
+      expect(within(card).getByText(/Ada Lovelace/)).toBeInTheDocument();
+      expect(within(card).getByText("Gender")).toBeInTheDocument();
+      expect(within(card).getByText("female")).toBeInTheDocument();
+      expect(within(card).getByText("Birth Date")).toBeInTheDocument();
+      expect(within(card).getByText("1815-12-10")).toBeInTheDocument();
+    });
+
+    it("card rows are keyboard-clickable when onRowClick is set", async () => {
+      const onRowClick = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <ResourceTable<Patient>
+          resources={patients}
+          columns={["name"]}
+          structureDefinition={sd}
+          layout="cards"
+          onRowClick={onRowClick}
+        />,
+        { wrapper: wrap() },
+      );
+      const card = screen.getAllByTestId("resource-row-card")[1]!;
+      card.focus();
+      expect(card.tabIndex).toBe(0);
+      await user.keyboard("{Enter}");
+      expect(onRowClick).toHaveBeenCalledWith(patients[1]);
+    });
+
+    it("dispatches choice-typed cells (valueQuantity) the same way in card layout", () => {
+      const observation: Observation = {
+        resourceType: "Observation",
+        id: "o1",
+        status: "final",
+        code: { text: "Heart rate" },
+        valueQuantity: { value: 86, unit: "beats/minute" },
+      };
+      render(
+        <ResourceTable<Observation>
+          resources={[observation]}
+          columns={["code.text", "valueQuantity"]}
+          columnLabels={{ "code.text": "Observation", valueQuantity: "Value" }}
+          structureDefinition={ObservationStructureDefinition}
+          layout="cards"
+        />,
+        { wrapper: wrap() },
+      );
+      const card = screen.getByTestId("resource-row-card");
+      expect(within(card).getByText(/86/)).toBeInTheDocument();
+      expect(within(card).getByText(/beats\/minute/)).toBeInTheDocument();
+      expect(within(card).queryByText(/"value":/)).not.toBeInTheDocument();
+    });
   });
 });
