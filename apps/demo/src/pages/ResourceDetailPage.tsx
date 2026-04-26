@@ -29,8 +29,13 @@ export function ResourceDetailPage() {
   };
 
   const handleDelete = async () => {
-    await del.mutateAsync({ type: resourceType, id });
-    navigate(`/${resourceType}`);
+    try {
+      await del.mutateAsync({ type: resourceType, id });
+      navigate(`/${resourceType}`);
+    } catch {
+      // del.error is now populated; the confirm panel renders it inline so
+      // the user can read the server message and retry or cancel.
+    }
   };
 
   return (
@@ -66,6 +71,15 @@ export function ResourceDetailPage() {
           <p className="mb-2 text-red-800">
             Delete {resourceType}/{id}? This cannot be undone.
           </p>
+          {del.isError && (
+            <p
+              role="alert"
+              data-testid="delete-error"
+              className="mb-2 rounded border border-red-300 bg-white p-2 text-xs text-red-800"
+            >
+              {(del.error as Error)?.message ?? "Delete failed"}
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               type="button"

@@ -124,20 +124,25 @@ describe("ResourceSearch", () => {
     expect(last).toEqual({ name: "ab" });
   });
 
-  it("Clear empties the form and emits {} via onChange", async () => {
+  it("Clear empties the form and emits {} via onChange + onSubmit", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
+    const onSubmit = vi.fn();
     wrap(
       <ResourceSearch
         resourceType="Patient"
         capabilityStatement={cap}
         onChange={onChange}
+        onSubmit={onSubmit}
         initialParams={{ name: "smith" }}
       />,
     );
     expect(screen.getByDisplayValue("smith")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /clear/i }));
     expect(onChange.mock.calls.at(-1)?.[0]).toEqual({});
+    // Clear must also re-submit so the parent's active query resets without a
+    // second Search click.
+    expect(onSubmit).toHaveBeenCalledWith({});
   });
 
   it("starts with only `initialVisible` params and toggles Show more", async () => {
