@@ -164,7 +164,13 @@ export function ResourceSearch(props: ResourceSearchProps) {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setValues({})}
+            onClick={() => {
+              setValues({});
+              // Clear is a "wipe and reload" affordance: also fire onSubmit so
+              // the parent's active query resets without requiring a second
+              // click on Search.
+              onSubmit?.({});
+            }}
             className="rounded border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
           >
             Clear
