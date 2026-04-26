@@ -1,5 +1,5 @@
 import type { Reference, Resource, StructureDefinition } from "fhir/r4";
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, type ReactNode } from "react";
 import { useStructureDefinition } from "../hooks/queries.js";
 import { findChoiceVariant, findElement } from "../structure/walker.js";
 import {
@@ -12,6 +12,8 @@ export interface ResourceTableSort {
   by: string;
   direction: "asc" | "desc";
 }
+
+export type ResourceTableLayout = "auto" | "table" | "cards";
 
 export interface ResourceTableProps<T extends Resource = Resource> {
   resources: T[];
@@ -34,29 +36,15 @@ export interface ResourceTableProps<T extends Resource = Resource> {
   /** Click handler for Reference cells. */
   onReferenceClick?: (ref: Reference) => void;
   /**
-   * Layout mode. `"auto"` (default) renders the table on viewports ≥ 640px and
-   * a label/value card stack below — clinical tables become readable on mobile
-   * without horizontal scrolling. `"table"` and `"cards"` force the layout.
+   * Layout mode:
+   * - `"auto"` (default) — renders both layouts and switches via Tailwind's
+   *   `sm:` breakpoint: card stack below 640px, table at and above. The
+   *   columns and cell renderers are shared.
+   * - `"table"` — always table (the pre-#60 behaviour).
+   * - `"cards"` — always card stack (useful for embeds in narrow sidebars).
    */
-  layout?: "auto" | "table" | "cards";
+  layout?: ResourceTableLayout;
   className?: string;
-}
-
-const NARROW_QUERY = "(max-width: 639px)";
-
-function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return false;
-    return window.matchMedia(NARROW_QUERY).matches;
-  });
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia(NARROW_QUERY);
-    const onChange = () => setNarrow(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  return narrow;
 }
 
 const headerFromPath = (path: string): string => {
@@ -94,6 +82,12 @@ export function getByPath(obj: unknown, path: string): unknown {
  * Generic table driven by the StructureDefinition's datatype metadata. Cells
  * format using the same `defaultTypeRenderers` map as `<ResourceView>`, so a
  * CodeableConcept in a table cell and in a detail page render identically.
+ *
+ * `layout="auto"` (default) renders a desktop `<table>` and a mobile card
+ * stack side-by-side, switching via Tailwind's `sm:` breakpoint. Below 640px
+ * each row becomes a label / value list — column squeeze and clipped values
+ * (e.g. `Observation.valueQuantity`) on phone-width viewports were the
+ * motivation for #60.
  */
 export function ResourceTable<T extends Resource = Resource>({
   resources,
@@ -110,8 +104,6 @@ export function ResourceTable<T extends Resource = Resource>({
   layout = "auto",
   className,
 }: ResourceTableProps<T>) {
-  const isNarrow = useIsNarrow();
-  const useCards = layout === "cards" || (layout === "auto" && isNarrow);
   const resourceType = resources[0]?.resourceType ?? "";
   const sdQuery = useStructureDefinition(resourceType, {
     enabled: !structureDefinition && Boolean(resourceType),
@@ -145,112 +137,127 @@ export function ResourceTable<T extends Resource = Resource>({
     return <>{emptyState ?? <p className="text-sm text-slate-500">No results.</p>}</>;
   }
 
-  if (useCards) {
-    return (
-      <ul
-        className={
-          className ??
-          "divide-y divide-slate-100 rounded border border-slate-200 bg-white"
-        }
-        data-testid="resource-table"
-      >
-        {resources.map((r) => {
-          const clickProps = onRowClick
-            ? {
-                onClick: () => onRowClick(r),
-                onKeyDown: (e: React.KeyboardEvent) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onRowClick(r);
-                  }
-                },
-                tabIndex: 0,
-                role: "button" as const,
-                className: "cursor-pointer space-y-1 px-3 py-2 hover:bg-slate-50",
-              }
-            : { className: "space-y-1 px-3 py-2" };
-          return (
-            <li
-              key={`${r.resourceType}/${r.id}`}
-              data-testid="resource-row"
-              {...clickProps}
-            >
-              {headers.map((h) => (
-                <div
-                  key={h.path}
-                  className="flex items-baseline justify-between gap-3 text-sm"
-                >
-                  <span className="text-xs font-medium text-slate-500">
-                    {h.label}
-                  </span>
-                  <span className="text-right text-slate-900">
-                    {renderCell({
-                      resource: r,
-                      path: h.path,
-                      typeCode: h.typeCode,
-                      cellRenderers,
-                      renderers,
-                      onReferenceClick,
-                    })}
-                  </span>
-                </div>
-              ))}
-            </li>
-          );
-        })}
-      </ul>
-    );
-  }
+  // Tailwind classes that gate each layout. `auto` renders both DOM trees
+  // and the breakpoint hides one — keeps the JS simple (no resize listeners,
+  // no SSR hydration mismatches) at the cost of a tiny extra DOM. Pinned
+  // modes skip the other layout entirely so jsdom unit tests don't see
+  // duplicated nodes.
+  const renderTable = layout !== "cards";
+  const renderCards = layout !== "table";
+  const tableVisibility = layout === "auto" ? "hidden sm:block" : "";
+  const cardsVisibility = layout === "auto" ? "block sm:hidden" : "";
 
   return (
-    <div className={className ?? "overflow-x-auto rounded border border-slate-200 bg-white"} data-testid="resource-table">
-      <table className="w-full text-sm">
-        <thead className="border-b border-slate-200 bg-slate-50 text-left">
-          <tr>
-            {headers.map((h) => (
-              <th key={h.path} className="px-3 py-2 font-medium text-slate-600">
-                {onSortChange ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleSort(h.path)}
-                    className="flex items-center gap-1 hover:text-slate-900"
-                  >
-                    {h.label}
-                    {sort?.by === h.path && (
-                      <span aria-hidden className="text-[10px]">
-                        {sort.direction === "asc" ? "▲" : "▼"}
-                      </span>
-                    )}
-                  </button>
-                ) : (
-                  h.label
-                )}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {resources.map((r) => (
-            <tr
-              key={`${r.resourceType}/${r.id}`}
-              className={onRowClick ? "cursor-pointer hover:bg-slate-50" : undefined}
-              onClick={onRowClick ? () => onRowClick(r) : undefined}
-              onKeyDown={
-                onRowClick
-                  ? (e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onRowClick(r);
+    <div className={className ?? "rounded border border-slate-200 bg-white"} data-testid="resource-table">
+      {/* Desktop / opt-in table layout */}
+      {renderTable && (
+      <div
+        className={`${tableVisibility} overflow-x-auto`}
+        data-testid="resource-table-table"
+      >
+        <table className="w-full text-sm">
+          <thead className="border-b border-slate-200 bg-slate-50 text-left">
+            <tr>
+              {headers.map((h) => (
+                <th key={h.path} className="px-3 py-2 font-medium text-slate-600">
+                  {onSortChange ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(h.path)}
+                      className="flex items-center gap-1 hover:text-slate-900"
+                    >
+                      {h.label}
+                      {sort?.by === h.path && (
+                        <span aria-hidden className="text-[10px]">
+                          {sort.direction === "asc" ? "▲" : "▼"}
+                        </span>
+                      )}
+                    </button>
+                  ) : (
+                    h.label
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {resources.map((r) => (
+              <tr
+                key={`${r.resourceType}/${r.id}`}
+                className={onRowClick ? "cursor-pointer hover:bg-slate-50" : undefined}
+                onClick={onRowClick ? () => onRowClick(r) : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onRowClick(r);
+                        }
                       }
+                    : undefined
+                }
+                tabIndex={onRowClick ? 0 : undefined}
+                data-testid="resource-row"
+              >
+                {headers.map((h) => (
+                  <Fragment key={h.path}>
+                    <td className="px-3 py-2 align-top">
+                      {renderCell({
+                        resource: r,
+                        path: h.path,
+                        typeCode: h.typeCode,
+                        cellRenderers,
+                        renderers,
+                        onReferenceClick,
+                      })}
+                    </td>
+                  </Fragment>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      )}
+
+      {/* Narrow / mobile card-stack layout. Distinct testid (`resource-row-card`)
+          so jsdom unit tests counting `resource-row`s still see only the
+          table rows in `auto` mode (Tailwind's `hidden` doesn't remove DOM,
+          and jsdom doesn't apply CSS). */}
+      {renderCards && (
+      <ul
+        className={`${cardsVisibility} divide-y divide-slate-200`}
+        data-testid="resource-table-cards"
+      >
+        {resources.map((r) => (
+          <li
+            key={`${r.resourceType}/${r.id}`}
+            className={
+              onRowClick
+                ? "cursor-pointer p-3 hover:bg-slate-50 focus-within:bg-slate-50"
+                : "p-3"
+            }
+            onClick={onRowClick ? () => onRowClick(r) : undefined}
+            onKeyDown={
+              onRowClick
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onRowClick(r);
                     }
-                  : undefined
-              }
-              tabIndex={onRowClick ? 0 : undefined}
-              data-testid="resource-row"
-            >
+                  }
+                : undefined
+            }
+            tabIndex={onRowClick ? 0 : undefined}
+            data-testid="resource-row-card"
+          >
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
               {headers.map((h) => (
                 <Fragment key={h.path}>
-                  <td className="px-3 py-2 align-top">
+                  <dt className="text-xs font-medium text-slate-500">
+                    {h.label}
+                  </dt>
+                  <dd className="break-words">
                     {renderCell({
                       resource: r,
                       path: h.path,
@@ -259,13 +266,14 @@ export function ResourceTable<T extends Resource = Resource>({
                       renderers,
                       onReferenceClick,
                     })}
-                  </td>
+                  </dd>
                 </Fragment>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </dl>
+          </li>
+        ))}
+      </ul>
+      )}
     </div>
   );
 }
