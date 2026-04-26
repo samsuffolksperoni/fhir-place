@@ -1,5 +1,5 @@
 import type { Reference, Resource, StructureDefinition } from "fhir/r4";
-import { Fragment, useMemo, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStructureDefinition } from "../hooks/queries.js";
 import { findChoiceVariant, findElement } from "../structure/walker.js";
 import {
@@ -33,7 +33,30 @@ export interface ResourceTableProps<T extends Resource = Resource> {
   renderers?: TypeRenderers;
   /** Click handler for Reference cells. */
   onReferenceClick?: (ref: Reference) => void;
+  /**
+   * Layout mode. `"auto"` (default) renders the table on viewports ≥ 640px and
+   * a label/value card stack below — clinical tables become readable on mobile
+   * without horizontal scrolling. `"table"` and `"cards"` force the layout.
+   */
+  layout?: "auto" | "table" | "cards";
   className?: string;
+}
+
+const NARROW_QUERY = "(max-width: 639px)";
+
+function useIsNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia(NARROW_QUERY).matches;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia(NARROW_QUERY);
+    const onChange = () => setNarrow(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return narrow;
 }
 
 const headerFromPath = (path: string): string => {
@@ -84,8 +107,11 @@ export function ResourceTable<T extends Resource = Resource>({
   structureDefinition,
   renderers: rendererOverrides,
   onReferenceClick,
+  layout = "auto",
   className,
 }: ResourceTableProps<T>) {
+  const isNarrow = useIsNarrow();
+  const useCards = layout === "cards" || (layout === "auto" && isNarrow);
   const resourceType = resources[0]?.resourceType ?? "";
   const sdQuery = useStructureDefinition(resourceType, {
     enabled: !structureDefinition && Boolean(resourceType),
@@ -117,6 +143,63 @@ export function ResourceTable<T extends Resource = Resource>({
 
   if (resources.length === 0) {
     return <>{emptyState ?? <p className="text-sm text-slate-500">No results.</p>}</>;
+  }
+
+  if (useCards) {
+    return (
+      <ul
+        className={
+          className ??
+          "divide-y divide-slate-100 rounded border border-slate-200 bg-white"
+        }
+        data-testid="resource-table"
+      >
+        {resources.map((r) => {
+          const clickProps = onRowClick
+            ? {
+                onClick: () => onRowClick(r),
+                onKeyDown: (e: React.KeyboardEvent) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onRowClick(r);
+                  }
+                },
+                tabIndex: 0,
+                role: "button" as const,
+                className: "cursor-pointer space-y-1 px-3 py-2 hover:bg-slate-50",
+              }
+            : { className: "space-y-1 px-3 py-2" };
+          return (
+            <li
+              key={`${r.resourceType}/${r.id}`}
+              data-testid="resource-row"
+              {...clickProps}
+            >
+              {headers.map((h) => (
+                <div
+                  key={h.path}
+                  className="flex items-baseline justify-between gap-3 text-sm"
+                >
+                  <span className="text-xs font-medium text-slate-500">
+                    {h.label}
+                  </span>
+                  <span className="text-right text-slate-900">
+                    {renderCell({
+                      resource: r,
+                      path: h.path,
+                      typeCode: h.typeCode,
+                      cellRenderers,
+                      renderers,
+                      onReferenceClick,
+                    })}
+                  </span>
+                </div>
+              ))}
+            </li>
+          );
+        })}
+      </ul>
+    );
   }
 
   return (
