@@ -5,8 +5,8 @@ import {
   useInfiniteSearch,
 } from "@fhir-place/react-fhir";
 import type { Patient } from "fhir/r4";
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { SearchParams } from "@fhir-place/react-fhir";
 import { PatientRowCounts } from "../components/PatientRowCounts.js";
 
@@ -36,12 +36,34 @@ const readLayout = (): Layout => {
 };
 
 export function PatientListPage() {
-  const [params, setParams] = useState<SearchParams>({ _count: 20 });
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Initial params come from the URL so reload / share keeps the active
+  // filter. `_count` is a non-user pagination knob and stays out of the URL.
+  const initialFilters = useMemo(
+    () => Object.fromEntries(searchParams),
+    // Read once on mount; subsequent changes flow through the form, not the
+    // URL. Re-deriving on every URL change would clobber in-progress edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const [params, setParams] = useState<SearchParams>({
+    _count: 20,
+    ...initialFilters,
+  });
   const [layout, setLayout] = useState<Layout>(readLayout);
   const [columns, setColumns] = useState<string[]>(() =>
     TABLE_COLUMNS.map((c) => c.path),
   );
   const navigate = useNavigate();
+
+  const onSearchSubmit = (next: SearchParams) => {
+    setParams({ _count: 20, ...next });
+    const stringified: Record<string, string> = {};
+    for (const [k, v] of Object.entries(next)) {
+      if (v !== undefined && v !== null && v !== "") stringified[k] = String(v);
+    }
+    setSearchParams(stringified, { replace: true });
+  };
   const {
     data,
     isLoading,
@@ -89,7 +111,8 @@ export function PatientListPage() {
         resourceType="Patient"
         initialVisible={6}
         priorityParams={["name", "family", "given", "gender", "birthdate", "address-city"]}
-        onSubmit={(p) => setParams({ _count: 20, ...p })}
+        initialParams={initialFilters}
+        onSubmit={onSearchSubmit}
       />
 
       <div className="flex items-center justify-between gap-2">
