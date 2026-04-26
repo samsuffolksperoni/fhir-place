@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Patient, StructureDefinition } from "fhir/r4";
+import type { Observation, Patient, StructureDefinition } from "fhir/r4";
 import { describe, expect, it, vi } from "vitest";
+import { ObservationStructureDefinition } from "../structure/core/Observation.js";
 import { FetchFhirClient } from "../client/FetchFhirClient.js";
 import { FhirClientProvider } from "../hooks/FhirClientProvider.js";
 import { getByPath, ResourceTable } from "./ResourceTable.js";
@@ -157,6 +158,36 @@ describe("ResourceTable", () => {
       { wrapper: wrap() },
     );
     expect(screen.getByTestId("empty")).toBeInTheDocument();
+  });
+
+  it("dispatches choice-typed cells (valueQuantity) to the Quantity renderer", () => {
+    const observation: Observation = {
+      resourceType: "Observation",
+      id: "o1",
+      status: "final",
+      code: { text: "Heart rate" },
+      valueQuantity: {
+        value: 72,
+        unit: "beats/minute",
+        system: "http://unitsofmeasure.org",
+        code: "/min",
+      },
+    };
+    render(
+      <ResourceTable<Observation>
+        resources={[observation]}
+        columns={["code.text", "valueQuantity"]}
+        columnLabels={{ "code.text": "Observation", valueQuantity: "Value" }}
+        structureDefinition={ObservationStructureDefinition}
+      />,
+      { wrapper: wrap() },
+    );
+    const row = screen.getByTestId("resource-row");
+    // Renders via QuantityRenderer ("72 beats/minute"), not raw JSON.
+    expect(within(row).getByText(/72/)).toBeInTheDocument();
+    expect(within(row).getByText(/beats\/minute/)).toBeInTheDocument();
+    expect(within(row).queryByText(/unitsofmeasure\.org/)).not.toBeInTheDocument();
+    expect(within(row).queryByText(/"value":/)).not.toBeInTheDocument();
   });
 
   it("falls back to a friendly dash for missing cell values", () => {

@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import { PatientStructureDefinition } from "../../test/fixtures/StructureDefinition-Patient.js";
 import {
   directChildren,
+  findChoiceVariant,
   findElement,
   isPrimitive,
   walkObject,
   walkResource,
 } from "./walker.js";
+import { ObservationStructureDefinition } from "../structure/core/Observation.js";
 
 const patient: Patient = {
   resourceType: "Patient",
@@ -47,6 +49,43 @@ describe("findElement", () => {
 
   it("returns undefined for unknown paths", () => {
     expect(findElement(PatientStructureDefinition, "Patient.wat")).toBeUndefined();
+  });
+});
+
+describe("findChoiceVariant", () => {
+  it("resolves a materialised value[x] variant to its choice element + type", () => {
+    const v = findChoiceVariant(
+      ObservationStructureDefinition,
+      "Observation.valueQuantity",
+    );
+    expect(v?.element.path).toBe("Observation.value[x]");
+    expect(v?.typeCode).toBe("Quantity");
+  });
+
+  it("resolves a multi-word type code (CodeableConcept) on a choice element", () => {
+    const v = findChoiceVariant(
+      ObservationStructureDefinition,
+      "Observation.valueCodeableConcept",
+    );
+    expect(v?.typeCode).toBe("CodeableConcept");
+  });
+
+  it("resolves a choice variant nested inside a backbone element", () => {
+    const v = findChoiceVariant(
+      ObservationStructureDefinition,
+      "Observation.component.valueQuantity",
+    );
+    expect(v?.element.path).toBe("Observation.component.value[x]");
+    expect(v?.typeCode).toBe("Quantity");
+  });
+
+  it("returns undefined when no sibling [x] element exists", () => {
+    expect(
+      findChoiceVariant(ObservationStructureDefinition, "Observation.valueWat"),
+    ).toBeUndefined();
+    expect(
+      findChoiceVariant(PatientStructureDefinition, "Patient.gender"),
+    ).toBeUndefined();
   });
 });
 

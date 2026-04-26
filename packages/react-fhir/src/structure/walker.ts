@@ -60,6 +60,41 @@ export function findElement(
   return elements(sd).find((e) => e.path === path);
 }
 
+/**
+ * Resolve a materialised choice variant (e.g. `Observation.valueQuantity`) back
+ * to its `[x]` element and the matching type code. Returns undefined when no
+ * sibling `[x]` element matches the leaf segment.
+ *
+ * Handles the case where consumers (StructureDefinition column configs, etc.)
+ * pass paths in the JSON-key form rather than the spec form.
+ */
+export function findChoiceVariant(
+  sd: StructureDefinition,
+  path: string,
+): { element: ElementDefinition; typeCode: string } | undefined {
+  const lastDot = path.lastIndexOf(".");
+  if (lastDot === -1) return undefined;
+  const parentPath = path.slice(0, lastDot);
+  const leaf = path.slice(lastDot + 1);
+  // Walk every uppercase boundary in the leaf so that multi-word base names
+  // (`onsetAge`, `medicationCodeableConcept`) and multi-word type codes
+  // (`SampledData`) both resolve.
+  for (let i = 1; i < leaf.length; i++) {
+    if (leaf[i] !== leaf[i]!.toUpperCase()) continue;
+    const base = leaf.slice(0, i);
+    const variantCap = leaf.slice(i);
+    const choiceElement = findElement(sd, `${parentPath}.${base}[x]`);
+    if (!choiceElement) continue;
+    const matched = choiceElement.type?.find(
+      (t) => t.code && capitalize(t.code) === variantCap,
+    );
+    if (matched?.code) {
+      return { element: choiceElement, typeCode: matched.code };
+    }
+  }
+  return undefined;
+}
+
 const isArrayCardinality = (el: ElementDefinition): boolean => {
   const max = el.max;
   if (!max) return false;

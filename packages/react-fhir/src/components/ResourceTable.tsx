@@ -1,7 +1,7 @@
 import type { Reference, Resource, StructureDefinition } from "fhir/r4";
 import { Fragment, useMemo, type ReactNode } from "react";
 import { useStructureDefinition } from "../hooks/queries.js";
-import { findElement } from "../structure/walker.js";
+import { findChoiceVariant, findElement } from "../structure/walker.js";
 import {
   defaultTypeRenderers,
   type RendererContext,
@@ -195,8 +195,14 @@ function typeForPath(
   if (!sd) return undefined;
   // Strip any [index] segments and numeric indices for the SD lookup.
   const cleaned = path.replace(/\[\d+\]/g, "").replace(/\.\d+$/g, "");
-  const el = findElement(sd, `${base}.${cleaned}`);
-  return el?.type?.[0]?.code;
+  const fullPath = `${base}.${cleaned}`;
+  const el = findElement(sd, fullPath);
+  if (el?.type?.[0]?.code) return el.type[0].code;
+  // The path may be a materialised choice variant (e.g. `valueQuantity` for
+  // `Observation.value[x]`) — resolve via the choice element so cells like the
+  // Observation Value column dispatch to the Quantity renderer rather than the
+  // JSON fallback.
+  return findChoiceVariant(sd, fullPath)?.typeCode;
 }
 
 interface RenderCellParams<T extends Resource> {
