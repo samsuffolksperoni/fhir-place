@@ -1,8 +1,10 @@
 import type { Patient } from "fhir/r4";
 import { describe, expect, it } from "vitest";
 import { PatientStructureDefinition } from "../../test/fixtures/StructureDefinition-Patient.js";
+import type { StructureDefinition } from "fhir/r4";
 import {
   directChildren,
+  findChoiceVariant,
   findElement,
   isPrimitive,
   walkObject,
@@ -120,6 +122,95 @@ describe("walkObject", () => {
     const walked = walkObject(PatientStructureDefinition, "Patient.contact", contact);
     expect(walked.map((w) => w.key)).toEqual(["name"]);
     expect(walked[0]?.typeCode).toBe("HumanName");
+  });
+});
+
+describe("findChoiceVariant", () => {
+  // Minimal Observation SD with a value[x] element exposing the most common
+  // R4 variants. Mirrors the shape of the real R4 SD without pulling in the
+  // full snapshot.
+  const observationSd: StructureDefinition = {
+    resourceType: "StructureDefinition",
+    id: "Observation",
+    url: "http://hl7.org/fhir/StructureDefinition/Observation",
+    name: "Observation",
+    status: "active",
+    kind: "resource",
+    abstract: false,
+    type: "Observation",
+    snapshot: {
+      element: [
+        { id: "Observation", path: "Observation", min: 0, max: "*" },
+        {
+          id: "Observation.status",
+          path: "Observation.status",
+          min: 1,
+          max: "1",
+          type: [{ code: "code" }],
+        },
+        {
+          id: "Observation.value[x]",
+          path: "Observation.value[x]",
+          min: 0,
+          max: "1",
+          type: [
+            { code: "Quantity" },
+            { code: "CodeableConcept" },
+            { code: "string" },
+            { code: "boolean" },
+            { code: "dateTime" },
+            { code: "Period" },
+          ],
+        },
+        {
+          id: "Observation.effective[x]",
+          path: "Observation.effective[x]",
+          min: 0,
+          max: "1",
+          type: [{ code: "dateTime" }, { code: "Period" }],
+        },
+      ],
+    },
+  };
+
+  it("resolves Quantity variant on Observation.value[x]", () => {
+    const v = findChoiceVariant(observationSd, "Observation.valueQuantity");
+    expect(v?.typeCode).toBe("Quantity");
+    expect(v?.element.path).toBe("Observation.value[x]");
+  });
+
+  it("resolves CodeableConcept variant", () => {
+    expect(
+      findChoiceVariant(observationSd, "Observation.valueCodeableConcept")?.typeCode,
+    ).toBe("CodeableConcept");
+  });
+
+  it("resolves primitive variants (string, boolean, dateTime)", () => {
+    expect(findChoiceVariant(observationSd, "Observation.valueString")?.typeCode).toBe("string");
+    expect(findChoiceVariant(observationSd, "Observation.valueBoolean")?.typeCode).toBe("boolean");
+    expect(findChoiceVariant(observationSd, "Observation.valueDateTime")?.typeCode).toBe("dateTime");
+  });
+
+  it("resolves variants on a different choice element on the same SD", () => {
+    expect(
+      findChoiceVariant(observationSd, "Observation.effectivePeriod")?.typeCode,
+    ).toBe("Period");
+  });
+
+  it("returns undefined for non-choice paths", () => {
+    expect(findChoiceVariant(observationSd, "Observation.status")).toBeUndefined();
+  });
+
+  it("returns undefined when the variant doesn't match any [x] type", () => {
+    // valueAttachment isn't in our minimal type list above.
+    expect(
+      findChoiceVariant(observationSd, "Observation.valueAttachment"),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when the leaf has no recognisable suffix", () => {
+    expect(findChoiceVariant(observationSd, "Observation.foo")).toBeUndefined();
+    expect(findChoiceVariant(observationSd, "Observation")).toBeUndefined();
   });
 });
 

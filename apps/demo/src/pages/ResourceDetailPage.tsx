@@ -1,4 +1,5 @@
 import {
+  FhirError,
   ResourceView,
   useDeleteResource,
   useResource,
@@ -29,8 +30,21 @@ export function ResourceDetailPage() {
   };
 
   const handleDelete = async () => {
-    await del.mutateAsync({ type: resourceType, id });
-    navigate(`/${resourceType}`);
+    try {
+      await del.mutateAsync({ type: resourceType, id });
+      navigate(`/${resourceType}`);
+    } catch {
+      // del.error is now populated; the inline panel below renders it.
+      // Confirm panel intentionally stays open so the user can retry or cancel.
+    }
+  };
+
+  const deleteErrorMessage = (err: unknown): string => {
+    if (err instanceof FhirError) {
+      const diag = err.operationOutcome?.issue?.[0]?.diagnostics;
+      return diag ? `${err.message} — ${diag}` : err.message;
+    }
+    return (err as Error)?.message ?? "Delete failed";
   };
 
   return (
@@ -66,10 +80,21 @@ export function ResourceDetailPage() {
           <p className="mb-2 text-red-800">
             Delete {resourceType}/{id}? This cannot be undone.
           </p>
+          {del.isError && (
+            <p
+              data-testid="delete-error"
+              className="mb-2 rounded border border-red-400 bg-white px-2 py-1 text-xs text-red-800"
+            >
+              {deleteErrorMessage(del.error)}
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setConfirmingDelete(false)}
+              onClick={() => {
+                setConfirmingDelete(false);
+                del.reset();
+              }}
               className="rounded border border-slate-300 bg-white px-3 py-1 text-xs"
             >
               Cancel
@@ -81,7 +106,11 @@ export function ResourceDetailPage() {
               data-testid="delete-confirm-button"
               className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
-              {del.isPending ? "Deleting…" : "Yes, delete"}
+              {del.isPending
+                ? "Deleting…"
+                : del.isError
+                  ? "Retry"
+                  : "Yes, delete"}
             </button>
           </div>
         </div>

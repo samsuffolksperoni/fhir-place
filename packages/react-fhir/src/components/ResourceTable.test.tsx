@@ -159,6 +159,54 @@ describe("ResourceTable", () => {
     expect(screen.getByTestId("empty")).toBeInTheDocument();
   });
 
+  it("dispatches the correct renderer for materialised choice paths (Observation.valueQuantity)", () => {
+    const obsSd: StructureDefinition = {
+      resourceType: "StructureDefinition",
+      id: "Observation",
+      url: "http://hl7.org/fhir/StructureDefinition/Observation",
+      name: "Observation",
+      status: "active",
+      kind: "resource",
+      abstract: false,
+      type: "Observation",
+      snapshot: {
+        element: [
+          { id: "Observation", path: "Observation", min: 0, max: "*" },
+          { id: "Observation.status", path: "Observation.status", min: 1, max: "1", type: [{ code: "code" }] },
+          {
+            id: "Observation.value[x]",
+            path: "Observation.value[x]",
+            min: 0,
+            max: "1",
+            type: [{ code: "Quantity" }, { code: "CodeableConcept" }, { code: "string" }],
+          },
+        ],
+      },
+    };
+    const obs = [
+      {
+        resourceType: "Observation" as const,
+        id: "o1",
+        status: "final" as const,
+        code: { text: "Heart rate" },
+        valueQuantity: { value: 86, unit: "beats/minute" },
+      },
+    ];
+    render(
+      <ResourceTable
+        resources={obs}
+        columns={["status", "valueQuantity"]}
+        structureDefinition={obsSd}
+      />,
+      { wrapper: wrap() },
+    );
+    const row = screen.getByTestId("resource-row");
+    // Quantity renderer formats `value + unit`, not raw JSON.
+    expect(within(row).getByText(/86/)).toBeInTheDocument();
+    expect(within(row).getByText(/beats\/minute/)).toBeInTheDocument();
+    expect(within(row).queryByText(/\{"value":/)).not.toBeInTheDocument();
+  });
+
   it("falls back to a friendly dash for missing cell values", () => {
     const partial: Patient = { resourceType: "Patient", id: "p3", gender: "other" };
     render(

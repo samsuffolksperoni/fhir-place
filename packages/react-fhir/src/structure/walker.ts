@@ -60,6 +60,50 @@ export function findElement(
   return elements(sd).find((e) => e.path === path);
 }
 
+export interface ChoiceVariant {
+  /** The `[x]` ElementDefinition (e.g. `Observation.value[x]`). */
+  element: ElementDefinition;
+  /** The matched variant's type code (e.g. `Quantity`, `string`, `dateTime`). */
+  typeCode: string;
+}
+
+/**
+ * Resolve a materialised choice path (e.g. `Observation.valueQuantity`) back
+ * to its `[x]` ElementDefinition + the matched variant's type code.
+ *
+ * R4 SDs only define the choice element (`Observation.value[x]`); the
+ * variant-suffixed forms appear only in serialised resources. Without this
+ * helper, `findElement(sd, "Observation.valueQuantity")` misses, callers
+ * lose the type, and value-cell renderers fall back to JSON.stringify.
+ *
+ * Returns `undefined` when the leaf doesn't match a known choice variant on
+ * the parent path — callers should treat that as "not a choice path".
+ */
+export function findChoiceVariant(
+  sd: StructureDefinition,
+  path: string,
+): ChoiceVariant | undefined {
+  const lastDot = path.lastIndexOf(".");
+  if (lastDot < 0) return undefined;
+  const parentPath = path.slice(0, lastDot);
+  const leaf = path.slice(lastDot + 1);
+
+  // Split the leaf into baseName + capitalized variant suffix.
+  // "valueQuantity" → ["value", "Quantity"]; "onsetDateTime" → ["onset", "DateTime"].
+  const m = leaf.match(/^([a-z][A-Za-z0-9]*?)([A-Z][A-Za-z0-9]+)$/);
+  if (!m) return undefined;
+  const [, baseName, variantSuffix] = m;
+
+  const choice = findElement(sd, `${parentPath}.${baseName}[x]`);
+  if (!choice) return undefined;
+
+  const matched = (choice.type ?? []).find(
+    (t) => t.code && capitalize(t.code) === variantSuffix,
+  );
+  if (!matched?.code) return undefined;
+  return { element: choice, typeCode: matched.code };
+}
+
 const isArrayCardinality = (el: ElementDefinition): boolean => {
   const max = el.max;
   if (!max) return false;

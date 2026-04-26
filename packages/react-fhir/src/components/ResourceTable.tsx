@@ -1,7 +1,7 @@
 import type { Reference, Resource, StructureDefinition } from "fhir/r4";
 import { Fragment, useMemo, type ReactNode } from "react";
 import { useStructureDefinition } from "../hooks/queries.js";
-import { findElement } from "../structure/walker.js";
+import { findChoiceVariant, findElement } from "../structure/walker.js";
 import {
   defaultTypeRenderers,
   type RendererContext,
@@ -195,8 +195,13 @@ function typeForPath(
   if (!sd) return undefined;
   // Strip any [index] segments and numeric indices for the SD lookup.
   const cleaned = path.replace(/\[\d+\]/g, "").replace(/\.\d+$/g, "");
-  const el = findElement(sd, `${base}.${cleaned}`);
-  return el?.type?.[0]?.code;
+  const fullPath = `${base}.${cleaned}`;
+  const el = findElement(sd, fullPath);
+  if (el?.type?.[0]?.code) return el.type[0].code;
+  // R4 SDs don't materialise choice variants (`Observation.valueQuantity`),
+  // only the `[x]` element. Resolve the variant so cell renderers get
+  // dispatched (Quantity, CodeableConcept, …) instead of falling back to JSON.
+  return findChoiceVariant(sd, fullPath)?.typeCode;
 }
 
 interface RenderCellParams<T extends Resource> {

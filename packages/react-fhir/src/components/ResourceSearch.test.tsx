@@ -140,6 +140,21 @@ describe("ResourceSearch", () => {
     expect(onChange.mock.calls.at(-1)?.[0]).toEqual({});
   });
 
+  it("Clear also re-submits with empty params so the active search resets in one click", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    wrap(
+      <ResourceSearch
+        resourceType="Patient"
+        capabilityStatement={cap}
+        onSubmit={onSubmit}
+        initialParams={{ name: "smith" }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /clear/i }));
+    expect(onSubmit).toHaveBeenCalledWith({});
+  });
+
   it("starts with only `initialVisible` params and toggles Show more", async () => {
     const user = userEvent.setup();
     wrap(

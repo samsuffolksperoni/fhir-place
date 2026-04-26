@@ -164,7 +164,13 @@ export function ResourceSearch(props: ResourceSearchProps) {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setValues({})}
+            onClick={() => {
+              setValues({});
+              // Re-submit so consumers reading only `onSubmit` (the common
+              // case — `onChange` is mostly used to mirror state into a URL)
+              // see the form revert to its unfiltered default in one click.
+              onSubmit?.({});
+            }}
             className="rounded border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
           >
             Clear
