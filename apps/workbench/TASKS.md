@@ -16,6 +16,8 @@ eval harness.
   DocumentReference extraction, or arbitrary FHIR query generation in Phase A.
 - Every task that changes behavior must include tests or an explicit reason tests
   are not applicable.
+- Acceptance items that cannot be automated must have a linked GitHub issue labeled `manual-qa` and attach screenshot/recording evidence.
+- Store screenshot artifacts under `apps/workbench/docs/screenshots/` and link them from both the PR and relevant task notes.
 - Every major feature must have a matching OpenSpec change under
   `openspec/changes/<change-name>/`.
 - Keep the healthcare-facing agent limited to reviewed, typed, patient-scoped tools.

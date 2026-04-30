@@ -34,6 +34,8 @@ This change is accepted when **all** of the following hold:
       proxy/routes/PatientName tests.
 - [ ] `pnpm --filter @fhir-place/workbench build` produces a Vite
       bundle.
+- [ ] CI `workbench-acceptance` job runs on pull requests and must pass
+      before merge.
 - [ ] `docs/patient-viewer.md` describes the URL shape, read path,
       allow-lists, search-param policy, and Phase A icebox.
 - [ ] No Phase A icebox item is introduced. Specifically: no SMART, no
