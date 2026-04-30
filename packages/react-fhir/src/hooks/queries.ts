@@ -36,6 +36,10 @@ export const fhirQueryKeys = {
     [...fhirQueryKeys.all(baseUrl), "ref", ref] as const,
   searchParameter: (baseUrl: string, base: string, code: string) =>
     [...fhirQueryKeys.all(baseUrl), "SearchParameter", base, code] as const,
+  batch: (baseUrl: string, type: string, sortedIds: readonly string[]) =>
+    [...fhirQueryKeys.all(baseUrl), type, "batch", sortedIds] as const,
+  refs: (baseUrl: string, sortedKeys: readonly string[]) =>
+    [...fhirQueryKeys.all(baseUrl), "refs", sortedKeys] as const,
 };
 
 type ReadQueryOpts<T> = Omit<
@@ -228,6 +232,141 @@ export function useReadReference<T extends Resource = Resource>(
     queryKey: fhirQueryKeys.reference(client.baseUrl, refKey),
     queryFn: ({ signal }) => client.readReference<T>(reference!, { signal }),
     enabled: Boolean(reference?.reference),
+    ...options,
+  });
+}
+
+/**
+ * Batch read N resources of the same type by id in a single FHIR search call
+ * (`{type}?_id=a,b,c`). Returns the resolved resources as a flat array; empty
+ * or undefined `ids` short-circuits with no network request.
+ *
+ * Order-independent caching: re-rendering with the same ids in a different
+ * order does not re-fetch (ids are sorted + deduped before forming the
+ * query key).
+ *
+ * Cache hydration: each returned resource is also written to its individual
+ * read cache key, so a later `useResource(type, id)` for the same id resolves
+ * from cache without an extra round-trip.
+ *
+ * Servers may return only a subset (e.g. one id was deleted). The hook does
+ * not synthesise missing entries — the result reflects what the server
+ * actually returned.
+ */
+export function useResources<T extends Resource = Resource>(
+  type: string,
+  ids: string[] | undefined,
+  options?: ReadQueryOpts<T[]>,
+) {
+  const client = useFhirClient();
+  const qc = useQueryClient();
+  const sortedIds = [...new Set(ids ?? [])].sort();
+  return useQuery<T[], Error, T[], readonly unknown[]>({
+    queryKey: fhirQueryKeys.batch(client.baseUrl, type, sortedIds),
+    queryFn: async ({ signal }): Promise<T[]> => {
+      const bundle = await client.search<T>(
+        type,
+        { _id: sortedIds.join(",") },
+        { signal },
+      );
+      const resources =
+        bundle.entry?.flatMap((e) => (e.resource ? [e.resource] : [])) ?? [];
+      for (const r of resources) {
+        if (r.id) {
+          qc.setQueryData(
+            fhirQueryKeys.resource(client.baseUrl, type, r.id),
+            r,
+          );
+        }
+      }
+      return resources;
+    },
+    enabled: sortedIds.length > 0,
+    ...options,
+  });
+}
+
+/**
+ * Group references by target resource type, returning `{ [Type]: [id, ...] }`
+ * with each group deduped + sorted. Skips references that can't be batched
+ * via `_id=a,b,c` search:
+ *   - no `.reference` (only `.identifier`)
+ *   - contained refs (`#frag`)
+ *   - urn-style refs (`urn:uuid:...`)
+ *   - absolute URLs (different server)
+ *   - versioned refs (`/_history/`) — `_id` returns the current version
+ */
+export function parseBatchableRefs(
+  refs: Reference[] | undefined,
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  if (!refs) return result;
+  for (const ref of refs) {
+    const r = ref.reference;
+    if (!r) continue;
+    if (r.startsWith("#") || r.startsWith("urn:")) continue;
+    if (/^https?:\/\//i.test(r)) continue;
+    if (r.includes("/_history/")) continue;
+    const [type, id] = r.split("/");
+    if (!type || !id) continue;
+    (result[type] ??= []).push(id);
+  }
+  for (const t of Object.keys(result)) {
+    result[t] = [...new Set(result[t]!)].sort();
+  }
+  return result;
+}
+
+/**
+ * Batch resolve a heterogeneous list of `Reference`s. Groups by target
+ * resource type, fires one `_id=a,b,c` search per group in parallel, and
+ * returns a `Map` keyed by `Type/id` ("Patient/123", "Goal/abc").
+ *
+ * Cache hydration mirrors {@link useResources} — each resolved resource lands
+ * in `fhirQueryKeys.resource(...)` — and additionally populates the per-ref
+ * cache, so later `useReadReference(...)` calls for the same refs hit cache.
+ *
+ * References that can't be batched ({@link parseBatchableRefs} skip rules)
+ * are silently dropped from the result Map. Callers that need them should
+ * fall back to {@link useReadReference} per reference.
+ */
+export function useReadReferences<T extends Resource = Resource>(
+  refs: Reference[] | undefined,
+  options?: ReadQueryOpts<Map<string, T>>,
+) {
+  const client = useFhirClient();
+  const qc = useQueryClient();
+  const grouped = parseBatchableRefs(refs);
+  const sortedKeys = Object.keys(grouped)
+    .sort()
+    .flatMap((t) => grouped[t]!.map((id) => `${t}/${id}`));
+  return useQuery<Map<string, T>, Error, Map<string, T>, readonly unknown[]>({
+    queryKey: fhirQueryKeys.refs(client.baseUrl, sortedKeys),
+    queryFn: async ({ signal }): Promise<Map<string, T>> => {
+      const result = new Map<string, T>();
+      const groups = Object.entries(grouped);
+      const bundles = await Promise.all(
+        groups.map(([type, ids]) =>
+          client.search<T>(type, { _id: ids.join(",") }, { signal }),
+        ),
+      );
+      bundles.forEach((bundle, i) => {
+        const [type] = groups[i]!;
+        for (const e of bundle.entry ?? []) {
+          const r = e.resource;
+          if (!r?.id) continue;
+          const key = `${type}/${r.id}`;
+          result.set(key, r);
+          qc.setQueryData(
+            fhirQueryKeys.resource(client.baseUrl, type, r.id),
+            r,
+          );
+          qc.setQueryData(fhirQueryKeys.reference(client.baseUrl, key), r);
+        }
+      });
+      return result;
+    },
+    enabled: sortedKeys.length > 0,
     ...options,
   });
 }

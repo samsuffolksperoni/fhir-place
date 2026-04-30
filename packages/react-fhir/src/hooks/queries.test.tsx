@@ -7,12 +7,16 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { FetchFhirClient } from "../client/FetchFhirClient.js";
 import { FhirClientProvider } from "./FhirClientProvider.js";
 import {
+  fhirQueryKeys,
   nextPageUrl,
+  parseBatchableRefs,
   useCapabilities,
   useCreateResource,
   useDeleteResource,
   useInfiniteSearch,
+  useReadReferences,
   useResource,
+  useResources,
   useSearch,
   useSearchParameter,
   useStructureDefinition,
@@ -411,6 +415,246 @@ describe("query hooks", () => {
       );
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       expect(result.current.hasNextPage).toBe(false);
+    });
+  });
+
+  describe("useResources", () => {
+    it("issues one search and returns the matching resources", async () => {
+      let captured: URLSearchParams | null = null;
+      server.use(
+        http.get(`${BASE}/Patient`, ({ request }) => {
+          captured = new URL(request.url).searchParams;
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [
+              { resource: { resourceType: "Patient", id: "a" } },
+              { resource: { resourceType: "Patient", id: "b" } },
+              { resource: { resourceType: "Patient", id: "c" } },
+            ],
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useResources<Patient>("Patient", ["a", "b", "c"]),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(captured!.get("_id")).toBe("a,b,c");
+      expect(result.current.data?.map((r) => r.id)).toEqual(["a", "b", "c"]);
+    });
+
+    it("hydrates the per-resource cache so useResource hits without a second request", async () => {
+      let calls = 0;
+      server.use(
+        http.get(`${BASE}/Patient`, () => {
+          calls += 1;
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [
+              { resource: { resourceType: "Patient", id: "a", gender: "male" } },
+            ],
+          });
+        }),
+      );
+      const { wrapper, qc, client } = mkWrapper();
+      const { result: r1 } = renderHook(
+        () => useResources<Patient>("Patient", ["a"]),
+        { wrapper },
+      );
+      await waitFor(() => expect(r1.current.isSuccess).toBe(true));
+      expect(calls).toBe(1);
+
+      const cached = qc.getQueryData(
+        fhirQueryKeys.resource(client.baseUrl, "Patient", "a"),
+      ) as Patient | undefined;
+      expect(cached?.gender).toBe("male");
+
+      // No /Patient/a handler is registered — if useResource doesn't hit
+      // cache, MSW's onUnhandledRequest:"error" makes the test fail.
+      const { result: r2 } = renderHook(
+        () => useResource<Patient>("Patient", "a"),
+        { wrapper },
+      );
+      await waitFor(() => expect(r2.current.isSuccess).toBe(true));
+      expect(r2.current.data?.gender).toBe("male");
+      // Single network call; the second hook resolved from cache.
+      expect(calls).toBe(1);
+    });
+
+    it("short-circuits with no network when ids is empty or undefined", () => {
+      const { wrapper } = mkWrapper();
+      const { result: r1 } = renderHook(
+        () => useResources<Patient>("Patient", []),
+        { wrapper },
+      );
+      expect(r1.current.fetchStatus).toBe("idle");
+      const { result: r2 } = renderHook(
+        () => useResources<Patient>("Patient", undefined),
+        { wrapper },
+      );
+      expect(r2.current.fetchStatus).toBe("idle");
+    });
+
+    it("uses an order-independent query key", () => {
+      const { wrapper, qc, client } = mkWrapper();
+      // Seed cache for the canonical (sorted) key, then assert that the
+      // same hook with a shuffled `ids` array reads it back. `staleTime`
+      // pins the cached entry so the assertion isn't racing a background
+      // refetch.
+      qc.setQueryData(
+        fhirQueryKeys.batch(client.baseUrl, "Patient", ["a", "b", "c"]),
+        [{ resourceType: "Patient", id: "a" }] as Patient[],
+      );
+      const { result } = renderHook(
+        () =>
+          useResources<Patient>("Patient", ["c", "a", "b"], {
+            staleTime: Infinity,
+          }),
+        { wrapper },
+      );
+      expect(result.current.data?.[0]?.id).toBe("a");
+      expect(result.current.fetchStatus).toBe("idle");
+    });
+
+    it("returns whatever the server returned when the result is partial", async () => {
+      server.use(
+        http.get(`${BASE}/Patient`, () =>
+          HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [{ resource: { resourceType: "Patient", id: "a" } }],
+          }),
+        ),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useResources<Patient>("Patient", ["a", "b", "c"]),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.map((r) => r.id)).toEqual(["a"]);
+    });
+  });
+
+  describe("parseBatchableRefs", () => {
+    it("groups by target type and dedupes / sorts each group", () => {
+      const result = parseBatchableRefs([
+        { reference: "Patient/p1" },
+        { reference: "Goal/g2" },
+        { reference: "Goal/g1" },
+        { reference: "Goal/g1" }, // dup
+      ]);
+      expect(result).toEqual({ Patient: ["p1"], Goal: ["g1", "g2"] });
+    });
+
+    it("skips refs that aren't batchable via _id search", () => {
+      const result = parseBatchableRefs([
+        { reference: "Patient/p1" },
+        { reference: "#contained" },
+        { reference: "urn:uuid:abc" },
+        { reference: "https://other.example.com/fhir/Patient/p2" },
+        { reference: "Patient/p3/_history/1" },
+        { identifier: { system: "x", value: "y" } }, // no .reference
+      ]);
+      expect(result).toEqual({ Patient: ["p1"] });
+    });
+
+    it("returns {} for undefined / empty input", () => {
+      expect(parseBatchableRefs(undefined)).toEqual({});
+      expect(parseBatchableRefs([])).toEqual({});
+    });
+  });
+
+  describe("useReadReferences", () => {
+    it("groups by type, fires one search per group, returns a Map keyed by Type/id", async () => {
+      const calls: Record<string, number> = {};
+      server.use(
+        http.get(`${BASE}/Patient`, ({ request }) => {
+          calls.Patient = (calls.Patient ?? 0) + 1;
+          const ids = (new URL(request.url).searchParams.get("_id") ?? "")
+            .split(",")
+            .filter(Boolean);
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: ids.map((id) => ({
+              resource: { resourceType: "Patient", id },
+            })),
+          });
+        }),
+        http.get(`${BASE}/Goal`, ({ request }) => {
+          calls.Goal = (calls.Goal ?? 0) + 1;
+          const ids = (new URL(request.url).searchParams.get("_id") ?? "")
+            .split(",")
+            .filter(Boolean);
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: ids.map((id) => ({
+              resource: { resourceType: "Goal", id },
+            })),
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () =>
+          useReadReferences([
+            { reference: "Patient/p1" },
+            { reference: "Goal/g1" },
+            { reference: "Goal/g2" },
+          ]),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(calls).toEqual({ Patient: 1, Goal: 1 });
+      expect(result.current.data?.size).toBe(3);
+      expect(result.current.data?.get("Patient/p1")?.id).toBe("p1");
+      expect(result.current.data?.get("Goal/g1")?.resourceType).toBe("Goal");
+      expect(result.current.data?.get("Goal/g2")?.resourceType).toBe("Goal");
+    });
+
+    it("hydrates both per-resource and per-reference cache entries", async () => {
+      server.use(
+        http.get(`${BASE}/Goal`, () =>
+          HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [
+              { resource: { resourceType: "Goal", id: "g1", description: { text: "x" } } },
+            ],
+          }),
+        ),
+      );
+      const { wrapper, qc, client } = mkWrapper();
+      const { result } = renderHook(
+        () => useReadReferences([{ reference: "Goal/g1" }]),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(
+        qc.getQueryData(fhirQueryKeys.resource(client.baseUrl, "Goal", "g1")),
+      ).toMatchObject({ id: "g1" });
+      expect(
+        qc.getQueryData(fhirQueryKeys.reference(client.baseUrl, "Goal/g1")),
+      ).toMatchObject({ id: "g1" });
+    });
+
+    it("is disabled when no batchable refs are provided", () => {
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () =>
+          useReadReferences([
+            { reference: "#contained" },
+            { reference: "urn:uuid:abc" },
+            { identifier: { system: "x", value: "y" } },
+          ]),
+        { wrapper },
+      );
+      expect(result.current.fetchStatus).toBe("idle");
     });
   });
 
