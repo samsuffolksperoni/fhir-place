@@ -4,6 +4,9 @@ import { HomePage } from "./pages/HomePage.js";
 import { ConnectionsListPage } from "./pages/ConnectionsListPage.js";
 import { ConnectionDetailPage } from "./pages/ConnectionDetailPage.js";
 import { NewConnectionPage } from "./pages/NewConnectionPage.js";
+import { PatientsPage } from "./pages/PatientsPage.js";
+import { PatientPage } from "./pages/PatientPage.js";
+import { ResourcePage } from "./pages/ResourcePage.js";
 
 const navItem =
   "rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900";
@@ -45,6 +48,15 @@ export function App() {
           <Route path="/connections" element={<ConnectionsListPage />} />
           <Route path="/connections/new" element={<NewConnectionPage />} />
           <Route path="/connections/:id" element={<ConnectionDetailPage />} />
+          <Route path="/connections/:cid/patients" element={<PatientsPage />} />
+          <Route
+            path="/connections/:cid/patients/:pid"
+            element={<PatientPage />}
+          />
+          <Route
+            path="/connections/:cid/patients/:pid/:resourceType/:resourceId"
+            element={<ResourcePage />}
+          />
         </Routes>
       </main>
     </div>

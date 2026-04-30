@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import type { ConnectionStore } from "./services/connection-store.js";
 import { connectionsRoutes } from "./routes/connections.js";
+import { fhirRoutes } from "./routes/fhir.js";
 
 export interface ServerDeps {
   connections: ConnectionStore;
+  fetchFn?: typeof fetch;
 }
 
 export function createApp(deps: ServerDeps) {
@@ -14,6 +16,10 @@ export function createApp(deps: ServerDeps) {
   );
 
   app.route("/api/connections", connectionsRoutes(deps.connections));
+  app.route(
+    "/api/connections/:cid/fhir",
+    fhirRoutes({ store: deps.connections, fetchFn: deps.fetchFn }),
+  );
 
   return app;
 }
