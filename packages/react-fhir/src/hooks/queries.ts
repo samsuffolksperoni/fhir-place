@@ -28,8 +28,8 @@ export const fhirQueryKeys = {
     [...fhirQueryKeys.all(baseUrl), type, id] as const,
   search: (baseUrl: string, type: string, params?: SearchParams) =>
     [...fhirQueryKeys.all(baseUrl), type, "search", params ?? {}] as const,
-  structure: (baseUrl: string, type: string) =>
-    [...fhirQueryKeys.all(baseUrl), "StructureDefinition", type] as const,
+  structure: (baseUrl: string, type: string, profile?: string | null) =>
+    [...fhirQueryKeys.all(baseUrl), "StructureDefinition", type, profile ?? ""] as const,
   valueSet: (baseUrl: string, canonical: string) =>
     [...fhirQueryKeys.all(baseUrl), "ValueSet", canonical] as const,
   reference: (baseUrl: string, ref: string) =>
@@ -114,14 +114,39 @@ export function useInfiniteSearch<T extends Resource = Resource>(
   });
 }
 
+export type StructureDefinitionInput = string | { type: string; profile?: string | null };
+
+const FHIR_CORE_SD_BASE = "http://hl7.org/fhir/StructureDefinition/";
+
+function parseStructureDefinitionInput(
+  input: StructureDefinitionInput,
+): { type: string; profile: string | null | undefined } {
+  if (typeof input !== "string") {
+    return { type: input.type || "Resource", profile: input.profile };
+  }
+  if (!input.includes("://")) {
+    return { type: input, profile: undefined };
+  }
+  // Canonical URL. If it points at a core R4 StructureDefinition, treat it as
+  // a base type so the resolver's bundled-core fallback stays reachable.
+  if (input.startsWith(FHIR_CORE_SD_BASE)) {
+    const tail = input.slice(FHIR_CORE_SD_BASE.length);
+    if (tail && !tail.includes("/")) {
+      return { type: tail, profile: undefined };
+    }
+  }
+  return { type: "Resource", profile: input };
+}
+
 export function useStructureDefinition(
-  type: string,
+  input: StructureDefinitionInput,
   options?: ReadQueryOpts<StructureDefinition>,
 ) {
   const client = useFhirClient();
+  const { type, profile } = parseStructureDefinitionInput(input);
   return useQuery({
-    queryKey: fhirQueryKeys.structure(client.baseUrl, type),
-    queryFn: ({ signal }) => resolveStructureDefinition(client, type, { signal }),
+    queryKey: fhirQueryKeys.structure(client.baseUrl, type, profile),
+    queryFn: ({ signal }) => resolveStructureDefinition(client, type, { signal, profile }),
     staleTime: 60 * 60_000,
     ...options,
   });
