@@ -7,5 +7,5 @@
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["db", "scripts", "drizzle.config.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["db", "scripts", "server", "drizzle.config.ts", "vite.config.ts", "vitest.config.ts"]
 }
