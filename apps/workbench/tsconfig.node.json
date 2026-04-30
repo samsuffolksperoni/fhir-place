@@ -9,6 +9,7 @@
   },
   "include": [
     "db",
+    "eval",
     "scripts",
     "server",
     "drizzle.config.ts",

@@ -8,7 +8,7 @@ FHIR data**. Phase A only.
 > SMART on FHIR auth, does not handle PHI, and is not a clinical decision
 > support tool.
 
-## Status — Phase A (PRs 1–6 shipped)
+## Status — Phase A (PRs 1–6, 8 shipped)
 
 This package currently ships:
 
@@ -28,9 +28,12 @@ This package currently ships:
 - A bounded patient-summary agent loop (Anthropic, sonnet-4-6 default) that
   can only call the registered tools plus a terminal `finalize` tool, and
   treats resource text as data, never instruction.
+- A deterministic eval harness with two golden cases
+  (`known-condition`, `no-allergy-data`); `pnpm eval` exits 0 on a clean
+  checkout with no API key required.
 
-In flight: audit logging (PR 7, [#76]), eval harness (PR 8, [#77]), failure
-gallery (PR 9, [#78]), and the remaining demo write-up bits (PR 10, [#79]).
+In flight: audit logging (PR 7, [#76]), failure gallery (PR 9, [#78]),
+and the remaining demo write-up bits (PR 10, [#79]).
 See [`TASKS.md`](TASKS.md), [`docs/architecture.md`](docs/architecture.md),
 [`docs/safety.md`](docs/safety.md), [`docs/limitations.md`](docs/limitations.md),
 and the copy-pasteable [`docs/demo-script.md`](docs/demo-script.md).
@@ -75,6 +78,7 @@ The SQLite file defaults to `apps/workbench/workbench.sqlite`; override with
 | `typecheck` | tsc on both `tsconfig.json` and `tsconfig.node.json` |
 | `db:setup` | Open `workbench.sqlite` and apply migrations under `db/migrations/` |
 | `db:generate` | Re-generate Drizzle migrations from `db/schema.ts` |
+| `eval` | Run the Phase A eval suite (`--live` for real Anthropic; `--json <path>` to dump JSON) |
 
 ## Iterating quickly
 

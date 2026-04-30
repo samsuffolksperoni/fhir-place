@@ -13,7 +13,8 @@
     "test:run": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "db:setup": "tsx scripts/db-setup.ts",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "eval": "tsx scripts/run-evals.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

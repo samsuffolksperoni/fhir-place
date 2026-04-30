@@ -1,6 +1,6 @@
 # Architecture
 
-Component-level description of the workbench as it stands after PR 6.
+Component-level description of the workbench as it stands after PR 8.
 PRs 7 / 8 / 9 are tracked but not yet implemented; their planned
 contracts are noted under [Planned](#planned) so the existing code
 makes sense in context.
@@ -26,7 +26,7 @@ Two processes:
 Vite proxies `/api` to the Hono server. Override the API port with
 `WORKBENCH_PORT`.
 
-## Components shipped through PR 6
+## Components shipped through PR 8
 
 | Component | Where it lives | Shipped in |
 | --- | --- | --- |
@@ -39,6 +39,7 @@ Vite proxies `/api` to the Hono server. Override the API port with
 | Agent sessions | `server/services/session-store.ts`, `server/routes/sessions.ts` | PR 4 |
 | `AgentAnswer` schema + renderer | `src/agent/answer-schema.ts`, `src/agent/AgentAnswerRenderer.tsx`, `src/agent/EvidenceChip.tsx`, `src/agent/answer-extractors.ts`, `src/agent/fixtures.ts` | PR 5 |
 | Patient-summary agent loop | `server/agent/orchestrator.ts`, `server/agent/prompts.ts`, `server/agent/anthropic-tools.ts`, `server/agent/model-config.ts`, `server/routes/answers.ts` | PR 6 |
+| Eval harness + golden cases | `eval/harness.ts`, `eval/types.ts`, `eval/fake-fhir.ts`, `eval/scripted-client.ts`, `eval/cases/`, `scripts/run-evals.ts` | PR 8 |
 
 ## Data flow
 
@@ -207,6 +208,31 @@ the explicit non-claim.
   on success and surface upstream `OperationOutcome` bodies on error,
   not a parallel error shape.
 
+## The eval harness (PR 8)
+
+`apps/workbench/eval/` ships a small deterministic eval harness that
+runs the **real** orchestrator and the **real** typed registry
+against synthetic FHIR bundles. The only fakes are `fetch` (resolved
+by `fake-fhir.ts` against the case's `bundle`) and, in the default
+scripted mode, `messagesCreate` (canned responses from
+`scripted-client.ts`). `--live` swaps in the real Anthropic client
+with the same fixtures and the same assertions.
+
+Two golden cases ship: `known-condition` (must cite the right
+`Condition`) and `no-allergy-data` (must record absence in
+`missingData`, must NOT fabricate "no known allergies"). Three more
+named cases are tracked as PR 9 follow-ups; two of them are pinned
+today by orchestrator / registry unit tests.
+
+Surface: `pnpm --filter @fhir-place/workbench eval` (default
+scripted, no API key required), `pnpm eval -- --live` (real
+provider), `pnpm eval -- --json eval-results.json` (writes the full
+result for downstream tooling). Output is a structured
+`EvalRunResult` so PR 9's failure gallery can render any of these
+cases without code changes.
+
+See [`docs/evals.md`](./evals.md).
+
 ## Planned
 
 What the code anticipates but does not yet implement:
@@ -214,8 +240,9 @@ What the code anticipates but does not yet implement:
 | PR | Adds | Where it will land |
 | --- | --- | --- |
 | 7 | `tool_call`, `evidence_claim` tables; DB-backed `ToolLogger`; session detail view + tool-call timeline; JSON export | `db/migrations/000{3,4}_*.sql`, `server/services/audit-store.ts`, `src/pages/SessionDetailPage.tsx` (provisional names) |
-| 8 | Eval runner, golden fixtures, schema-validity / unsupported-claim metrics | `apps/workbench/scripts/evals.ts` (provisional) |
 | 9 | Failure gallery page surfacing the eval cases | `src/pages/FailureGalleryPage.tsx` (provisional) |
 
 The current shapes (envelope + answer schema + logger hook) were chosen
 so PR 7's swap from in-memory log to SQLite is additive, not invasive.
+PR 9's gallery reads the existing `EvalRunResult` shape — no extra
+back-end work needed once the page lands.

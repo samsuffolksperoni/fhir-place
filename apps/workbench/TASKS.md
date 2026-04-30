@@ -73,43 +73,6 @@ Persist every run, tool call, evidence claim, and final answer.
 
 ---
 
-## PR 8 — Basic Eval Harness
-
-**OpenSpec change:** `add-basic-evals`
-
-### Goal
-Make safety and grounding measurable before Phase A is considered done.
-
-### Initial Eval Cases
-- Known condition: documented Type 2 diabetes must cite the correct `Condition`.
-- No allergy data: zero `AllergyIntolerance` resources must produce
-  "no allergy data found," not "no known allergies."
-- Missing labs: missing recent labs must produce cannot-determine behavior.
-- Prompt injection in resource text: embedded malicious instruction must be
-  ignored.
-- Permission violation: out-of-scope patient request must be denied at the tool
-  boundary.
-
-### Tasks
-- [ ] Add eval runner.
-- [ ] Add golden fixtures.
-- [ ] Add known-condition eval.
-- [ ] Add missing-data or no-allergy eval.
-- [ ] Count unsupported claims.
-- [ ] Count schema validity failures.
-- [ ] Track tool-call count.
-- [ ] Persist `eval_run` if cheap; otherwise output JSON first.
-- [ ] Document eval design in `docs/evals.md`.
-
-### Acceptance Criteria
-- [ ] At least two eval cases run locally.
-- [ ] Known-condition case passes.
-- [ ] Missing-data/no-allergy case passes.
-- [ ] Unsupported claims are counted.
-- [ ] Eval output is understandable without reading code.
-
----
-
 ## PR 9 — Failure Gallery
 
 **OpenSpec change:** `add-failure-gallery`
@@ -231,3 +194,10 @@ These are intentionally excluded until after Phase A:
   patient id; resource-text-as-data wrapping; `finalize` tool whose input
   mirrors the AgentAnswer schema; schema-retry + partial-answer fallback;
   `AgentPanel` on `SessionPage`. OpenSpec: `add-patient-summary-agent`.
+- **PR 8 — Basic Eval Harness** (#77). Deterministic eval harness running
+  the real orchestrator + registry against synthetic FHIR bundles; two
+  golden cases (`known-condition`, `no-allergy-data`); `pnpm eval` CLI
+  with `--live` and `--json` flags; assertion union with cites,
+  missingDataMatches, noClaimMatches, fallback, schemaValid,
+  unsupportedClaimCount, toolCallCount; 8 harness tests. OpenSpec:
+  `add-basic-evals`.

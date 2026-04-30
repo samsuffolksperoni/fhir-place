@@ -36,9 +36,8 @@ issue under the `fhir-workbench-phase-a` label.
 | Slice | Tracking issue | OpenSpec change |
 | --- | --- | --- |
 | PR 7 — Audit logging (DB-backed `tool_call`, `evidence_claim`; session detail view + JSON export) | [#76](https://github.com/samsuffolksperoni/fhir-place/issues/76) | `add-audit-logging` (not yet authored) |
-| PR 8 — Basic eval harness (runner, golden fixtures, schema-validity / unsupported-claim metrics) | [#77](https://github.com/samsuffolksperoni/fhir-place/issues/77) | `add-basic-evals` (not yet authored) |
 | PR 9 — Failure gallery (no-allergy, missing-lab, prompt-injection, unauthorized-patient cases surfaced as a page) | [#78](https://github.com/samsuffolksperoni/fhir-place/issues/78) | `add-failure-gallery` (not yet authored) |
-| PR 10 — Demo write-up: `docs/evals.md`, failure-gallery walkthrough, agent-run screenshots with captured tool timeline | [#79](https://github.com/samsuffolksperoni/fhir-place/issues/79) | `add-demo-writeup` (this change covers the partial slice; remaining items deferred) |
+| PR 10 — Demo write-up: failure-gallery walkthrough, agent-run screenshots with captured tool timeline | [#79](https://github.com/samsuffolksperoni/fhir-place/issues/79) | `add-demo-writeup` (partial slice merged; remaining items deferred) |
 
 The orchestrator already passes every tool call through a
 `ToolLogger` hook (`server/agent/tool-log.ts`); PR 7 swaps the
@@ -46,7 +45,7 @@ in-memory implementation for a SQLite-backed one without changing the
 call sites. The `AgentAnswer` schema and the registry envelope already
 have the shape PR 7 / 8 / 9 will read against.
 
-## Known incompletenesses of what *is* shipped (PRs 1–6)
+## Known incompletenesses of what *is* shipped (PRs 1–6, 8)
 
 - **The agent runs against one provider.** Anthropic only
   (`server/agent/model-config.ts`). No automatic provider failover.
@@ -82,15 +81,31 @@ have the shape PR 7 / 8 / 9 will read against.
   `@fhir-place/react-fhir`'s job. The workbench is not a clinical
   viewer; it's an inspection tool.
 
+## Known limits of the eval suite (PR 8)
+
+- **Two cases ship.** `known-condition` and `no-allergy-data`. The
+  named follow-ups (missing-labs cannot-determine, prompt-injection-
+  in-resource-text, unauthorized-patient) are tracked but two of them
+  are already pinned by orchestrator / registry unit tests — see
+  `docs/evals.md`.
+- **Eval runs aren't persisted.** The CLI outputs JSON; no
+  `eval_run` table yet. A small follow-up after PR 7's audit store
+  lands will add it.
+- **Sequential.** Cases run one at a time. Live mode against the
+  real provider would otherwise hammer it.
+- **Single provider.** Anthropic only. Cross-model benchmark
+  comparisons are icebox.
+
 ## What this means for a reviewer
 
 If you're evaluating the project today, treat:
 
-- **PRs 1–6 (shipped)** as the credible part. `pnpm test:run` is
-  green; the agent loop runs against the public HAPI sandbox; the
-  safety properties are anchored to file paths in `docs/safety.md`.
-- **PRs 7 / 8 / 9 (in flight)** as planned, not delivered. The Phase
-  A Definition of Done in `apps/workbench/TASKS.md` is not yet met.
+- **PRs 1–6, 8 (shipped)** as the credible part. `pnpm test:run` is
+  green; `pnpm eval` exits 0 with both cases passing; the agent
+  loop runs against the public HAPI sandbox; the safety properties
+  are anchored to file paths in `docs/safety.md`.
+- **PRs 7 / 9 (in flight)** as planned, not delivered. The Phase A
+  Definition of Done in `apps/workbench/TASKS.md` is not yet met.
 - **The icebox** as a hard line. The project is positioned as a
   research artifact, not a product, and the absence of clinical
   features is the point.
