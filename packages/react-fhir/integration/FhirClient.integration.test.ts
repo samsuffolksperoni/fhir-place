@@ -209,4 +209,38 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
     },
     30_000,
   );
+
+  test(
+    "search with _id=a,b,c returns N resources in one call (batch read primitive)",
+    async () => {
+      // Underlying server contract that useResources / useReadReferences
+      // depend on. Create 5 Patients with unique identifiers, fetch them
+      // all in one search, and assert the round-trip is exact.
+      const unique = (globalThis.crypto ?? require("crypto")).randomUUID();
+      const created: Patient[] = [];
+      for (let i = 0; i < 5; i++) {
+        const seed: Patient = {
+          resourceType: "Patient",
+          identifier: [
+            { system: TEST_IDENTIFIER_SYSTEM, value: `${unique}-${i}`, use: "usual" },
+          ],
+          name: [{ family: `Batch-${unique.slice(0, 8)}-${i}` }],
+        };
+        const p = await client.create<Patient>(seed);
+        cleanup.push({ type: "Patient", id: p.id! });
+        created.push(p);
+      }
+
+      const ids = created.map((p) => p.id!);
+      const bundle = await client.search<Patient>("Patient", {
+        _id: ids.join(","),
+      });
+      const got = (bundle.entry ?? [])
+        .map((e) => e.resource?.id!)
+        .filter(Boolean)
+        .sort();
+      expect(got).toEqual([...ids].sort());
+    },
+    60_000,
+  );
 });
