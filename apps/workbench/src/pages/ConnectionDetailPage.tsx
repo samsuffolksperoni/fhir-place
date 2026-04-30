@@ -57,15 +57,24 @@ export function ConnectionDetailPage() {
                 {conn.data.baseUrl}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => test.mutate()}
-              disabled={test.isPending}
-              className="shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-              data-testid="test-connection"
-            >
-              {test.isPending ? "Testing…" : "Test connection"}
-            </button>
+            <div className="flex shrink-0 gap-2">
+              <Link
+                to={`/connections/${id}/patients`}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                data-testid="browse-patients"
+              >
+                Browse patients
+              </Link>
+              <button
+                type="button"
+                onClick={() => test.mutate()}
+                disabled={test.isPending}
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+                data-testid="test-connection"
+              >
+                {test.isPending ? "Testing…" : "Test connection"}
+              </button>
+            </div>
           </header>
 
           <section className="rounded-md border border-slate-200 bg-white p-4 text-sm">

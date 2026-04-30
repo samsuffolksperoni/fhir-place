@@ -38,6 +38,17 @@ export function createConnectionStore(
       return row ? redact(row) : null;
     },
 
+    /**
+     * Server-internal lookup that returns the raw row including `authToken`.
+     * Never exposed over HTTP. Used by the FHIR proxy to attach the
+     * configured auth header to the upstream request.
+     */
+    getInternal(id: string): DataConnection | null {
+      return (
+        db.select().from(dataConnection).where(eq(dataConnection.id, id)).get() ?? null
+      );
+    },
+
     create(input: CreateConnectionInput): ConnectionRow {
       const id = generateId();
       const ts = now();

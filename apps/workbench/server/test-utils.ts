@@ -28,7 +28,7 @@ export function makeTestApp(options: { fetchFn?: typeof fetch } = {}) {
     now: () => "2026-04-30T00:00:00.000Z",
     fetchFn: options.fetchFn,
   });
-  const app = createApp({ connections });
+  const app = createApp({ connections, fetchFn: options.fetchFn });
 
   return {
     app,
