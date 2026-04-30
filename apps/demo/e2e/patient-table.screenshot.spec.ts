@@ -20,6 +20,8 @@ test.describe("patient list — table view + column picker", () => {
     await expect(table).toBeVisible();
     await expect(page.getByRole("columnheader", { name: /^name$/i })).toBeVisible();
     await expect(page.getByRole("columnheader", { name: /gender/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /resources/i })).toBeVisible();
+    await expect(page.getByTestId("patient-row-counts").first()).toBeVisible();
 
     await page.screenshot({
       path: "../../screenshots/12-patient-table.png",
