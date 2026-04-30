@@ -221,6 +221,49 @@ describe("audit-store: persistAnswer", () => {
       }),
     ).toThrow();
   });
+
+  it("rolls back agent_answer + tool_call when a later insert fails", () => {
+    const db = makeDb();
+    seedSession(db);
+    // Force the evidence-claim insert to fail by throwing on the
+    // generateId call that would produce its id. The throw happens
+    // mid-transaction (after agent_answer + tool_call have already
+    // been inserted), so the transaction should roll the whole unit
+    // back rather than leaving a partial run on disk.
+    let idCalls = 0;
+    const store = createAuditStore(db, {
+      generateId: () => {
+        idCalls += 1;
+        if (idCalls === 2) throw new Error("simulated mid-write failure");
+        return `aud_${idCalls}`;
+      },
+      now: () => "2026-04-30T13:00:00.000Z",
+    });
+
+    expect(() =>
+      store.persistAnswer(
+        {
+          answerId: "ans-rollback",
+          sessionId: "sess-1",
+          prompt: ANSWER.prompt,
+          promptVersion: ANSWER.promptVersion!,
+          provider: ANSWER.provider!,
+          model: ANSWER.model!,
+          fallback: false,
+          turns: 1,
+          answer: ANSWER,
+          createdAt: "2026-04-30T13:00:00.000Z",
+        },
+        [toolEntry({ answerId: "ans-rollback" })],
+      ),
+    ).toThrow(/simulated mid-write failure/);
+
+    // The whole unit must have rolled back: no agent_answer, no
+    // tool_call, no evidence_claim row from this run.
+    expect(store.getAnswer("ans-rollback")).toBeNull();
+    expect(store.listToolCalls({ sessionId: "sess-1" })).toHaveLength(0);
+    expect(store.listAnswers("sess-1")).toHaveLength(0);
+  });
 });
 
 describe("audit-store: recordToolCall (debug-runner path)", () => {

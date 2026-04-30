@@ -93,16 +93,20 @@ export function createAuditStore(
   return {
     /**
      * Persist a single `runPatientSummary` outcome AND the tool-call
-     * entries collected during the loop, in one logical unit. The
-     * insert order is:
+     * entries collected during the loop, atomically. The insert order
+     * is:
      *
      *   1. `agent_answer`     — parent row.
      *   2. `tool_call`        — children with `answer_id = answerId`.
      *   3. `evidence_claim`   — derived from the validated answer.
      *
-     * SQLite FKs are enforced (PRAGMA `foreign_keys = ON` in
-     * `db/client.ts`), which is why ordering matters: tool_call rows
-     * cannot be persisted before their owning agent_answer exists.
+     * Wrapped in `db.transaction(...)` so a mid-sequence failure
+     * rolls back the whole unit; the caller's catch-path can then
+     * fall back to writing buffered tool calls as unbound rows
+     * without producing duplicated/inconsistent audit history for
+     * the same run. SQLite FKs are enforced (PRAGMA
+     * `foreign_keys = ON` in `db/client.ts`), so ordering matters
+     * inside the transaction too.
      *
      * Idempotency: re-inserts with the same `answerId` fail on the
      * primary-key constraint. The route generates a fresh id per run,
@@ -112,42 +116,44 @@ export function createAuditStore(
       input: PersistAnswerInput,
       toolEntries: ReadonlyArray<ToolCallLogEntry> = [],
     ): { id: string; toolCallIds: string[] } {
-      db.insert(agentAnswer)
-        .values({
-          id: input.answerId,
-          sessionId: input.sessionId,
-          prompt: input.prompt,
-          promptVersion: input.promptVersion,
-          provider: input.provider,
-          model: input.model,
-          fallback: input.fallback ? 1 : 0,
-          turns: input.turns,
-          answerJson: JSON.stringify(input.answer),
-          finalIssuesJson:
-            input.finalIssues === undefined
-              ? null
-              : JSON.stringify(input.finalIssues),
-          createdAt: input.createdAt,
-        })
-        .run();
-
       const toolCallIds: string[] = [];
-      for (const entry of toolEntries) {
-        const id = insertToolCall(db, generateId(), entry);
-        toolCallIds.push(id);
-      }
-
-      for (const claim of input.answer.claims) {
-        db.insert(evidenceClaim)
+      db.transaction((tx) => {
+        tx.insert(agentAnswer)
           .values({
-            id: generateId(),
-            answerId: input.answerId,
-            claimId: claim.id,
-            text: claim.text,
-            evidenceRefsJson: JSON.stringify(claim.evidence),
+            id: input.answerId,
+            sessionId: input.sessionId,
+            prompt: input.prompt,
+            promptVersion: input.promptVersion,
+            provider: input.provider,
+            model: input.model,
+            fallback: input.fallback ? 1 : 0,
+            turns: input.turns,
+            answerJson: JSON.stringify(input.answer),
+            finalIssuesJson:
+              input.finalIssues === undefined
+                ? null
+                : JSON.stringify(input.finalIssues),
+            createdAt: input.createdAt,
           })
           .run();
-      }
+
+        for (const entry of toolEntries) {
+          const id = insertToolCall(tx, generateId(), entry);
+          toolCallIds.push(id);
+        }
+
+        for (const claim of input.answer.claims) {
+          tx.insert(evidenceClaim)
+            .values({
+              id: generateId(),
+              answerId: input.answerId,
+              claimId: claim.id,
+              text: claim.text,
+              evidenceRefsJson: JSON.stringify(claim.evidence),
+            })
+            .run();
+        }
+      });
 
       return { id: input.answerId, toolCallIds };
     },
@@ -386,8 +392,12 @@ function isNullExpr(column: unknown) {
   return sql`${column} IS NULL`;
 }
 
+/** Accepts either the top-level client or a `db.transaction(...)` tx;
+ * both expose the same `insert` API. */
+type Insertable = Pick<WorkbenchDb, "insert">;
+
 function insertToolCall(
-  db: WorkbenchDb,
+  db: Insertable,
   id: string,
   entry: ToolCallLogEntry,
 ): string {
