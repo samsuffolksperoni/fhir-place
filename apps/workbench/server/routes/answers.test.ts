@@ -315,6 +315,53 @@ describe("audit GETs", () => {
   });
 });
 
+describe("POST /api/sessions/:sid/answer — failure path audit", () => {
+  it("persists buffered tool calls as unbound rows when the run throws mid-loop", async () => {
+    // First model call: a tool_use that will execute and log a tool
+    // call. Second model call: throw, simulating a model-provider
+    // failure on a later turn.
+    let callCount = 0;
+    const queue: ReadonlyArray<Anthropic.Message> = [
+      toolUse("getPatient", { patientId: "pat-1" }, "tu1"),
+    ];
+    const modelConfig: ModelConfig = {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      async messagesCreate() {
+        callCount += 1;
+        if (callCount === 1) return queue[0]!;
+        throw new Error("upstream model 503");
+      },
+    };
+
+    const { app, audit } = newApp({
+      fetchFn: async () =>
+        jsonResponse({ resourceType: "Patient", id: "pat-1" }),
+      modelConfig,
+    });
+    const cid = await createConn(app);
+    const sid = await createSession(app, cid);
+
+    const res = await app.request(`/api/sessions/${sid}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toBe("model_provider_error");
+
+    // No agent_answer row was written, but the tool call from the
+    // successful first turn must still be present, attributed to the
+    // session with answerId = null.
+    expect(audit.listAnswers(sid)).toHaveLength(0);
+    const calls = audit.listToolCalls({ sessionId: sid });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.tool).toBe("getPatient");
+    expect(calls[0]?.answerId).toBeNull();
+  });
+});
+
 describe("debug-runner tool calls are persisted", () => {
   it("/api/sessions/:sid/tools/:toolName writes a tool_call row with answer_id NULL", async () => {
     const { app, audit } = newApp({

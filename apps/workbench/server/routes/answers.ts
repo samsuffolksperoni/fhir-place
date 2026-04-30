@@ -140,6 +140,14 @@ export function answersRoutes(deps: Deps) {
         ...(result.finalIssues ? { finalIssues: result.finalIssues } : {}),
       });
     } catch (error) {
+      // Preserve any tool calls that executed before the throw —
+      // otherwise failure scenarios produce silent gaps in the audit
+      // log. Detach them from the (never-written) agent_answer row
+      // and persist as standalone, matching the debug-runner path.
+      for (const entry of buffer.entries) {
+        const { answerId: _drop, ...detached } = entry;
+        deps.audit.recordToolCall(detached);
+      }
       const message = error instanceof Error ? error.message : String(error);
       return jsonBody(502, { error: "model_provider_error", detail: message });
     }
