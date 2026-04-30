@@ -2,15 +2,21 @@
 
 Rules for coding agents working on this repository.
 
-## Scope
+## Repository overview
 
-This file applies to the `@fhir-place/workbench` app and its supporting docs,
-schemas, and OpenSpec changes. The component library under
-`packages/react-fhir/` and the demo app under `apps/demo/` predate the
-workbench and have their own conventions; do not refactor them as part of a
-workbench PR.
+This repo holds two projects:
 
-## Phase A working constraint
+- **`@fhir-place/react-fhir`** (`packages/react-fhir/`) — published React
+  component library. Existing conventions; see
+  [`packages/react-fhir/README.md`](packages/react-fhir/README.md) and
+  [`CONTRIBUTING.md`](CONTRIBUTING.md). Don't refactor library or demo code as
+  part of a workbench PR, and don't bring workbench concerns (LLM, agent,
+  audit) into the library.
+- **`@fhir-place/workbench`** (`apps/workbench/`) — research workbench for
+  evidence-backed agent answers over **synthetic** FHIR data. Phase A only.
+  The rest of this file is the workbench rulebook.
+
+## Workbench: Phase A working constraint
 
 The workbench is **synthetic-only, read-only, patient-summary**. Do not add
 any of the following without an explicit instruction that names the feature:
@@ -31,17 +37,23 @@ any of the following without an explicit instruction that names the feature:
 
 If a task seems to require one of these, stop and ask before writing code.
 
-## How to pick up work
+## Workbench: how to pick up work
 
-1. The Phase A backlog is in [`apps/workbench/TASKS.md`](apps/workbench/TASKS.md). PR cards land in order.
+1. The Phase A backlog is in [`apps/workbench/TASKS.md`](apps/workbench/TASKS.md).
+   PR cards land in order; shipped cards move to the `# Done` section of the
+   same file with a one-line summary and the tracking-issue ref.
 2. Each PR card has a tracking issue on GitHub under the
-   `fhir-workbench-phase-a` label.
+   `fhir-workbench-phase-a` label. Priority across the open backlog is
+   reflected by `priority: high` / `priority: medium` / `priority: low`
+   labels.
 3. Implement only the first card in the `Backlog` section unless explicitly
    instructed otherwise. Do not start PR N+1 work inside PR N.
 4. Every major feature must have a matching OpenSpec change under
    `openspec/changes/<change-name>/` that ships with the PR.
+5. When the card ships, update both `apps/workbench/TASKS.md` (move to
+   `# Done`) and close the matching tracking issue.
 
-## Engineering rules
+## Workbench: engineering rules
 
 - Every behavior change must include tests, or an explicit reason tests are
   not applicable in the PR description.
@@ -59,7 +71,7 @@ If a task seems to require one of these, stop and ask before writing code.
 - The synthetic-only / not-for-clinical-use banner stays visible on every UI
   surface that touches FHIR data.
 
-## Code style
+## Repo-wide code style
 
 - Match the existing repo: TS strict, ES modules, React function components,
   Tailwind utility classes. No new state-management libraries; use TanStack
