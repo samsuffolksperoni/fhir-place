@@ -28,6 +28,7 @@ const TABLE_COLUMNS: Array<{ path: string; label: string }> = [
   { path: "birthDate", label: "Birth date" },
   { path: "address.city", label: "City" },
   { path: "id", label: "ID" },
+  { path: "__counts", label: "Resources" },
 ];
 
 const readLayout = (): Layout => {
@@ -208,6 +209,10 @@ export function PatientListPage() {
           resources={patients}
           columns={TABLE_COLUMNS.map((c) => c.path).filter((p) => columns.includes(p))}
           columnLabels={Object.fromEntries(TABLE_COLUMNS.map((c) => [c.path, c.label]))}
+          cellRenderers={{
+            __counts: (patient) =>
+              patient.id ? <PatientRowCounts patientId={patient.id} /> : <span className="text-slate-400">—</span>,
+          }}
           onRowClick={(p) => navigate(`/Patient/${p.id}`)}
           emptyState={
             <p className="px-4 py-6 text-center text-sm text-slate-500">
