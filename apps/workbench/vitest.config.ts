@@ -5,6 +5,11 @@ export default defineConfig({
     name: "workbench",
     environment: "node",
     globals: true,
-    include: ["src/**/*.test.{ts,tsx}", "db/**/*.test.ts", "scripts/**/*.test.ts"],
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "db/**/*.test.ts",
+      "scripts/**/*.test.ts",
+      "server/**/*.test.ts",
+    ],
   },
 });

@@ -1,4 +1,12 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { listConnections } from "../api/connections.js";
+
 export function HomePage() {
+  const list = useQuery({ queryKey: ["connections"], queryFn: listConnections });
+  const count = list.data?.length ?? 0;
+  const ok = list.data?.filter((c) => c.lastCapabilityStatus === "ok").length ?? 0;
+
   return (
     <section className="space-y-4">
       <header>
@@ -13,16 +21,31 @@ export function HomePage() {
 
       <div className="rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-700">
         <p>
-          This is the Phase A skeleton. Patient search, the typed FHIR tool
-          registry, and the patient-summary agent land in subsequent PRs.
+          Phase A — currently shipped: app skeleton (PR 1) and FHIR
+          DataConnection (PR 2). Patient search, the typed FHIR tool registry,
+          and the patient-summary agent land in subsequent PRs.
         </p>
-        <p className="mt-2">
-          See{" "}
-          <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">
-            TASKS.md
-          </code>{" "}
-          at the repo root for the Phase A backlog.
-        </p>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">FHIR connections</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {list.isLoading
+                ? "Loading…"
+                : count === 0
+                  ? "No connections configured yet."
+                  : `${count} connection${count === 1 ? "" : "s"} (${ok} healthy)`}
+            </p>
+          </div>
+          <Link
+            to="/connections"
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Manage
+          </Link>
+        </div>
       </div>
 
       <ul

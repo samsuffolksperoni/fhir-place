@@ -1,30 +1,50 @@
-import { Route, Routes } from "react-router-dom";
+import { Link, NavLink, Route, Routes } from "react-router-dom";
 import { SyntheticOnlyBanner } from "./components/SyntheticOnlyBanner.js";
 import { HomePage } from "./pages/HomePage.js";
-import { FHIR_BASE_URL, USE_MOCK } from "./config.js";
+import { ConnectionsListPage } from "./pages/ConnectionsListPage.js";
+import { ConnectionDetailPage } from "./pages/ConnectionDetailPage.js";
+import { NewConnectionPage } from "./pages/NewConnectionPage.js";
+
+const navItem =
+  "rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900";
+const navItemActive =
+  "rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-900";
 
 export function App() {
   return (
     <div className="min-h-screen">
       <SyntheticOnlyBanner />
       <header className="border-b border-slate-200 bg-white px-6 py-3">
-        <div className="flex items-baseline justify-between gap-4">
-          <div>
-            <span className="text-lg font-semibold text-slate-900">
-              fhir-place
+        <div className="flex items-center justify-between gap-4">
+          <Link to="/" className="text-lg font-semibold text-slate-900">
+            fhir-place{" "}
+            <span className="text-sm font-normal text-slate-500">
+              · agent workbench · phase a
             </span>
-            <span className="ml-2 text-sm text-slate-500">
-              agent workbench · phase a
-            </span>
-          </div>
-          <div className="text-xs text-slate-500" data-testid="base-url">
-            {USE_MOCK ? "mock" : "live"} · {FHIR_BASE_URL}
-          </div>
+          </Link>
+          <nav className="flex items-center gap-1">
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) => (isActive ? navItemActive : navItem)}
+            >
+              Home
+            </NavLink>
+            <NavLink
+              to="/connections"
+              className={({ isActive }) => (isActive ? navItemActive : navItem)}
+            >
+              Connections
+            </NavLink>
+          </nav>
         </div>
       </header>
       <main className="mx-auto max-w-5xl p-6">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/connections" element={<ConnectionsListPage />} />
+          <Route path="/connections/new" element={<NewConnectionPage />} />
+          <Route path="/connections/:id" element={<ConnectionDetailPage />} />
         </Routes>
       </main>
     </div>

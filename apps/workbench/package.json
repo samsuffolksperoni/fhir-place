@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "tsx watch server/index.ts",
+    "server:start": "tsx server/index.ts",
     "build": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest",
@@ -15,9 +17,11 @@
   },
   "dependencies": {
     "@fhir-place/react-fhir": "workspace:*",
+    "@hono/node-server": "^2.0.1",
     "@tanstack/react-query": "^5.62.0",
     "better-sqlite3": "^12.9.0",
     "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.16",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.0.0",
