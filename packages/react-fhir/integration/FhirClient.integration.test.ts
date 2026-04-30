@@ -4,8 +4,10 @@ import type {
   Observation,
   Patient,
   StructureDefinition,
+  ValueSet,
 } from "fhir/r4";
 import { afterAll, describe, expect, test } from "vitest";
+import { codesFromValueSet } from "../src/structure/binding.js";
 import { directChildren, walkResource } from "../src/structure/walker.js";
 import {
   FHIR_BASE_URL,
@@ -208,6 +210,134 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
       expect([404, 410, 400]).toContain(err.status);
     },
     30_000,
+  );
+
+  test(
+    "ValueSet/$expand on administrative-gender returns codes including 'female' (#29)",
+    async () => {
+      // useValueSet's first-step lookup. Real HAPI exposes $expand for the
+      // core R4 ValueSets — if this regresses we want to know.
+      const url = "http://hl7.org/fhir/ValueSet/administrative-gender";
+      const vs = await client.request<ValueSet>({
+        path: `/ValueSet/$expand?url=${encodeURIComponent(url)}`,
+      });
+      expect(vs.resourceType).toBe("ValueSet");
+      const codes = codesFromValueSet(vs).map((c) => c.code);
+      expect(codes).toContain("female");
+      expect(codes).toContain("male");
+      // sanity: codesFromValueSet handled whatever shape HAPI returned
+      expect(codes.length).toBeGreaterThanOrEqual(2);
+    },
+    30_000,
+  );
+
+  test(
+    "ValueSet?url=... fallback yields a usable concept list for goal-status (#29)",
+    async () => {
+      // useValueSet's second-step lookup: when $expand is unavailable or
+      // empty, search-by-url should still return a ValueSet whose
+      // compose.include we can flatten via codesFromValueSet.
+      const url = "http://hl7.org/fhir/ValueSet/goal-status";
+      const bundle = await client.search<ValueSet>("ValueSet", { url });
+      const vs = bundle.entry?.[0]?.resource;
+      // HAPI might not have this VS at all; tolerate that by skipping the
+      // assertion rather than failing — the fallback chain in useValueSet
+      // ends at the bundled core copy when the server has neither.
+      if (!vs) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[integration] HAPI returned no ValueSet for ${url}; skipping fallback assertions.`,
+        );
+        return;
+      }
+      const codes = codesFromValueSet(vs).map((c) => c.code);
+      expect(codes).toContain("active");
+      expect(codes).toContain("planned");
+    },
+    30_000,
+  );
+
+  test(
+    "pagination follows Bundle.link[rel=next] across multiple pages (#29)",
+    async () => {
+      // Create 25 tagged patients, search with _count=10, follow next links
+      // until exhausted, and assert the cumulative ids match what we created.
+      const unique = (globalThis.crypto ?? require("crypto")).randomUUID();
+      const tagSystem = TEST_IDENTIFIER_SYSTEM;
+      const tagCode = `paginate-${unique.slice(0, 8)}`;
+      const created: Patient[] = [];
+      for (let i = 0; i < 25; i++) {
+        const p = await client.create<Patient>({
+          resourceType: "Patient",
+          identifier: [
+            { system: TEST_IDENTIFIER_SYSTEM, value: `${unique}-${i}` },
+          ],
+          meta: { tag: [{ system: tagSystem, code: tagCode }] },
+          name: [{ family: `Page-${unique.slice(0, 8)}-${i}` }],
+        });
+        cleanup.push({ type: "Patient", id: p.id! });
+        created.push(p);
+      }
+
+      const expectedIds = new Set(created.map((p) => p.id!));
+      const seen = new Set<string>();
+      let nextUrl: string | undefined = undefined;
+      let pages = 0;
+      const MAX_PAGES = 10; // hard cap on the loop in case HAPI never stops
+
+      do {
+        const bundle: Bundle<Patient> = nextUrl
+          ? await client.request<Bundle<Patient>>({ path: nextUrl })
+          : await client.search<Patient>("Patient", {
+              _tag: `${tagSystem}|${tagCode}`,
+              _count: 10,
+            });
+        for (const e of bundle.entry ?? []) {
+          if (e.resource?.id) seen.add(e.resource.id);
+        }
+        nextUrl = bundle.link?.find((l) => l.relation === "next")?.url;
+        pages += 1;
+      } while (nextUrl && pages < MAX_PAGES);
+
+      // We should have walked ≥ 3 pages (25 / 10 = 3) and recovered every
+      // tagged Patient. Use intersection rather than equality because HAPI
+      // is shared — other test runs may have used the same _id but never
+      // the same _tag, so this set is exclusive to us.
+      expect(pages).toBeGreaterThanOrEqual(3);
+      for (const id of expectedIds) {
+        expect(seen.has(id), `missing ${id} after pagination`).toBe(true);
+      }
+    },
+    180_000, // 25 creates + 3 pages on shared HAPI can be slow
+  );
+
+  test(
+    "ReferencePicker-style search by partial name returns a well-shaped Bundle (#29)",
+    async () => {
+      // Underlying server contract for <ReferencePicker>: search by `name`
+      // returns a bundle whose entries each have a Patient `resource` with
+      // an id and a name field — that's the minimum the picker needs to
+      // render labels via formatReferenceLabel().
+      const unique = (globalThis.crypto ?? require("crypto")).randomUUID();
+      const family = `Picker-${unique.slice(0, 8)}`;
+      const created = await client.create<Patient>({
+        resourceType: "Patient",
+        identifier: [{ system: TEST_IDENTIFIER_SYSTEM, value: unique }],
+        name: [{ given: ["Search"], family }],
+      });
+      cleanup.push({ type: "Patient", id: created.id! });
+
+      const bundle = await client.search<Patient>("Patient", {
+        name: family,
+        _count: 10,
+      });
+      expect(bundle.resourceType).toBe("Bundle");
+      expect(bundle.type).toBe("searchset");
+      const hit = bundle.entry?.find((e) => e.resource?.id === created.id);
+      expect(hit, `did not find Patient ${created.id} in search-by-name`).toBeTruthy();
+      expect(hit!.resource?.name?.[0]?.family).toBe(family);
+    },
+    60_000,
   );
 
   test(
