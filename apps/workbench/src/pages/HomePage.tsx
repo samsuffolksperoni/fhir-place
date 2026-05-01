@@ -24,8 +24,8 @@ export function HomePage() {
           Phase A — currently shipped: app skeleton (PR 1), FHIR DataConnection
           (PR 2), patient search and resource viewer (PR 3), typed FHIR tool
           registry (PR 4), structured AgentAnswer schema (PR 5), the
-          patient-summary agent loop (PR 6), and the persisted audit log
-          (PR 7). The eval harness (PR 8) and the failure gallery (PR 9) are
+          patient-summary agent loop (PR 6), the persisted audit log (PR 7),
+          and the basic eval harness (PR 8). The failure gallery (PR 9) is
           still in flight.
         </p>
       </div>

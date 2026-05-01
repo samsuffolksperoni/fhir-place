@@ -8,7 +8,7 @@ FHIR data**. Phase A only.
 > SMART on FHIR auth, does not handle PHI, and is not a clinical decision
 > support tool.
 
-## Status — Phase A (PRs 1–7 shipped)
+## Status — Phase A (PRs 1–8 shipped)
 
 This package currently ships:
 
@@ -33,15 +33,19 @@ This package currently ships:
   every final answer, and every cited claim is replay-inspectable. JSON
   export is one click; the `SessionPage` "Past runs" panel shows the
   tool-call timeline and cited evidence inline.
+- A deterministic, offline eval harness under `server/eval/` covering five
+  Phase A safety cases (known-condition, no-allergy-data, missing-labs,
+  prompt-injection, permission-violation). `pnpm eval` writes
+  `eval-report.json`, prints PASS / FAIL per case, and exits non-zero on
+  failure. See [`docs/evals.md`](docs/evals.md).
 
-In flight: eval harness (PR 8, [#77]), failure gallery (PR 9, [#78]), and the
-remaining demo write-up bits (PR 10, [#79]).
+In flight: failure gallery (PR 9, [#78]) and the remaining demo write-up bits
+(PR 10, [#79]).
 See [`TASKS.md`](TASKS.md), [`docs/architecture.md`](docs/architecture.md),
 [`docs/safety.md`](docs/safety.md), [`docs/limitations.md`](docs/limitations.md),
-[`docs/audit-model.md`](docs/audit-model.md), and the copy-pasteable
-[`docs/demo-script.md`](docs/demo-script.md).
+[`docs/audit-model.md`](docs/audit-model.md), [`docs/evals.md`](docs/evals.md),
+and the copy-pasteable [`docs/demo-script.md`](docs/demo-script.md).
 
-[#77]: https://github.com/samsuffolksperoni/fhir-place/issues/77
 [#78]: https://github.com/samsuffolksperoni/fhir-place/issues/78
 [#79]: https://github.com/samsuffolksperoni/fhir-place/issues/79
 
@@ -80,6 +84,7 @@ The SQLite file defaults to `apps/workbench/workbench.sqlite`; override with
 | `typecheck` | tsc on both `tsconfig.json` and `tsconfig.node.json` |
 | `db:setup` | Open `workbench.sqlite` and apply migrations under `db/migrations/` |
 | `db:generate` | Re-generate Drizzle migrations from `db/schema.ts` |
+| `eval` | Run the offline Phase A eval harness; writes `eval-report.json` |
 
 ## Iterating quickly
 
