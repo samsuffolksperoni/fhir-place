@@ -5,9 +5,9 @@
  * Models the FHIR search parameter types we cover initially:
  * `string`, `token`, `date`, `reference`, `number`. Composite, quantity, uri,
  * and special types are deferred. Resources and `_include`/`_revinclude`
- * targets are seeded minimally; the `SearchParamTypes`, `IncludePaths`, and
- * `ReferenceTargets` registries are all extensible via TypeScript declaration
- * merging.
+ * targets are seeded minimally; the `SearchParamTypes`,
+ * `IncludePathsByResource`, `RevIncludePathsByResource`, and `ReferenceTargets`
+ * registries are all extensible via TypeScript declaration merging.
  *
  * Output is byte-identical to `buildSearchParams` for any case both can express.
  */
@@ -78,15 +78,40 @@ export interface SearchParamTypes {
 export type SearchableResource = keyof SearchParamTypes;
 
 /**
- * Allow-list of `_include` / `_revinclude` paths. Seeded for v0 with the two
- * paths called out in the issue; extend via declaration merging.
+ * `_include` allow-list, keyed by the resource being SEARCHED. Each value is
+ * the union of include paths whose source type is that resource.
+ *
+ * v0 seed:
+ *   Patient → "Patient:general-practitioner"
+ *   Observation → "Observation:subject"
+ *
+ * Extend via declaration merging.
  */
-export interface IncludePaths {
-  "Observation:subject": true;
-  "Patient:general-practitioner": true;
+export interface IncludePathsByResource {
+  Patient: "Patient:general-practitioner";
+  Observation: "Observation:subject";
 }
 
-export type IncludeSpec = keyof IncludePaths;
+/**
+ * `_revinclude` allow-list, keyed by the resource being SEARCHED. Each value
+ * is the union of include paths whose reference TARGET is that resource.
+ *
+ * v0 seed:
+ *   Patient → "Observation:subject"  (Observation.subject targets Patient)
+ *
+ * Extend via declaration merging.
+ */
+export interface RevIncludePathsByResource {
+  Patient: "Observation:subject";
+}
+
+export type IncludeSpec<R extends SearchableResource> =
+  R extends keyof IncludePathsByResource ? IncludePathsByResource[R] : never;
+
+export type RevIncludeSpec<R extends SearchableResource> =
+  R extends keyof RevIncludePathsByResource
+    ? RevIncludePathsByResource[R]
+    : never;
 
 /**
  * Optional declaration-merged map: for each `(sourceResource, refParam)` reference
@@ -219,12 +244,12 @@ export class SearchBuilder<R extends SearchableResource> {
     }
   }
 
-  include(spec: IncludeSpec): this {
+  include(spec: IncludeSpec<R>): this {
     this.entries.push(["_include", spec]);
     return this;
   }
 
-  revInclude(spec: IncludeSpec): this {
+  revInclude(spec: RevIncludeSpec<R>): this {
     this.entries.push(["_revinclude", spec]);
     return this;
   }
