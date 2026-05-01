@@ -25,8 +25,7 @@ export function HomePage() {
           (PR 2), patient search and resource viewer (PR 3), typed FHIR tool
           registry (PR 4), structured AgentAnswer schema (PR 5), the
           patient-summary agent loop (PR 6), the persisted audit log (PR 7),
-          and the basic eval harness (PR 8). The failure gallery (PR 9) is
-          still in flight.
+          and the basic eval harness (PR 8), plus the failure gallery (PR 9).
         </p>
       </div>
 
@@ -47,6 +46,24 @@ export function HomePage() {
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Manage
+          </Link>
+        </div>
+      </div>
+
+
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Failure gallery</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Review safety-first eval fixtures for missing data, prompt injection, and patient-scope denial behavior.
+            </p>
+          </div>
+          <Link
+            to="/failure-gallery"
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Open
           </Link>
         </div>
       </div>
