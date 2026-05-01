@@ -45,4 +45,22 @@ describe("eval runner", () => {
     expect(result.schemaValid).toBe(false);
     expect(result.unsupportedClaims).toBe(2);
   });
+
+  it("counts tool calls even when schema validation fails", () => {
+    const badCase: EvalCase = {
+      id: "bad-toolcalls",
+      description: "malformed payload with toolCalls array",
+      input: {
+        schemaVersion: "1",
+        toolCalls: [
+          { tool: "a", toolVersion: "1", ok: true, durationMs: 1 },
+          { tool: "b", toolVersion: "1", ok: true, durationMs: 1 },
+        ],
+      },
+      expect: {},
+    };
+    const result = evaluateCase(badCase);
+    expect(result.schemaValid).toBe(false);
+    expect(result.toolCallCount).toBe(2);
+  });
 });

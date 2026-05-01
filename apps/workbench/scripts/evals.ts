@@ -149,6 +149,15 @@ function rawUnsupportedClaimCount(input: unknown): number {
   }).length;
 }
 
+// Best-effort tool-call count for inputs that fail schema validation, so a
+// payload that only fails claim validation still contributes to the
+// aggregate `toolCalls` tally.
+function rawToolCallCount(input: unknown): number {
+  if (typeof input !== "object" || input === null) return 0;
+  const toolCalls = (input as { toolCalls?: unknown }).toolCalls;
+  return Array.isArray(toolCalls) ? toolCalls.length : 0;
+}
+
 function evaluateCase(evalCase: EvalCase): EvalResult {
   const parsed = parseAgentAnswer(evalCase.input);
   if (!parsed.ok) {
@@ -157,7 +166,7 @@ function evaluateCase(evalCase: EvalCase): EvalResult {
       pass: false,
       schemaValid: false,
       unsupportedClaims: rawUnsupportedClaimCount(evalCase.input),
-      toolCallCount: 0,
+      toolCallCount: rawToolCallCount(evalCase.input),
       checks: { schemaValid: false },
       errors: [parsed.error],
     };
