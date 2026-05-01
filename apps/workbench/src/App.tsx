@@ -9,6 +9,7 @@ import { PatientPage } from "./pages/PatientPage.js";
 import { ResourcePage } from "./pages/ResourcePage.js";
 import { SessionPage } from "./pages/SessionPage.js";
 import { AnswerPreviewPage } from "./pages/AnswerPreviewPage.js";
+import { FailureGalleryPage } from "./pages/FailureGalleryPage.js";
 
 const navItem =
   "rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900";
@@ -34,6 +35,12 @@ export function App() {
               className={({ isActive }) => (isActive ? navItemActive : navItem)}
             >
               Home
+            </NavLink>
+            <NavLink
+              to="/failure-gallery"
+              className={({ isActive }) => (isActive ? navItemActive : navItem)}
+            >
+              Failure gallery
             </NavLink>
             <NavLink
               to="/connections"
@@ -65,6 +72,7 @@ export function App() {
             element={<AnswerPreviewPage />}
           />
           <Route path="/answer-preview" element={<AnswerPreviewPage />} />
+          <Route path="/failure-gallery" element={<FailureGalleryPage />} />
         </Routes>
       </main>
     </div>
