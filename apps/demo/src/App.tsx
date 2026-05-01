@@ -4,7 +4,11 @@ import { PatientListPage } from "./pages/PatientListPage.js";
 import { ResourceDetailPage } from "./pages/ResourceDetailPage.js";
 import { ResourceEditPage } from "./pages/ResourceEditPage.js";
 import { ResourceIndexPage } from "./pages/ResourceIndexPage.js";
-import { FHIR_BASE_URL, USE_MOCK } from "./config.js";
+import { ServerPicker } from "./components/ServerPicker.js";
+import { FHIR_BASE_URL, FHIR_SERVERS, USE_MOCK } from "./config.js";
+
+const showServerPicker =
+  !USE_MOCK && FHIR_SERVERS.some((s) => s.url === FHIR_BASE_URL);
 
 export function App() {
   return (
@@ -19,9 +23,13 @@ export function App() {
               spec-driven FHIR viewer
             </span>
           </div>
-          <div className="text-xs text-slate-500" data-testid="base-url">
-            {USE_MOCK ? "mock" : "live"} · {FHIR_BASE_URL}
-          </div>
+          {showServerPicker ? (
+            <ServerPicker />
+          ) : (
+            <div className="text-xs text-slate-500" data-testid="base-url">
+              {USE_MOCK ? "mock" : "live"} · {FHIR_BASE_URL}
+            </div>
+          )}
         </div>
       </header>
       <main className="mx-auto max-w-5xl p-6">
