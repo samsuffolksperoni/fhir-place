@@ -68,9 +68,14 @@ const TARGET_PROFILE_URLS = new Set([
 ]);
 
 function loadIgPackage(): StructureDefinition[] {
-  const files = readdirSync(PACKAGE_DIR).filter(
-    (f) => f.startsWith("StructureDefinition-") && f.endsWith(".json"),
-  );
+  // Sort for reproducible output: `readdirSync()` order is filesystem-defined,
+  // so an unsorted walk would emit profiles in different orders across OSes
+  // and produce noisy diffs for byte-identical inputs.
+  const files = readdirSync(PACKAGE_DIR)
+    .filter(
+      (f) => f.startsWith("StructureDefinition-") && f.endsWith(".json"),
+    )
+    .sort();
   const sds: StructureDefinition[] = [];
   for (const f of files) {
     const sd = JSON.parse(

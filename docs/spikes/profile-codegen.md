@@ -22,10 +22,12 @@
   type-level tests using `// @ts-expect-error` to assert that an unprofiled
   `Patient` cannot be assigned to `USCorePatientProfile`.
 
-The artifact is **not** re-exported from `src/structure/index.ts`. Consumers
-who want to play with it must deep-import via
-`@fhir-place/react-fhir/structure/__experimental__/us-core-7` (and accept
-that the path may move or vanish without a semver bump).
+The artifact is **not** re-exported from `src/structure/index.ts`, and the
+spike deliberately does **not** add a `__experimental__/*` entry to the
+package's `exports` map. That means downstream consumers of the published
+package cannot import the spike output at all — it is a repo-local
+artifact for inspection and type-level tests only. Promoting it to a
+consumer-reachable subpath is one of the blockers listed below.
 
 ## What worked
 
@@ -101,10 +103,14 @@ no runtime validation": **~2 weeks of focused work**.
 
 ## Blockers for promotion to a stable API
 
-1. **Naming and import path.** `@fhir-place/react-fhir/structure/profiles/us-core-7`?
+1. **Naming, import path, and `exports` map.** `@fhir-place/react-fhir/structure/profiles/us-core-7`?
    `@fhir-place/codegen-us-core`? The library wedge in ADR 0004 keeps this
    inside `react-fhir` for now, but a full IG matrix probably wants its own
    package per IG so consumers don't pay tree-shake cost for IGs they don't use.
+   Whichever path we pick has to be added to `package.json#exports` — the
+   current map only exposes `./`, `./client`, `./hooks`, `./structure`, and
+   `./components`, so the spike's deep path is intentionally unreachable
+   from the published package.
 2. **Versioning of generated artifacts.** Each IG version (US Core 7.0 vs 8.0)
    should produce a separate artifact, and we need a story for breaking
    changes when an IG changes its must-support set.
