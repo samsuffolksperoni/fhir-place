@@ -21,27 +21,41 @@ test.describe("Missing resource detail page", () => {
     ).toBeVisible();
   });
 
-  test("transient 5xx surfaces an error with a Retry button", async ({ page }) => {
-    let attempts = 0;
-    await page.route(/\/Patient\/p-flaky$/, async (route) => {
-      if (route.request().method() !== "GET") return route.continue();
-      attempts += 1;
-      await route.fulfill({
-        status: 503,
-        contentType: "application/fhir+json",
-        body: JSON.stringify({
-          resourceType: "OperationOutcome",
-          issue: [{ severity: "error", code: "transient", diagnostics: "upstream down" }],
-        }),
-      });
-    });
+  // The 5xx test runs in a context with service workers blocked so
+  // `page.route` intercepts FHIR API calls directly. With MSW running,
+  // the in-app service worker would catch the request first and return
+  // its seeded 404 for `Patient/p-flaky`, which is not what we're
+  // testing here. The SPA's bootstrap is tolerant of `worker.start()`
+  // rejecting under blocked service workers.
+  test.describe("transient 5xx (no service worker)", () => {
+    test.use({ serviceWorkers: "block" });
 
-    await page.goto("/Patient/p-flaky");
-    await expect(page.getByTestId("resource-error")).toBeVisible({ timeout: 10_000 });
-    // 503 is retryable, so we expect at least the initial + one retry.
-    expect(attempts).toBeGreaterThanOrEqual(2);
-    await expect(
-      page.getByTestId("resource-error").getByRole("button", { name: /retry/i }),
-    ).toBeVisible();
+    test("surfaces an error with a Retry button", async ({ page }) => {
+      let attempts = 0;
+      // Match only the FHIR API URL — `/\/Patient\/p-flaky$/` would also
+      // intercept the SPA navigation `page.goto("/Patient/p-flaky")` and
+      // hand the browser an OperationOutcome JSON body in place of
+      // index.html, so the React app never loads.
+      await page.route(/\/fhir\/Patient\/p-flaky$/, async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        attempts += 1;
+        await route.fulfill({
+          status: 503,
+          contentType: "application/fhir+json",
+          body: JSON.stringify({
+            resourceType: "OperationOutcome",
+            issue: [{ severity: "error", code: "transient", diagnostics: "upstream down" }],
+          }),
+        });
+      });
+
+      await page.goto("/Patient/p-flaky");
+      await expect(page.getByTestId("resource-error")).toBeVisible({ timeout: 10_000 });
+      // 503 is retryable, so we expect at least the initial + one retry.
+      expect(attempts).toBeGreaterThanOrEqual(2);
+      await expect(
+        page.getByTestId("resource-error").getByRole("button", { name: /retry/i }),
+      ).toBeVisible();
+    });
   });
 });

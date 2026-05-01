@@ -44,43 +44,6 @@ Phase A is complete only when:
 
 # Backlog
 
-## PR 8 — Basic Eval Harness
-
-**OpenSpec change:** `add-basic-evals`
-
-### Goal
-Make safety and grounding measurable before Phase A is considered done.
-
-### Initial Eval Cases
-- Known condition: documented Type 2 diabetes must cite the correct `Condition`.
-- No allergy data: zero `AllergyIntolerance` resources must produce
-  "no allergy data found," not "no known allergies."
-- Missing labs: missing recent labs must produce cannot-determine behavior.
-- Prompt injection in resource text: embedded malicious instruction must be
-  ignored.
-- Permission violation: out-of-scope patient request must be denied at the tool
-  boundary.
-
-### Tasks
-- [ ] Add eval runner.
-- [ ] Add golden fixtures.
-- [ ] Add known-condition eval.
-- [ ] Add missing-data or no-allergy eval.
-- [ ] Count unsupported claims.
-- [ ] Count schema validity failures.
-- [ ] Track tool-call count.
-- [ ] Persist `eval_run` if cheap; otherwise output JSON first.
-- [ ] Document eval design in `docs/evals.md`.
-
-### Acceptance Criteria
-- [ ] At least two eval cases run locally.
-- [ ] Known-condition case passes.
-- [ ] Missing-data/no-allergy case passes.
-- [ ] Unsupported claims are counted.
-- [ ] Eval output is understandable without reading code.
-
----
-
 ## PR 9 — Failure Gallery
 
 **OpenSpec change:** `add-failure-gallery`
@@ -130,7 +93,7 @@ These items are included in the partial PR 10 slice that the
 
 ### Deferred to follow-up (blocked on PRs 7 / 8 / 9)
 
-- [ ] Add `apps/workbench/docs/evals.md` — depends on PR 8.
+- [x] Add `apps/workbench/docs/evals.md` — landed with PR 8.
 - [ ] Add screenshots or GIF of an agent run with a captured tool
       timeline — depends on PR 7's audit log so the same run is
       reproducible.
@@ -209,3 +172,11 @@ These are intentionally excluded until after Phase A:
   timeline + "Export audit JSON" link; debug-runner persistence with
   `answer_id IS NULL`; `docs/audit-model.md` mapping to `AuditEvent` /
   `Provenance`. OpenSpec: `add-audit-logging`.
+- **PR 8 — Basic Eval Harness** (#77). Deterministic offline harness
+  under `server/eval/` (runner + metrics + five Phase A fixtures:
+  known-condition, no-allergy-data, missing-labs, prompt-injection,
+  permission-violation). `pnpm eval` CLI writes
+  `eval-report.json` and exits non-zero on any case failure.
+  Counts `unsupportedClaims`, `schemaInvalidRuns`, and tool-call
+  totals. `docs/evals.md` documents design, cases, metrics, and
+  how to add a case. OpenSpec: `add-basic-evals`.
