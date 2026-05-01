@@ -159,7 +159,11 @@ export function ResourceTable<T extends Resource = Resource>({
           <thead className="border-b border-slate-200 bg-slate-50 text-left">
             <tr>
               {headers.map((h) => (
-                <th key={h.path} className="px-3 py-2 font-medium text-slate-600">
+                <th
+                  key={h.path}
+                  scope="col"
+                  className="px-3 py-2 font-medium text-slate-600"
+                >
                   {onSortChange ? (
                     <button
                       type="button"

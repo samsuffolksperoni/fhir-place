@@ -32,6 +32,28 @@ export interface FetchFhirClientOptions {
 
 const trimSlash = (s: string): string => s.replace(/\/+$/, "");
 
+// jsdom 25 (the test environment) does not implement AbortSignal.any.
+// Fall back to a manual fan-in when the runtime lacks it.
+function anySignal(signals: ReadonlyArray<AbortSignal>): AbortSignal {
+  const native = (AbortSignal as unknown as {
+    any?: (s: ReadonlyArray<AbortSignal>) => AbortSignal;
+  }).any;
+  if (typeof native === "function") return native.call(AbortSignal, signals);
+  const controller = new AbortController();
+  const onAbort = (event: Event) => {
+    const reason = (event.target as AbortSignal).reason;
+    controller.abort(reason);
+  };
+  for (const s of signals) {
+    if (s.aborted) {
+      controller.abort(s.reason);
+      return controller.signal;
+    }
+    s.addEventListener("abort", onAbort, { once: true });
+  }
+  return controller.signal;
+}
+
 export class FetchFhirClient implements FhirClient {
   readonly baseUrl: string;
   readonly fhirVersion: FhirVersion;
@@ -214,7 +236,7 @@ export class FetchFhirClient implements FhirClient {
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => timeoutController.abort(), this.requestTimeoutMs);
     const signal = init.signal
-      ? AbortSignal.any([init.signal, timeoutController.signal])
+      ? anySignal([init.signal, timeoutController.signal])
       : timeoutController.signal;
 
     let response: Response;

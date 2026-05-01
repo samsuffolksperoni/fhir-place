@@ -33,12 +33,35 @@ const fhirClient = new FetchFhirClient({ baseUrl: FHIR_BASE_URL });
 
 async function bootstrap() {
   if (USE_MOCK) {
-    const { worker } = await import("./mocks/browser.js");
-    await worker.start({
-      onUnhandledRequest: "bypass",
-      quiet: true,
-      serviceWorker: { url: `${import.meta.env.BASE_URL}mockServiceWorker.js` },
-    });
+    try {
+      const { worker } = await import("./mocks/browser.js");
+      await worker.start({
+        onUnhandledRequest: "bypass",
+        quiet: true,
+        serviceWorker: { url: `${import.meta.env.BASE_URL}mockServiceWorker.js` },
+      });
+      if (import.meta.env.DEV) {
+        // E2E helper: expose the worker + msw exports so Playwright
+        // tests can register one-shot handlers via window.__msw at
+        // runtime without forking the static handler set.
+        const msw = await import("msw");
+        (
+          window as unknown as {
+            __msw?: {
+              worker: typeof worker;
+              http: typeof msw.http;
+              HttpResponse: typeof msw.HttpResponse;
+            };
+          }
+        ).__msw = { worker, http: msw.http, HttpResponse: msw.HttpResponse };
+      }
+    } catch (err) {
+      // Playwright tests that need network-layer route interception block
+      // service workers per-context; that makes `worker.start()` reject.
+      // Fall through so the SPA still renders and Playwright's `page.route`
+      // becomes the sole interceptor.
+      console.warn("[mocks] MSW worker failed to start; running without mocks.", err);
+    }
   }
   // On static hosts like GitHub Pages, deep links to BrowserRouter routes return
   // HTTP 404 because the server can't know the route is virtual. HashRouter

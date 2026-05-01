@@ -1,18 +1,22 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("patient list — table view + column picker", () => {
-  test.beforeEach(async ({ page }) => {
-    // Reset persisted layout / column choices before each test so the
-    // demo always starts in list view.
-    await page.addInitScript(() => {
-      window.localStorage.removeItem("fhir-place-demo-patient-layout");
-      window.localStorage.removeItem("fhir-place-demo-patient-columns");
-    });
+// Helper: clear persisted layout / column localStorage keys after the
+// page has loaded once. Using `addInitScript` would clear on every
+// page load (including `page.reload()`), which silently breaks the
+// persistence test below.
+async function resetLayoutPrefs(page: import("@playwright/test").Page) {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.removeItem("fhir-place-demo-patient-layout");
+    localStorage.removeItem("fhir-place-demo-patient-columns");
   });
+}
 
+test.describe("patient list — table view + column picker", () => {
   test("toggling to table view renders ResourceTable and ColumnPicker hides a column", async ({
     page,
   }) => {
+    await resetLayoutPrefs(page);
     await page.goto("/Patient");
     await page.getByTestId("layout-table").click();
 
@@ -28,8 +32,11 @@ test.describe("patient list — table view + column picker", () => {
       fullPage: true,
     });
 
+    // Open the column picker and toggle off Gender. Two elements have
+    // the label "Gender" on the page (the search input and this
+    // checkbox), so target the checkbox role explicitly.
     await page.getByRole("button", { name: /columns/i }).click();
-    await page.getByLabel("Gender").click();
+    await page.getByRole("checkbox", { name: /^gender$/i }).click();
     await expect(page.getByRole("columnheader", { name: /gender/i })).toHaveCount(0);
 
     await page.screenshot({
@@ -39,6 +46,7 @@ test.describe("patient list — table view + column picker", () => {
   });
 
   test("layout choice persists across reload via localStorage", async ({ page }) => {
+    await resetLayoutPrefs(page);
     await page.goto("/Patient");
     await page.getByTestId("layout-table").click();
     await expect(page.getByTestId("resource-table")).toBeVisible();
