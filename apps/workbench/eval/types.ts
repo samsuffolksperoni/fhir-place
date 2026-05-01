@@ -89,7 +89,8 @@ export type Assertion =
   | SchemaValidAssertion
   | UnsupportedClaimCountAssertion
   | ToolCallCountAssertion
-  | CannotDetermineMatchesAssertion;
+  | CannotDetermineMatchesAssertion
+  | NoCannotDetermineMatchesAssertion;
 
 export interface CitesAssertion {
   kind: "cites";
@@ -109,6 +110,20 @@ export interface MissingDataMatchesAssertion {
 export interface CannotDetermineMatchesAssertion {
   kind: "cannotDetermineMatches";
   /** Pattern that MUST match some `cannotDetermine[].why` or `.question`. */
+  pattern: RegExp;
+  description?: string;
+}
+
+export interface NoCannotDetermineMatchesAssertion {
+  kind: "noCannotDetermineMatches";
+  /**
+   * Pattern that MUST NOT match any `cannotDetermine[].why` or
+   * `.question`. Used to forbid uncertainty about facts that ARE
+   * present in the patient compartment (e.g. a documented diabetes
+   * Condition shouldn't co-exist with a "cannot determine if patient
+   * has diabetes" entry) and to forbid hedging on absent data that
+   * belongs in `missingData` instead.
+   */
   pattern: RegExp;
   description?: string;
 }

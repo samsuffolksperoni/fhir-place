@@ -70,6 +70,12 @@ export const NO_ALLERGY_DATA: EvalCase = {
       description:
         "must not infer specific non-allergies from data absence",
     },
+    {
+      kind: "noCannotDetermineMatches",
+      pattern: /allerg/i,
+      description:
+        "absent allergy data is missingData, not cannotDetermine — we CAN determine the data is absent",
+    },
     { kind: "unsupportedClaimCount", expected: 0 },
   ],
 };

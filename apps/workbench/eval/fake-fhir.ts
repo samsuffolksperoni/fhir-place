@@ -156,6 +156,7 @@ function paramsMatch(
       const r = resource as { status?: string };
       if (r.status !== want) return false;
     }
+    if (!matchesDateRange(resource, params, encounterDate)) return false;
   }
   if (resourceType === "Observation") {
     const wantCat = params.get("category");
@@ -167,6 +168,55 @@ function paramsMatch(
         r.category?.flatMap((c) => c.coding?.map((co) => co.code) ?? []) ?? [];
       if (!cats.includes(wantCat)) return false;
     }
+    if (!matchesDateRange(resource, params, observationDate)) return false;
   }
   return true;
+}
+
+/**
+ * Honour FHIR `date=ge<YYYY-MM-DD>` and `date=le<YYYY-MM-DD>` filters.
+ * The Phase A tools forward `date` as the param name for both Encounter
+ * (`Encounter.period.start`) and Observation
+ * (`Observation.effectiveDateTime`); the resource-shape lookup is
+ * provided per-resource-type by the caller.
+ */
+function matchesDateRange(
+  resource: FhirResource,
+  params: URLSearchParams,
+  pickDate: (resource: FhirResource) => string | null,
+): boolean {
+  const dateParams = params.getAll("date");
+  if (dateParams.length === 0) return true;
+  const isoDate = pickDate(resource);
+  if (!isoDate) return false;
+  for (const raw of dateParams) {
+    const op = raw.slice(0, 2);
+    const value = raw.slice(2);
+    if (!value) continue;
+    if (op === "ge" && isoDate < value) return false;
+    if (op === "le" && isoDate > value) return false;
+    if (op === "gt" && !(isoDate > value)) return false;
+    if (op === "lt" && !(isoDate < value)) return false;
+    if (op === "eq" && isoDate !== value) return false;
+  }
+  return true;
+}
+
+function encounterDate(resource: FhirResource): string | null {
+  const r = resource as { period?: { start?: string; end?: string } };
+  return r.period?.start?.slice(0, 10) ?? r.period?.end?.slice(0, 10) ?? null;
+}
+
+function observationDate(resource: FhirResource): string | null {
+  const r = resource as {
+    effectiveDateTime?: string;
+    effectivePeriod?: { start?: string; end?: string };
+    issued?: string;
+  };
+  return (
+    r.effectiveDateTime?.slice(0, 10) ??
+    r.effectivePeriod?.start?.slice(0, 10) ??
+    r.issued?.slice(0, 10) ??
+    null
+  );
 }

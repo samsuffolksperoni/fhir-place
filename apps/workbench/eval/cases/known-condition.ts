@@ -92,6 +92,12 @@ export const KNOWN_CONDITION: EvalCase = {
       description: "must not deny a documented condition",
     },
     {
+      kind: "noCannotDetermineMatches",
+      pattern: /diabetes/i,
+      description:
+        "must not hedge on a documented Condition — diabetes belongs in claims, not cannotDetermine",
+    },
+    {
       kind: "toolCallCount",
       min: 2,
       description:

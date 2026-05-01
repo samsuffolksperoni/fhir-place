@@ -15,47 +15,30 @@
  * decides to do.
  *
  * Pass `--json <path>` to write the full result as JSON.
+ *
+ * Argument parsing lives in `eval/cli-args.ts` so it can be unit-
+ * tested without spawning a subprocess.
  */
 
 import { runPhaseAEvals } from "../eval/run.js";
+import { HELP_TEXT, parseArgs } from "../eval/cli-args.js";
 import {
   modelConfigFromEnv,
   type AnthropicMessagesCreate,
 } from "../server/agent/model-config.js";
 
-interface ParsedArgs {
-  live: boolean;
-  jsonPath?: string;
+const result = parseArgs(process.argv.slice(2));
+if (result.kind === "help") {
+  process.stdout.write(HELP_TEXT);
+  process.exit(0);
+}
+if (result.kind === "error") {
+  process.stderr.write(`${result.message}\n`);
+  process.stderr.write(HELP_TEXT);
+  process.exit(2);
 }
 
-function parseArgs(argv: ReadonlyArray<string>): ParsedArgs {
-  const out: ParsedArgs = { live: false };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--live") out.live = true;
-    else if (a === "--json") out.jsonPath = argv[++i];
-    else if (a?.startsWith("--json=")) out.jsonPath = a.slice("--json=".length);
-    else if (a === "-h" || a === "--help") {
-      printHelp();
-      process.exit(0);
-    } else {
-      process.stderr.write(`unknown argument: ${a}\n`);
-      printHelp();
-      process.exit(2);
-    }
-  }
-  return out;
-}
-
-function printHelp() {
-  process.stdout.write(
-    `Usage: pnpm --filter @fhir-place/workbench eval [--live] [--json <path>]\n\n` +
-      `  --live          run against the real Anthropic provider (requires ANTHROPIC_API_KEY)\n` +
-      `  --json <path>   write the full result JSON to <path>\n`,
-  );
-}
-
-const args = parseArgs(process.argv.slice(2));
+const args = result.args;
 
 let liveClient:
   | { messagesCreate: AnthropicMessagesCreate; provider: string; model: string }

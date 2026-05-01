@@ -249,6 +249,18 @@ function evaluate(
         `cannotDetermine[] matches ${a.pattern.toString()}`,
       );
     }
+    case "noCannotDetermineMatches": {
+      const offending = ans.cannotDetermine.find(
+        (c) => a.pattern.test(c.why) || a.pattern.test(c.question),
+      );
+      return mk(
+        a,
+        !offending,
+        offending
+          ? `no cannotDetermine[] should match ${a.pattern.toString()}; offending question="${offending.question}"`
+          : `no cannotDetermine[] matches ${a.pattern.toString()}`,
+      );
+    }
     case "noClaimMatches": {
       const offending = ans.claims.find((c) => a.pattern.test(c.text));
       return mk(

@@ -119,6 +119,91 @@ describe("eval harness — assertion scoring", () => {
     expect(result.passed).toBe(false);
     expect(result.metrics.fallback).toBe(true);
   });
+
+  it("noCannotDetermineMatches fails when the agent hedges on a documented fact", async () => {
+    // Cite the right Condition AND smuggle in a `cannotDetermine` entry
+    // about diabetes — the strengthened known-condition assertion should
+    // now reject this run.
+    const hedging: EvalCase = {
+      ...KNOWN_CONDITION,
+      scriptedTrace: [
+        {
+          kind: "tool",
+          name: "getPatient",
+          input: { patientId: KNOWN_CONDITION.patient.id },
+        },
+        {
+          kind: "tool",
+          name: "searchConditionsForPatient",
+          input: { patientId: KNOWN_CONDITION.patient.id },
+        },
+        {
+          kind: "finalize",
+          body: {
+            claims: [
+              {
+                id: "c1",
+                text: "The patient has documented Type 2 diabetes mellitus.",
+                evidence: [{ reference: "Condition/cond-dm2" }],
+              },
+            ],
+            missingData: [],
+            cannotDetermine: [
+              {
+                question: "Does the patient have diabetes?",
+                why: "evidence is unclear",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const result = await runCase(hedging);
+    expect(result.passed).toBe(false);
+    const noCD = result.assertions.find(
+      (a) => a.kind === "noCannotDetermineMatches",
+    );
+    expect(noCD?.passed).toBe(false);
+  });
+
+  it("noCannotDetermineMatches fails when allergy data absence is hedged as cannotDetermine", async () => {
+    const hedging: EvalCase = {
+      ...NO_ALLERGY_DATA,
+      scriptedTrace: [
+        {
+          kind: "tool",
+          name: "getPatient",
+          input: { patientId: NO_ALLERGY_DATA.patient.id },
+        },
+        {
+          kind: "tool",
+          name: "searchAllergyIntolerancesForPatient",
+          input: { patientId: NO_ALLERGY_DATA.patient.id },
+        },
+        {
+          kind: "finalize",
+          body: {
+            claims: [],
+            missingData: [
+              { description: "no allergy data recorded" },
+            ],
+            cannotDetermine: [
+              {
+                question: "Does the patient have any allergies?",
+                why: "the FHIR server has no AllergyIntolerance entries",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const result = await runCase(hedging);
+    expect(result.passed).toBe(false);
+    const noCD = result.assertions.find(
+      (a) => a.kind === "noCannotDetermineMatches",
+    );
+    expect(noCD?.passed).toBe(false);
+  });
 });
 
 describe("eval harness — suite-level output", () => {
