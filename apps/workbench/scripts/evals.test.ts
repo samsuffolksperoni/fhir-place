@@ -22,4 +22,27 @@ describe("eval runner", () => {
     expect(result.schemaValid).toBe(false);
     expect(result.errors[0]).toContain("schema validation");
   });
+
+  it("counts unsupported claims even when schema validation fails", () => {
+    const badCase: EvalCase = {
+      id: "bad-unsupported",
+      description: "malformed payload with unsupported claims",
+      input: {
+        schemaVersion: "1",
+        claims: [
+          { id: "c1", text: "claim with empty evidence", evidence: [] },
+          { id: "c2", text: "claim missing evidence field" },
+          {
+            id: "c3",
+            text: "supported claim",
+            evidence: [{ reference: "Condition/x" }],
+          },
+        ],
+      },
+      expect: {},
+    };
+    const result = evaluateCase(badCase);
+    expect(result.schemaValid).toBe(false);
+    expect(result.unsupportedClaims).toBe(2);
+  });
 });

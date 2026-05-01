@@ -135,6 +135,20 @@ function includesMissingDataReason(answer: AgentAnswer, reason: string): boolean
   return answer.missingData.some((entry) => entry.description.includes(reason));
 }
 
+// Best-effort unsupported-claim count for inputs that fail schema validation.
+// Malformed outputs are exactly where this metric is most informative, so we
+// don't want to drop it just because the rest of the payload is invalid.
+function rawUnsupportedClaimCount(input: unknown): number {
+  if (typeof input !== "object" || input === null) return 0;
+  const claims = (input as { claims?: unknown }).claims;
+  if (!Array.isArray(claims)) return 0;
+  return claims.filter((claim) => {
+    if (typeof claim !== "object" || claim === null) return false;
+    const evidence = (claim as { evidence?: unknown }).evidence;
+    return !Array.isArray(evidence) || evidence.length === 0;
+  }).length;
+}
+
 function evaluateCase(evalCase: EvalCase): EvalResult {
   const parsed = parseAgentAnswer(evalCase.input);
   if (!parsed.ok) {
@@ -142,7 +156,7 @@ function evaluateCase(evalCase: EvalCase): EvalResult {
       id: evalCase.id,
       pass: false,
       schemaValid: false,
-      unsupportedClaims: 0,
+      unsupportedClaims: rawUnsupportedClaimCount(evalCase.input),
       toolCallCount: 0,
       checks: { schemaValid: false },
       errors: [parsed.error],
