@@ -185,19 +185,104 @@ function narrow(sd: StructureDefinition): NarrowedProfile {
   };
 }
 
-function emitProfile(profile: NarrowedProfile): string {
+/**
+ * FHIR primitive `code` -> TS type. Anything not in this map is treated as a
+ * complex type name that must be imported alongside the base resource type.
+ */
+const FHIR_PRIMITIVE_TO_TS: Record<string, string> = {
+  boolean: "boolean",
+  integer: "number",
+  decimal: "number",
+  positiveInt: "number",
+  unsignedInt: "number",
+  string: "string",
+  code: "string",
+  id: "string",
+  uri: "string",
+  url: "string",
+  canonical: "string",
+  oid: "string",
+  uuid: "string",
+  markdown: "string",
+  base64Binary: "string",
+  date: "string",
+  dateTime: "string",
+  instant: "string",
+  time: "string",
+};
+
+/** Returns the TS type for a FHIR code and whether the type is complex. */
+function tsTypeForFhirCode(code: string): { ts: string; complex: boolean } {
+  const prim = FHIR_PRIMITIVE_TO_TS[code];
+  if (prim) return { ts: prim, complex: false };
+  return { ts: code, complex: true };
+}
+
+/** `effective[x]` + `dateTime` -> `effectiveDateTime`. */
+function choicePropName(stem: string, code: string): string {
+  return stem + code.charAt(0).toUpperCase() + code.slice(1);
+}
+
+type ChoiceConstraint = {
+  /** e.g. `effectiveDateTime`, `effectivePeriod` — the per-variant property names. */
+  variantProps: string[];
+  /** Emitted union: `({ effectiveDateTime: string } | { effectivePeriod: Period })`. */
+  unionExpr: string;
+  /** Complex type names (`Period`, `Quantity`, …) that need importing. */
+  complexImports: string[];
+};
+
+function buildChoiceConstraint(
+  basePath: string,
+  choiceTypes: string[],
+): ChoiceConstraint {
+  const stem = basePath.replace(/\[x\]$/, "");
+  const variantProps: string[] = [];
+  const complexImports: string[] = [];
+  const variants: string[] = [];
+  for (const code of choiceTypes) {
+    const propName = choicePropName(stem, code);
+    const { ts, complex } = tsTypeForFhirCode(code);
+    if (complex) complexImports.push(ts);
+    variantProps.push(propName);
+    variants.push(`{ ${propName}: ${ts} }`);
+  }
+  return {
+    variantProps,
+    unionExpr: `(${variants.join(" | ")})`,
+    complexImports,
+  };
+}
+
+function emitProfile(profile: NarrowedProfile): {
+  body: string;
+  extraImports: string[];
+} {
   const brand = profile.name;
   const requiredKeys: string[] = [];
+  const choiceConstraints: { stem: string; constraint: ChoiceConstraint }[] = [];
+  const extraImports = new Set<string>();
 
   for (const f of profile.topLevelFields) {
-    // Choice types (`value[x]`) are intentionally NOT narrowed in the spike.
-    // The shape that lands in JSON has a per-variant property
-    // (`valueQuantity` / `valueString` / ...), and writing a sound discriminated
-    // union over those at the parent level is non-trivial in TS — see the
-    // "Punted" section of `docs/spikes/profile-codegen.md`. The spike records
-    // the choice list in the JSDoc annotation only.
-    if (f.path.endsWith("[x]")) continue;
-    if (f.required || f.mustSupport) requiredKeys.push(f.path);
+    if (f.path.endsWith("[x]")) {
+      // Choice types: only emit a constraint when the spec says min >= 1.
+      // For min=0 choices we still leave the per-variant optional properties
+      // from `@types/fhir` alone — that's an under-narrowing called out in
+      // the spike doc, not silently dropping a min=1 signal.
+      if (f.required && f.choiceTypes && f.choiceTypes.length > 0) {
+        const stem = f.path.replace(/\[x\]$/, "");
+        const constraint = buildChoiceConstraint(f.path, f.choiceTypes);
+        for (const c of constraint.complexImports) extraImports.add(c);
+        choiceConstraints.push({ stem, constraint });
+      }
+      continue;
+    }
+    // FHIR `mustSupport` is NOT cardinality — it means "if you support this
+    // element, you must read AND write it." Promoting MS to required is a
+    // category error: `Patient.telecom` is MS but `min=0`, and a profile-
+    // valid Patient may legitimately omit it. Only `min >= 1` becomes
+    // required at the type level.
+    if (f.required) requiredKeys.push(f.path);
   }
 
   const requiredKeyUnion =
@@ -220,7 +305,23 @@ function emitProfile(profile: NarrowedProfile): string {
     })
     .join("\n");
 
-  return [
+  const choiceIntersection =
+    choiceConstraints.length === 0
+      ? ""
+      : "\n  & " +
+        choiceConstraints.map((c) => c.constraint.unionExpr).join("\n  & ");
+
+  const choiceDocs =
+    choiceConstraints.length === 0
+      ? ""
+      : choiceConstraints
+          .map(
+            (c) =>
+              ` *   - ${c.stem}[x] required (${c.constraint.variantProps.join(" | ")})`,
+          )
+          .join("\n");
+
+  const lines: (string | null)[] = [
     `// ===== ${profile.name} (${profile.url} v${profile.version}) =====`,
     "",
     `/**`,
@@ -229,6 +330,7 @@ function emitProfile(profile: NarrowedProfile): string {
     ` *`,
     ` * Profiled fields walked from \`differential\`:`,
     fieldDocs || " *   (no top-level constraints)",
+    choiceDocs ? ` *\n * Required choice-type constraints:\n${choiceDocs}` : null,
     ` *`,
     ` * Deep must-support paths recorded but not narrowed in the spike:`,
     profile.deepMustSupportPaths.length === 0
@@ -239,11 +341,11 @@ function emitProfile(profile: NarrowedProfile): string {
     "",
     `export type ${profile.name}Required = ${requiredKeyUnion};`,
     "",
-    `type ${profile.name}Base = Omit<${profile.baseType}, ${profile.name}Required> & {`,
-    `  readonly [K in ${profile.name}Required]-?: NonNullable<${profile.baseType}[K]>;`,
-    `};`,
+    requiredKeys.length === 0
+      ? `type ${profile.name}Base = ${profile.baseType};`
+      : `type ${profile.name}Base = Omit<${profile.baseType}, ${profile.name}Required> & {\n  readonly [K in ${profile.name}Required]-?: NonNullable<${profile.baseType}[K]>;\n};`,
     "",
-    `export type ${profile.name} = ${profile.name}Base & {`,
+    `export type ${profile.name} = ${profile.name}Base${choiceIntersection} & {`,
     `  readonly [${brand}Brand]: "${profile.url}";`,
     `};`,
     "",
@@ -256,16 +358,25 @@ function emitProfile(profile: NarrowedProfile): string {
     ` * narrowing.`,
     ` */`,
     `export function as${profile.name}(`,
-    `  resource: ${profile.name}Base,`,
+    `  resource: ${profile.name}Base${choiceIntersection},`,
     `): ${profile.name} {`,
     `  return resource as ${profile.name};`,
     `}`,
     "",
-  ].join("\n");
+  ];
+  const body = lines.filter((l): l is string => l !== null).join("\n");
+
+  return { body, extraImports: [...extraImports] };
 }
 
 function emit(profiles: NarrowedProfile[]): string {
-  const baseTypes = [...new Set(profiles.map((p) => p.baseType))].sort();
+  const baseTypes = new Set(profiles.map((p) => p.baseType));
+  const bodies: string[] = [];
+  for (const p of profiles) {
+    const { body, extraImports } = emitProfile(p);
+    for (const i of extraImports) baseTypes.add(i);
+    bodies.push(body);
+  }
   const header = [
     "/* eslint-disable */",
     "// @generated by packages/react-fhir/scripts/codegen-spike.ts",
@@ -276,13 +387,11 @@ function emit(profiles: NarrowedProfile[]): string {
     "// the package barrel (`src/structure/index.ts`). See",
     "// `docs/spikes/profile-codegen.md` for caveats and known limitations.",
     "",
-    `import type { ${baseTypes.join(", ")} } from "fhir/r4";`,
+    `import type { ${[...baseTypes].sort().join(", ")} } from "fhir/r4";`,
     "",
   ].join("\n");
 
-  const body = profiles.map(emitProfile).join("\n");
-
-  return `${header}\n${body}`;
+  return `${header}\n${bodies.join("\n")}`;
 }
 
 function main() {

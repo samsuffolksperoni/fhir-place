@@ -42,18 +42,32 @@ consumer-reachable subpath is one of the blockers listed below.
 - **`Omit<Base, Required> & { [K in Required]-?: NonNullable<Base[K]> }`**
   cleanly upgrades optional `Patient.name?` to required `name` without
   fighting `@types/fhir`. The `// @ts-expect-error` test confirms this fires.
+- **FHIR-correct `mustSupport` semantics.** We only promote elements with
+  `min >= 1` to required keys. `mustSupport` without cardinality is
+  recorded in the generated JSDoc but doesn't change the type. Promoting
+  MS to required would over-constrain — `Patient.telecom` is MS but
+  `min: 0`, so a profile-valid Patient may legitimately omit it.
+- **Required choice (`[x]`) narrowing.** When a `[x]` element has
+  `min >= 1`, the emitted profile type intersects with a discriminated
+  union of typed variants
+  (`({ effectiveDateTime: string } | { effectivePeriod: Period })` for
+  `Observation.effective[x]`), so at least one variant must be present.
+  This worked out cleaner than expected — TS's intersection of an
+  optional property (`effectiveDateTime?: string`) with a required-property
+  variant (`{ effectiveDateTime: string }`) narrows correctly.
 - **No npm deps.** The script is pure `node:fs` + `node:path`, so it can
   run in CI without adding a build dependency or pulling in
   `@types/fhir-package` etc.
 
 ## What didn't (and got punted)
 
-- **`value[x]` choice narrowing.** We record the choice list in JSDoc but
-  the emitted type doesn't enforce one-of `valueQuantity | valueString | …`.
-  Doing this soundly requires lifting the variants to the parent level
-  (`Omit<Base, "valueQuantity" | "valueString" | …> & ({…} | {…} | …)`),
-  which interacts badly with `Omit` + intersection ordering and produces
-  noisy error messages. Worth a follow-up spike on its own.
+- **Optional `value[x]` choice narrowing.** When a `[x]` element is
+  `min: 0` (like `Observation.value[x]`), we leave the per-variant
+  optional properties from `@types/fhir` alone. The required-choice case
+  worked because the union forces at least one variant to be defined; the
+  optional-choice case would need an exclusivity constraint
+  ("at most one of these") which is fiddly and produces noisy error
+  messages without measurable safety gain in the spike scope.
 - **Slicing beyond names.** We capture slice names (e.g.
   `Patient.extension:race`) but don't emit anything that lets a consumer
   destructure `patient.extension` into `{ race, ethnicity, … }`. The

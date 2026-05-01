@@ -7,7 +7,7 @@
 // the package barrel (`src/structure/index.ts`). See
 // `docs/spikes/profile-codegen.md` for caveats and known limitations.
 
-import type { Observation, Patient } from "fhir/r4";
+import type { Observation, Patient, Period } from "fhir/r4";
 
 // ===== USCoreLaboratoryResultObservationProfile (http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab v7.0.0) =====
 
@@ -25,6 +25,9 @@ import type { Observation, Patient } from "fhir/r4";
  *   - dataAbsentReason (MS)
  *   - referenceRange (MS)
  *
+ * Required choice-type constraints:
+ *   - effective[x] required (effectiveDateTime | effectivePeriod)
+ *
  * Deep must-support paths recorded but not narrowed in the spike:
  *   - Observation.category.coding
  *   - Observation.category.coding.system
@@ -32,13 +35,14 @@ import type { Observation, Patient } from "fhir/r4";
  */
 declare const USCoreLaboratoryResultObservationProfileBrand: unique symbol;
 
-export type USCoreLaboratoryResultObservationProfileRequired = "status" | "category" | "code" | "subject" | "dataAbsentReason" | "referenceRange";
+export type USCoreLaboratoryResultObservationProfileRequired = "status" | "category" | "code" | "subject";
 
 type USCoreLaboratoryResultObservationProfileBase = Omit<Observation, USCoreLaboratoryResultObservationProfileRequired> & {
   readonly [K in USCoreLaboratoryResultObservationProfileRequired]-?: NonNullable<Observation[K]>;
 };
 
-export type USCoreLaboratoryResultObservationProfile = USCoreLaboratoryResultObservationProfileBase & {
+export type USCoreLaboratoryResultObservationProfile = USCoreLaboratoryResultObservationProfileBase
+  & ({ effectiveDateTime: string } | { effectivePeriod: Period }) & {
   readonly [USCoreLaboratoryResultObservationProfileBrand]: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab";
 };
 
@@ -51,7 +55,8 @@ export type USCoreLaboratoryResultObservationProfile = USCoreLaboratoryResultObs
  * narrowing.
  */
 export function asUSCoreLaboratoryResultObservationProfile(
-  resource: USCoreLaboratoryResultObservationProfileBase,
+  resource: USCoreLaboratoryResultObservationProfileBase
+  & ({ effectiveDateTime: string } | { effectivePeriod: Period }),
 ): USCoreLaboratoryResultObservationProfile {
   return resource as USCoreLaboratoryResultObservationProfile;
 }
@@ -87,7 +92,7 @@ export function asUSCoreLaboratoryResultObservationProfile(
  */
 declare const USCorePatientProfileBrand: unique symbol;
 
-export type USCorePatientProfileRequired = "extension" | "identifier" | "name" | "telecom" | "gender" | "birthDate" | "address" | "communication";
+export type USCorePatientProfileRequired = "identifier" | "name" | "gender";
 
 type USCorePatientProfileBase = Omit<Patient, USCorePatientProfileRequired> & {
   readonly [K in USCorePatientProfileRequired]-?: NonNullable<Patient[K]>;
