@@ -30,8 +30,32 @@ export interface EvalCase {
    */
   fhirResponder: (url: string) => unknown;
   expectations: ReadonlyArray<EvalExpectation>;
+  /**
+   * Optional. Called for each `messagesCreate` invocation with the
+   * outgoing request body and the zero-based turn index.
+   *
+   * This is the seam for *wire-level* assertions that the static
+   * `expectations` list cannot make — e.g. "the system prompt does
+   * not contain this resource string", "the tool_result feeding
+   * back the malicious Patient is wrapped in `<resource_data>`".
+   * Without it, scripted cases can produce a false pass on safety
+   * properties that depend on what the orchestrator actually sent
+   * to the model, not just what it returned.
+   *
+   * Outcomes are appended to the case's expectation list; any
+   * `{ ok: false }` flips the case to failed.
+   */
+  inspectRequest?: (
+    body: Anthropic.MessageCreateParamsNonStreaming,
+    turnIndex: number,
+  ) => ReadonlyArray<InspectorOutcome>;
   /** Optional override for `maxTurns`; default mirrors orchestrator (8). */
   maxTurns?: number;
+}
+
+export interface InspectorOutcome {
+  description: string;
+  outcome: ExpectationOutcome;
 }
 
 export interface EvalContext {
@@ -145,7 +169,15 @@ async function runOne(
   c: EvalCase,
   agentNow: () => string,
 ): Promise<EvalCaseResult> {
-  const client = scripted(c.scriptedMessages);
+  const inspectorOutcomes: InspectorOutcome[] = [];
+  const onRequest = c.inspectRequest
+    ? (body: Anthropic.MessageCreateParamsNonStreaming, turnIndex: number) => {
+        for (const r of c.inspectRequest!(body, turnIndex)) {
+          inspectorOutcomes.push(r);
+        }
+      }
+    : undefined;
+  const client = scripted(c.scriptedMessages, onRequest);
   const fetchFn = fakeFetch(c.fhirResponder);
   const result = await runPatientSummary(
     {
@@ -182,16 +214,27 @@ async function runOne(
     metrics: { toolCalls, unsupportedClaims, schemaInvalid },
   };
 
-  const expectations = c.expectations.map((e) => {
-    const outcome = e.check(ctx);
-    return outcome.ok
-      ? { description: e.description, ok: true as const }
-      : {
-          description: e.description,
-          ok: false as const,
-          reason: outcome.reason,
-        };
-  });
+  const expectations = [
+    ...c.expectations.map((e) => {
+      const outcome = e.check(ctx);
+      return outcome.ok
+        ? { description: e.description, ok: true as const }
+        : {
+            description: e.description,
+            ok: false as const,
+            reason: outcome.reason,
+          };
+    }),
+    ...inspectorOutcomes.map((io) =>
+      io.outcome.ok
+        ? { description: io.description, ok: true as const }
+        : {
+            description: io.description,
+            ok: false as const,
+            reason: io.outcome.reason,
+          },
+    ),
+  ];
 
   const passed = expectations.every((e) => e.ok);
 
@@ -213,10 +256,19 @@ interface ScriptedClient {
   ) => Promise<Anthropic.Message>;
 }
 
-function scripted(messages: ReadonlyArray<Anthropic.Message>): ScriptedClient {
+function scripted(
+  messages: ReadonlyArray<Anthropic.Message>,
+  onRequest?: (
+    body: Anthropic.MessageCreateParamsNonStreaming,
+    turnIndex: number,
+  ) => void,
+): ScriptedClient {
   const queue = [...messages];
+  let turnIndex = 0;
   return {
-    async messagesCreate() {
+    async messagesCreate(body) {
+      onRequest?.(body, turnIndex);
+      turnIndex += 1;
       const next = queue.shift();
       if (!next) {
         throw new Error(
