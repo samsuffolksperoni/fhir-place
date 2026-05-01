@@ -139,7 +139,7 @@ function evaluateCase(evalCase: EvalCase): EvalResult {
     pass,
     schemaValid: true,
     unsupportedClaims: unsupportedClaimCount(answer.claims),
-    toolCallCount: answer.toolCalls.reduce((total, item) => total + (item.count ?? 0), 0),
+    toolCallCount: answer.toolCalls.length,
     checks,
     errors: pass ? [] : ["One or more eval checks failed"],
   };
