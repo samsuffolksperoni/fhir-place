@@ -1,16 +1,15 @@
-import type { CapabilityStatement } from "fhir/r4";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   type AuthMode,
   type CustomHeader,
   type ServerConfig,
-  buildRequestHeaders,
   loadActiveServerId,
   loadServers,
   saveActiveServerId,
   saveServers,
 } from "../config.js";
+import { probeFhirServer } from "../serverProbe.js";
 
 type TestState =
   | { status: "idle" }
@@ -66,42 +65,17 @@ export function SettingsPage() {
 
   const testConnection = async (server: ServerConfig) => {
     setTestState((prev) => ({ ...prev, [server.id]: { status: "pending" } }));
-    try {
-      const headers = {
-        Accept: "application/fhir+json",
-        ...buildRequestHeaders(server),
-      };
-      const url = `${server.baseUrl.replace(/\/+$/, "")}/metadata`;
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        setTestState((prev) => ({
-          ...prev,
-          [server.id]: {
-            status: "error",
-            message: `HTTP ${res.status} ${res.statusText}`,
-          },
-        }));
-        return;
-      }
-      const cs = (await res.json()) as CapabilityStatement;
-      setTestState((prev) => ({
-        ...prev,
-        [server.id]: {
-          status: "ok",
-          ...(cs.software?.name ? { software: cs.software.name } : {}),
-          ...(cs.fhirVersion ? { fhirVersion: cs.fhirVersion } : {}),
-        },
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const hint = /failed to fetch|networkerror/i.test(message)
-        ? `${message} — likely a CORS or network issue. Check the browser console for details.`
-        : message;
-      setTestState((prev) => ({
-        ...prev,
-        [server.id]: { status: "error", message: hint },
-      }));
-    }
+    const result = await probeFhirServer(server);
+    setTestState((prev) => ({
+      ...prev,
+      [server.id]: result.ok
+        ? {
+            status: "ok",
+            ...(result.software ? { software: result.software } : {}),
+            ...(result.fhirVersion ? { fhirVersion: result.fhirVersion } : {}),
+          }
+        : { status: "error", message: result.message },
+    }));
   };
 
   return (
