@@ -95,6 +95,59 @@ describe("searchBuilder runtime", () => {
     }).toString();
     expect(built).toBe(reference);
   });
+
+  it("emits chained search with the :Type modifier", () => {
+    const url = searchBuilder("Observation")
+      .whereChained("subject", "Patient", "name", "Smith")
+      .build();
+    expect(url).toBe("Observation?subject%3APatient.name=Smith");
+  });
+
+  it("types chained values against the target param", () => {
+    const url = searchBuilder("Observation")
+      .whereChained("subject", "Patient", "birthdate", { ge: "1990-01-01" })
+      .build();
+    expect(url).toBe(
+      "Observation?subject%3APatient.birthdate=ge1990-01-01",
+    );
+  });
+
+  it("emits reverse chained _has", () => {
+    const url = searchBuilder("Patient")
+      .whereHas("Observation", "subject", "code", "85354-9")
+      .build();
+    expect(url).toBe(
+      "Patient?_has%3AObservation%3Asubject%3Acode=85354-9",
+    );
+  });
+
+  it("matches buildSearchParams byte-for-byte for chained and _has keys", () => {
+    const chained = searchBuilder("Observation")
+      .whereChained("subject", "Patient", "name", "Smith")
+      .toQueryString();
+    expect(chained).toBe(
+      buildSearchParams({ "subject:Patient.name": "Smith" }).toString(),
+    );
+
+    const has = searchBuilder("Patient")
+      .whereHas("Observation", "subject", "code", "85354-9")
+      .toQueryString();
+    expect(has).toBe(
+      buildSearchParams({
+        "_has:Observation:subject:code": "85354-9",
+      }).toString(),
+    );
+  });
+
+  it("composes chained + _has + plain wheres in declaration order", () => {
+    const url = searchBuilder("Patient")
+      .where("name", "Smith")
+      .whereHas("Observation", "subject", "code", "85354-9")
+      .build();
+    expect(url).toBe(
+      "Patient?name=Smith&_has%3AObservation%3Asubject%3Acode=85354-9",
+    );
+  });
 });
 
 describe("searchBuilder types", () => {
@@ -118,6 +171,37 @@ describe("searchBuilder types", () => {
     b.include("Observation:bogus");
     // @ts-expect-error wrong shape for date range.
     b.where("birthdate", { foo: "bar" });
+
+    expect(true).toBe(true);
+  });
+
+  it("rejects bogus chained / _has args at compile time", () => {
+    const obs = searchBuilder("Observation");
+    const pt = searchBuilder("Patient");
+
+    // Well-typed calls compile cleanly.
+    obs.whereChained("subject", "Patient", "name", "Smith");
+    obs.whereChained("subject", "Patient", "birthdate", { ge: "1990-01-01" });
+    pt.whereHas("Observation", "subject", "code", "85354-9");
+    pt.whereHas("Observation", "patient", "status", "final");
+
+    // @ts-expect-error 'Bogus' is not a SearchableResource.
+    obs.whereChained("subject", "Bogus", "name", "x");
+    // @ts-expect-error 'name' is not a reference param on Observation.
+    obs.whereChained("name", "Patient", "name", "x");
+    // @ts-expect-error target-param value type is enforced (birthdate is a date).
+    obs.whereChained("subject", "Patient", "birthdate", 1);
+    // @ts-expect-error 'bogus' is not a registered Patient search param.
+    obs.whereChained("subject", "Patient", "bogus", "x");
+
+    // @ts-expect-error 'Bogus' is not a SearchableResource.
+    pt.whereHas("Bogus", "subject", "code", "x");
+    // @ts-expect-error Observation.encounter does not target Patient.
+    pt.whereHas("Observation", "encounter", "code", "x");
+    // @ts-expect-error 'name' is not a reference param on Observation.
+    pt.whereHas("Observation", "name", "code", "x");
+    // @ts-expect-error 'value-quantity' on Observation is a number; string not assignable.
+    pt.whereHas("Observation", "subject", "value-quantity", "x");
 
     expect(true).toBe(true);
   });

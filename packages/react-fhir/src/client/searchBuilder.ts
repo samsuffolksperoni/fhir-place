@@ -1,11 +1,13 @@
 /**
- * Typed search builder (v0). See issue #121 / ADR 0004.
+ * Typed search builder. See issues #121 (v0 — operators + `_include`) and
+ * #129 (v0.2 — chained search and `_has`) and ADR 0004.
  *
  * Models the FHIR search parameter types we cover initially:
  * `string`, `token`, `date`, `reference`, `number`. Composite, quantity, uri,
  * and special types are deferred. Resources and `_include`/`_revinclude`
- * targets are seeded minimally; both registries are extensible via TypeScript
- * declaration merging on `SearchParamTypes` and `IncludePaths`.
+ * targets are seeded minimally; the `SearchParamTypes`, `IncludePaths`, and
+ * `ReferenceTargets` registries are all extensible via TypeScript declaration
+ * merging.
  *
  * Output is byte-identical to `buildSearchParams` for any case both can express.
  */
@@ -86,6 +88,59 @@ export interface IncludePaths {
 
 export type IncludeSpec = keyof IncludePaths;
 
+/**
+ * Optional declaration-merged map: for each `(sourceResource, refParam)` reference
+ * search parameter, list the resource types the reference can target. Seeded for
+ * Patient and Observation; extend via declaration merging to cover more resources.
+ *
+ * Used to type the `:Type` modifier in chained search and to constrain the
+ * back-pointer in `_has`. Targets that are not in `SearchableResource` are
+ * filtered out, since chained / `_has` queries require the target resource to
+ * have registered search params.
+ */
+export interface ReferenceTargets {
+  Patient: {
+    "general-practitioner":
+      | "Practitioner"
+      | "Organization"
+      | "PractitionerRole";
+    organization: "Organization";
+  };
+  Observation: {
+    subject: "Patient" | "Group" | "Device" | "Location";
+    patient: "Patient";
+    encounter: "Encounter";
+  };
+}
+
+type ReferenceParamsOf<R extends SearchableResource> = {
+  [K in keyof SearchParamTypes[R]]: SearchParamTypes[R][K] extends "reference"
+    ? K & string
+    : never;
+}[keyof SearchParamTypes[R]];
+
+type ChainedTargetsOf<
+  R extends SearchableResource,
+  P extends ReferenceParamsOf<R>,
+> = R extends keyof ReferenceTargets
+  ? P extends keyof ReferenceTargets[R]
+    ? Extract<ReferenceTargets[R][P], SearchableResource>
+    : SearchableResource
+  : SearchableResource;
+
+type RefParamsTargeting<
+  S extends SearchableResource,
+  R extends SearchableResource,
+> = S extends keyof ReferenceTargets
+  ? {
+      [K in ReferenceParamsOf<S>]: K extends keyof ReferenceTargets[S]
+        ? R extends Extract<ReferenceTargets[S][K], SearchableResource>
+          ? K
+          : never
+        : K;
+    }[ReferenceParamsOf<S>]
+  : ReferenceParamsOf<S>;
+
 const isPlainOperatorObject = (
   value: unknown,
 ): value is Record<string, unknown> =>
@@ -105,15 +160,63 @@ export class SearchBuilder<R extends SearchableResource> {
     name: P,
     value: SearchValue<Extract<SearchParamTypes[R][P], ParamType>>,
   ): this {
+    this.appendValue(name, value);
+    return this;
+  }
+
+  /**
+   * Chained search: `subject:Patient.name=Smith`.
+   *
+   * `refParam` must be a `reference` parameter on `R`. When `ReferenceTargets`
+   * has an entry for `(R, refParam)`, `targetType` is constrained to its
+   * intersection with `SearchableResource`; otherwise any `SearchableResource`
+   * is accepted. `value` is typed against `(targetType, targetParam)`.
+   */
+  whereChained<
+    P extends ReferenceParamsOf<R>,
+    T extends ChainedTargetsOf<R, P>,
+    TP extends keyof SearchParamTypes[T] & string,
+  >(
+    refParam: P,
+    targetType: T,
+    targetParam: TP,
+    value: SearchValue<Extract<SearchParamTypes[T][TP], ParamType>>,
+  ): this {
+    this.appendValue(`${refParam}:${targetType}.${targetParam}`, value);
+    return this;
+  }
+
+  /**
+   * Reverse chained search: `_has:Observation:subject:code=85354-9`.
+   *
+   * `(sourceType, refParam)` must be a `reference` parameter that points back
+   * at `R` (when `ReferenceTargets` records the relationship). `targetParam`
+   * must be a registered search param on `sourceType`; `value` is typed
+   * against it.
+   */
+  whereHas<
+    S extends SearchableResource,
+    RP extends RefParamsTargeting<S, R>,
+    TP extends keyof SearchParamTypes[S] & string,
+  >(
+    sourceType: S,
+    refParam: RP,
+    targetParam: TP,
+    value: SearchValue<Extract<SearchParamTypes[S][TP], ParamType>>,
+  ): this {
+    this.appendValue(`_has:${sourceType}:${refParam}:${targetParam}`, value);
+    return this;
+  }
+
+  private appendValue(key: string, value: unknown): void {
     if (isPlainOperatorObject(value)) {
       for (const [prefix, raw] of Object.entries(value)) {
         if (raw === undefined || raw === null) continue;
-        this.entries.push([name, `${prefix}${formatScalar(raw)}`]);
+        this.entries.push([key, `${prefix}${formatScalar(raw)}`]);
       }
     } else {
-      this.entries.push([name, formatScalar(value)]);
+      this.entries.push([key, formatScalar(value)]);
     }
-    return this;
   }
 
   include(spec: IncludeSpec): this {
