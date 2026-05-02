@@ -14,6 +14,7 @@ import { PatientRowCounts } from "../../../components/PatientRowCounts.js";
 import { SearchRequestPreview } from "../../../components/SearchRequestPreview.js";
 import {
   RESOURCE_LIST_CONFIG,
+  getPatientReference,
   isTopResourceType,
   type ResourceListColumn,
   type ResourceListConfig,
@@ -371,6 +372,7 @@ export function ResourceListPage() {
           singular={singular}
           config={config!}
           isLoading={isLoading}
+          scopedToPatient={Boolean(patientId)}
         />
       ) : (
         resources.length > 0 ? (
@@ -588,6 +590,7 @@ interface ResourceListProps {
   singular: string;
   config: ResourceListConfig;
   isLoading: boolean;
+  scopedToPatient: boolean;
 }
 
 function ResourceList({
@@ -596,15 +599,20 @@ function ResourceList({
   singular,
   config,
   isLoading,
+  scopedToPatient,
 }: ResourceListProps) {
   const formatPrimary = config.formatPrimary!;
   const formatMeta = config.formatMeta;
   const rowTestId = `${resourceType.toLowerCase()}-row`;
+  // Skip when the page is already scoped to one patient (redundant) or when
+  // the resource itself is the Patient.
+  const showPatientRef = !scopedToPatient && resourceType !== "Patient";
 
   return (
     <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
       {resources.map((r) => {
         const meta = formatMeta?.(r).filter((v): v is string => Boolean(v)) ?? [];
+        const patientRef = showPatientRef ? getPatientReference(r) : undefined;
         return (
           <li key={r.id} data-testid={rowTestId}>
             <Link
@@ -618,6 +626,14 @@ function ResourceList({
                   <code className="rounded bg-slate-100 px-1 py-0.5">{r.id}</code>
                 </span>
               </div>
+              {patientRef && (
+                <span
+                  data-testid="row-patient-ref"
+                  className="text-xs text-slate-500"
+                >
+                  <code className="rounded bg-slate-100 px-1 py-0.5">{patientRef}</code>
+                </span>
+              )}
               {resourceType === "Patient" && r.id && <PatientRowCounts patientId={r.id} />}
             </Link>
           </li>

@@ -598,3 +598,17 @@ export const RESOURCE_LIST_CONFIG: Record<TopResourceType, ResourceListConfig> =
 
 export const isTopResourceType = (rt: string): rt is TopResourceType =>
   (TOP_RESOURCE_TYPES as readonly string[]).includes(rt);
+
+/**
+ * Patient/subject reference for a resource. AllergyIntolerance and
+ * Immunization use `patient`, Task uses `for`, the rest use `subject`.
+ * Returns the raw reference string (e.g. "Patient/123") or undefined.
+ */
+export const getPatientReference = (resource: Resource): string | undefined => {
+  const r = resource as {
+    subject?: { reference?: string };
+    patient?: { reference?: string };
+    for?: { reference?: string };
+  };
+  return r.subject?.reference ?? r.patient?.reference ?? r.for?.reference;
+};
