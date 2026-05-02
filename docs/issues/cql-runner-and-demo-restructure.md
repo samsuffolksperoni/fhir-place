@@ -10,7 +10,7 @@ The goal is to add a second surface — a **CQL runner** — that lets people pa
 
 To make room for the second surface (and any future ones), `apps/demo` is restructured into a route shell with two surfaces side by side: the existing FHIR browser (`/fhir-ui/*`) and the new CQL runner (`/cql-runner/*`). Both share the existing server picker, FHIR client, and resource renderers from `@fhir-place/react-fhir`.
 
-Phase 1 is paste-and-run with a polished result renderer. Phase 2 adds an editor and library management. A small Java translator service (`services/cql-translator`) wraps the official cqframework CQL→ELM translator; ELM execution runs client-side via the `cql-execution` npm package.
+Phase 1 is paste-and-run with a polished result renderer. Phase 2 adds an editor and library management. CQL→ELM compilation is provided by the official cqframework [`cql-translation-service`](https://github.com/cqframework/cql-translation-service) Docker image (no custom wrapper); ELM execution runs client-side via the `cql-execution` npm package.
 
 ## Decisions locked in
 
@@ -25,7 +25,7 @@ Phase 1 is paste-and-run with a polished result renderer. Phase 2 adds an editor
 Three workstreams that can run independently once Phase 0 lands:
 
 1. **Phase 0 — Restructure** (must land first; small, mechanical). Unblocks 2.
-2. **Phase 1a — Translator service** (`services/cql-translator/`). Independent of Phase 0; can start in parallel.
+2. **Phase 1a — Translator service** (`docker-compose.yml` entry only). Independent of Phase 0; can start in parallel.
 3. **Phase 1b — Runner UI + execution wiring** (`apps/demo/src/routes/cql-runner/`). Depends on Phase 0 (route shell) and Phase 1a (a working translator endpoint, even local).
 
 Phase 2 (editor + libraries) is a follow-up branch.
@@ -67,20 +67,28 @@ Goal: existing demo behaves identically, but lives at `/fhir-ui/*` and the shell
 
 Goal: paste CQL, get rendered results that beat raw JSON.
 
-### Phase 1a — `services/cql-translator/` (net-new directory)
+### Phase 1a — translator service (compose entry only)
 
-- Single-endpoint Java service wrapping `org.cqframework:cql-to-elm`.
-- `POST /translate` accepts `{ cql: string }`, returns ELM JSON or `{ errors: [{ line, col, message }] }`.
-- `Dockerfile` (multi-stage: maven build → JRE runtime).
-- Add a `cql-translator` service to the existing `docker-compose.yml` (alongside `hapi`) on a fixed port (e.g. 8081). CORS open for localhost dev.
-- README with `docker compose up cql-translator` + curl example.
-- License check: cqframework is Apache-2.0 (confirm in `pom.xml`).
+Use the upstream cqframework [`cql-translation-service`](https://github.com/cqframework/cql-translation-service) Docker image rather than a custom wrapper. The image exposes `POST /cql/translator` with `Content-Type: application/cql` → `Accept: application/elm+json` and is the [HL7-listed reference implementation](https://cql.hl7.org/10-c-referenceimplementations.html). License: Apache-2.0.
+
+- Add a `cql-translator` service to the existing `docker-compose.yml` (alongside `hapi`) using `image: cqframework/cql-translation-service:<pinned-tag>` on a fixed port (e.g. 8081 → upstream's 8080). Pin a tag (not `:latest`) so CI is reproducible.
+- No `services/cql-translator/` directory. No `Dockerfile`, `pom.xml`, or Java source — the request/response normalisation lives in Phase 1b's `translator.ts` (TS), not in a Java sidecar.
 - **No hosting config in this phase.** Add a `TRANSLATOR_URL` env (`VITE_CQL_TRANSLATOR_URL`) consumed by the runner; defaults to `http://localhost:8081`.
+
+#### Trade-offs vs. a custom wrapper (resolved by accepting these)
+
+- **CORS**: upstream image does not emit CORS headers. Browser-direct calls from `apps/demo` running on a different origin (e.g. live GitHub Pages site) won't work without a proxy. Acceptable in Phase 1 because the dev workflow is `pnpm dev` + same-origin Vite proxy (see "Vite proxy" below). Hosted deployment will need a CORS-adding reverse proxy or a same-origin path mount — that decision lives with the deferred hosting work.
+- **No `/health` endpoint**: compose healthcheck cannot hit a dedicated probe. Either drop the healthcheck for this service, or use `curl -f http://localhost:8080/cql/translator -X POST -H 'Content-Type: application/cql' --data 'library Health version '\''1.0'\''\ndefine Ok: true'` as a smoke probe. Pick one in the implementation PR; not worth pre-deciding here.
+- **Error response shape**: upstream returns its own JSON for compilation errors. `translator.ts` (Phase 1b) is responsible for parsing it into the `{ line, col, message, severity }` shape the runner UI consumes. Keeps the contract the rest of the spec assumes; just moves the normalisation point from Java to TS.
+
+#### Vite proxy (dev)
+
+Add a `/cql-translator/` proxy entry to `apps/demo/vite.config.ts` rewriting to `http://localhost:8081`, so the runner's fetch is same-origin during `pnpm dev` and CORS is sidestepped without ceremony.
 
 ### Phase 1b — `apps/demo/src/routes/cql-runner/`
 
 - **`CqlRunnerPage.tsx`** — page layout: server picker (already in shell header), patient context picker, CQL textarea, Run button, Results panel, Errors panel.
-- **`translator.ts`** — `translateCql(cql: string): Promise<ElmLibrary | TranslationError>`. Hits `VITE_CQL_TRANSLATOR_URL`. License check on `cql-execution` (Apache-2.0, confirm).
+- **`translator.ts`** — `translateCql(cql: string): Promise<ElmLibrary | TranslationError>`. POSTs raw CQL (`Content-Type: application/cql`, `Accept: application/elm+json`) to `${VITE_CQL_TRANSLATOR_URL}/cql/translator`. On non-2xx, parse upstream's error JSON and project it into `{ errors: [{ line, col, message, severity }] }` so the rest of the runner doesn't need to know about the upstream shape. License check on `cql-execution` (Apache-2.0, confirm).
 - **`fhirDataSource.ts`** — adapter implementing `cql-execution`'s `PatientSource` / data source interface, backed by `useFhirClient()` from `@fhir-place/react-fhir`. Map CQL "retrieve by type + patient" calls to FHIR searches via the existing client.
 - **`runCql.ts`** — orchestration: translate → instantiate executor with ELM + data source → return shaped result.
 - **`PatientContextPicker.tsx`** — small wrapper over the existing patient list/search hooks from `@fhir-place/react-fhir` to pick a patient.
@@ -161,8 +169,8 @@ Not implemented in this branch. Sketched so Phase 1 doesn't paint into a corner.
 - `apps/demo/src/config.ts` (server config, headers — reuse `buildRequestHeaders`)
 - `apps/demo/src/components/ServerPicker.tsx` (header picker — reuse)
 - `packages/react-fhir/src/index.ts` and `packages/react-fhir/src/components/` (renderers — reuse)
-- `docker-compose.yml` (add `cql-translator` service)
-- New: `services/cql-translator/{Dockerfile,pom.xml,src/...}`
+- `docker-compose.yml` (add `cql-translator` service using `cqframework/cql-translation-service` image)
+- `apps/demo/vite.config.ts` (add `/cql-translator/` dev proxy)
 - New: `apps/demo/src/routes/{fhir-ui,cql-runner}/...`
 
 ## Risks / follow-ups
@@ -171,3 +179,5 @@ Not implemented in this branch. Sketched so Phase 1 doesn't paint into a corner.
 - `cql-execution`'s data source interface may not map 1:1 to the existing FHIR client; the adapter may need to translate CQL retrieve filters to FHIR search params. Worth a 30-min spike before the full Phase 1 build.
 - Tailwind config in `apps/demo` already covers `src/`; confirm the `routes/` move doesn't escape its `content` glob.
 - Patient context picker: if no patient is selected, only non-patient-scoped CQL should run — gate Run button accordingly.
+- Upstream translator's error JSON shape is not contractually stable across cqframework releases. Pinning the image tag in `docker-compose.yml` mitigates day-to-day drift; bumping the tag is a known place to re-check `translator.ts`'s error parser.
+- No CORS on the upstream image: any deployment that serves `apps/demo` from a different origin than the translator needs a proxy in front. Decide as part of the (currently deferred) hosting work, not in Phase 1.
