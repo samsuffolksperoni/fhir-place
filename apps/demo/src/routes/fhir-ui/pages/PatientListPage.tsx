@@ -9,8 +9,8 @@ import type { Patient } from "fhir/r4";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { SearchParams } from "@fhir-place/react-fhir";
-import { PatientRowCounts } from "../components/PatientRowCounts.js";
-import { SearchRequestPreview } from "../components/SearchRequestPreview.js";
+import { PatientRowCounts } from "../../../components/PatientRowCounts.js";
+import { SearchRequestPreview } from "../../../components/SearchRequestPreview.js";
 
 const formatName = (p: Patient): string => {
   const n = p.name?.[0];
@@ -154,7 +154,7 @@ export function PatientListPage() {
           </p>
         </div>
         <Link
-          to="/Patient/new"
+          to="/fhir-ui/Patient/new"
           className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
           data-testid="create-patient"
         >
@@ -226,7 +226,7 @@ export function PatientListPage() {
           {patients.map((p) => (
             <li key={p.id} data-testid="patient-row">
               <Link
-                to={`/Patient/${p.id}`}
+                to={`/fhir-ui/Patient/${p.id}`}
                 className="flex flex-col gap-1 px-4 py-3 hover:bg-slate-50"
               >
                 <div className="flex items-baseline justify-between gap-4">
@@ -255,7 +255,7 @@ export function PatientListPage() {
             __counts: (patient) =>
               patient.id ? <PatientRowCounts patientId={patient.id} /> : <span className="text-slate-400">—</span>,
           }}
-          onRowClick={(p) => navigate(`/Patient/${p.id}`)}
+          onRowClick={(p) => navigate(`/fhir-ui/Patient/${p.id}`)}
           emptyState={
             <p className="px-4 py-6 text-center text-sm text-slate-500">
               No patients match.

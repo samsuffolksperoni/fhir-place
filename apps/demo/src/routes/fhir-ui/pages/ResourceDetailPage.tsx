@@ -9,10 +9,10 @@ import {
 import type { Reference, Resource } from "fhir/r4";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { CompartmentSection } from "../components/CompartmentSection.js";
-import { PatientCompartmentLinks } from "../components/PatientCompartmentLinks.js";
-import { PATIENT_COMPARTMENT } from "../compartment.js";
-import { patientFieldOptions } from "../patientFields.js";
+import { CompartmentSection } from "../../../components/CompartmentSection.js";
+import { PatientCompartmentLinks } from "../../../components/PatientCompartmentLinks.js";
+import { PATIENT_COMPARTMENT } from "../../../compartment.js";
+import { patientFieldOptions } from "../../../patientFields.js";
 
 const PATIENT_FIELDS_KEY = "fhir-place-demo-patient-detail-fields";
 
@@ -41,13 +41,13 @@ export function ResourceDetailPage() {
       return;
     }
     const [type, refId] = r.split("/");
-    if (type && refId) navigate(`/${type}/${refId}`);
+    if (type && refId) navigate(`/fhir-ui/${type}/${refId}`);
   };
 
   const handleDelete = async () => {
     try {
       await del.mutateAsync({ type: resourceType, id });
-      navigate(`/${resourceType}`);
+      navigate(`/fhir-ui/${resourceType}`);
     } catch {
       // del.error is now populated; the confirm panel renders it inline so
       // the user can read the server message and retry or cancel.
@@ -57,7 +57,7 @@ export function ResourceDetailPage() {
   return (
     <div className="space-y-4">
       <nav className="flex items-center justify-between text-sm">
-        <Link to={`/${resourceType}`} className="text-slate-500 underline">
+        <Link to={`/fhir-ui/${resourceType}`} className="text-slate-500 underline">
           ← All {resourceType.toLowerCase()}s
         </Link>
         <div className="flex gap-2">
@@ -70,7 +70,7 @@ export function ResourceDetailPage() {
             />
           )}
           <Link
-            to={`/${resourceType}/${id}/edit`}
+            to={`/fhir-ui/${resourceType}/${id}/edit`}
             className="rounded border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
             data-testid="edit-resource"
           >
@@ -141,7 +141,7 @@ export function ResourceDetailPage() {
             may also be cached in a stale link.
           </p>
           <Link
-            to={`/${resourceType}`}
+            to={`/fhir-ui/${resourceType}`}
             className="mt-2 inline-block text-amber-900 underline"
           >
             ← Back to all {resourceType.toLowerCase()}s

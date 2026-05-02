@@ -15,7 +15,7 @@ export function ResourceEditPage() {
   return (
     <div className="space-y-4">
       <nav className="text-sm text-slate-500">
-        <Link to={`/${resourceType}/${id}`} className="underline">
+        <Link to={`/fhir-ui/${resourceType}/${id}`} className="underline">
           ← Back to {resourceType}/{id}
         </Link>
       </nav>
@@ -25,10 +25,10 @@ export function ResourceEditPage() {
           resource={data}
           saveLabel="Save changes"
           saving={update.isPending}
-          onCancel={() => navigate(`/${resourceType}/${id}`)}
+          onCancel={() => navigate(`/fhir-ui/${resourceType}/${id}`)}
           onSave={async (draft) => {
             await update.mutateAsync(draft as Resource & { id: string });
-            navigate(`/${resourceType}/${id}`);
+            navigate(`/fhir-ui/${resourceType}/${id}`);
           }}
           className="space-y-4 rounded border border-slate-200 bg-white p-4 shadow-sm"
         />

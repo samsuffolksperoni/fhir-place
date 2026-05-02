@@ -10,8 +10,8 @@ import {
   saveActiveServerId,
   saveAnthropicApiKey,
   saveServers,
-} from "../config.js";
-import { probeFhirServer } from "../serverProbe.js";
+} from "../../../config.js";
+import { probeFhirServer } from "../../../serverProbe.js";
 
 type TestState =
   | { status: "idle" }
@@ -137,7 +137,7 @@ export function SettingsPage() {
           </h2>
           <p className="text-xs text-slate-600">
             Paste an Anthropic API key to enable the{" "}
-            <Link to="/ask" className="underline">
+            <Link to="/fhir-ui/ask" className="underline">
               Ask
             </Link>{" "}
             page, which converts plain-English questions into FHIR search URLs.
