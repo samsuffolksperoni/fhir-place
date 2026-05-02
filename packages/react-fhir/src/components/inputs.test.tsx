@@ -180,3 +180,187 @@ describe("CodeInput (ValueSet-driven)", () => {
     await waitFor(() => expect(screen.getByDisplayValue("custom-code")).toBeInTheDocument());
   });
 });
+
+const CodingInput = defaultTypeInputs.Coding!;
+const CodeableConceptInput = defaultTypeInputs.CodeableConcept!;
+
+describe("CodingInput (ValueSet-driven)", () => {
+  const maritalStatusVsUrl =
+    "http://hl7.org/fhir/ValueSet/marital-status";
+  const maritalSystem = "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus";
+
+  const maritalElement: ElementDefinition = {
+    path: "Patient.maritalStatus.coding",
+    type: [{ code: "Coding" }],
+    binding: { strength: "extensible", valueSet: maritalStatusVsUrl },
+  };
+
+  const mockMaritalVs = (
+    codes: Array<{ code: string; display?: string; system?: string }>,
+  ) => {
+    server.use(
+      http.get(`${BASE}/ValueSet/$expand`, () =>
+        HttpResponse.json({
+          resourceType: "ValueSet",
+          status: "active",
+          url: maritalStatusVsUrl,
+          expansion: {
+            identifier: "x",
+            timestamp: "2024-01-01T00:00:00Z",
+            contains: codes.map((c) => ({
+              system: c.system ?? maritalSystem,
+              code: c.code,
+              display: c.display,
+            })),
+          },
+        }),
+      ),
+    );
+  };
+
+  it("renders a <select> of bound concepts and writes a full Coding on pick", async () => {
+    mockMaritalVs([
+      { code: "M", display: "Married" },
+      { code: "S", display: "Never Married" },
+    ]);
+    const onChange = vi.fn();
+    render(
+      <CodingInput
+        value={undefined}
+        onChange={onChange}
+        context={{
+          path: "Patient.maritalStatus.coding",
+          typeCode: "Coding",
+          element: maritalElement,
+        }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /Married \(M\)/ })).toBeInTheDocument(),
+    );
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "coding" }),
+      `${maritalSystem}|M`,
+    );
+    expect(onChange).toHaveBeenCalledWith({
+      system: maritalSystem,
+      code: "M",
+      display: "Married",
+    });
+  });
+
+  it("required binding hides the 'Other…' escape hatch", async () => {
+    mockMaritalVs([{ code: "M" }, { code: "S" }]);
+    render(
+      <CodingInput
+        value={undefined}
+        onChange={() => {}}
+        context={{
+          path: "Patient.maritalStatus.coding",
+          typeCode: "Coding",
+          element: { ...maritalElement, binding: { strength: "required", valueSet: maritalStatusVsUrl } },
+        }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /M/ })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("option", { name: /other…/i })).not.toBeInTheDocument();
+  });
+
+  it("preserves a non-enumerated value via 'Other…' and exposes the free-form editor (extensible)", async () => {
+    mockMaritalVs([{ code: "M" }, { code: "S" }]);
+    render(
+      <CodingInput
+        value={{ system: "urn:custom", code: "weird", display: "Weird" }}
+        onChange={() => {}}
+        context={{
+          path: "Patient.maritalStatus.coding",
+          typeCode: "Coding",
+          element: maritalElement,
+        }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /other…/i })).toBeInTheDocument(),
+    );
+    expect(screen.getByDisplayValue("urn:custom")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("weird")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Weird")).toBeInTheDocument();
+  });
+
+  it("falls back to the free-form 3-input editor when the element has no binding", () => {
+    const noBinding: ElementDefinition = {
+      path: "Foo.bar",
+      type: [{ code: "Coding" }],
+    };
+    render(
+      <CodingInput
+        value={{ code: "abc" }}
+        onChange={() => {}}
+        context={{ path: "Foo.bar", typeCode: "Coding", element: noBinding }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("abc")).toBeInTheDocument();
+  });
+});
+
+describe("CodeableConceptInput (binding propagation)", () => {
+  const vsUrl = "http://hl7.org/fhir/ValueSet/condition-clinical";
+  const system = "http://terminology.hl7.org/CodeSystem/condition-clinical";
+
+  it("renders the bound dropdown for the inner Coding and updates coding[0]", async () => {
+    server.use(
+      http.get(`${BASE}/ValueSet/$expand`, () =>
+        HttpResponse.json({
+          resourceType: "ValueSet",
+          status: "active",
+          url: vsUrl,
+          expansion: {
+            identifier: "x",
+            timestamp: "2024-01-01T00:00:00Z",
+            contains: [
+              { system, code: "active", display: "Active" },
+              { system, code: "resolved", display: "Resolved" },
+            ],
+          },
+        }),
+      ),
+    );
+    const element: ElementDefinition = {
+      path: "Condition.clinicalStatus",
+      type: [{ code: "CodeableConcept" }],
+      binding: { strength: "required", valueSet: vsUrl },
+    };
+    const onChange = vi.fn();
+    render(
+      <CodeableConceptInput
+        value={undefined}
+        onChange={onChange}
+        context={{
+          path: "Condition.clinicalStatus",
+          typeCode: "CodeableConcept",
+          element,
+        }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /Active \(active\)/ })).toBeInTheDocument(),
+    );
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "clinicalStatus" }),
+      `${system}|active`,
+    );
+    expect(onChange).toHaveBeenCalledWith({
+      coding: [{ system, code: "active", display: "Active" }],
+    });
+  });
+});
