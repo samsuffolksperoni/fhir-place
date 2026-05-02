@@ -1,15 +1,26 @@
 import type {
   AllergyIntolerance,
+  Appointment,
   CarePlan,
+  CareTeam,
   Condition,
   DiagnosticReport,
+  DocumentReference,
   Encounter,
+  Goal,
+  HumanName,
   Immunization,
+  Location,
+  Medication,
   MedicationRequest,
   Observation,
+  Organization,
   Patient,
+  Practitioner,
   Procedure,
   Resource,
+  ServiceRequest,
+  Task,
 } from "fhir/r4";
 
 export interface ResourceListColumn {
@@ -34,28 +45,40 @@ export interface ResourceListConfig<T extends Resource = Resource> {
   formatMeta?: (resource: T) => Array<string | undefined | null>;
 }
 
-/** Display order in the FHIR UI sidebar. */
+/** Display order in the FHIR UI sidebar: Patient first, then alphabetical. */
 export const TOP_RESOURCE_TYPES = [
   "Patient",
-  "Observation",
-  "Condition",
-  "MedicationRequest",
   "AllergyIntolerance",
-  "Procedure",
-  "Encounter",
-  "Immunization",
-  "DiagnosticReport",
+  "Appointment",
   "CarePlan",
+  "CareTeam",
+  "Condition",
+  "DiagnosticReport",
+  "DocumentReference",
+  "Encounter",
+  "Goal",
+  "Immunization",
+  "Location",
+  "Medication",
+  "MedicationRequest",
+  "Observation",
+  "Organization",
+  "Practitioner",
+  "Procedure",
+  "ServiceRequest",
+  "Task",
 ] as const;
 
 export type TopResourceType = (typeof TOP_RESOURCE_TYPES)[number];
 
-const formatPatientName = (p: Patient): string => {
-  const n = p.name?.[0];
+const formatHumanName = (names?: HumanName[]): string => {
+  const n = names?.[0];
   if (!n) return "(no name)";
   if (n.text) return n.text;
   return [n.given?.join(" "), n.family].filter(Boolean).join(" ") || "(no name)";
 };
+
+const formatPatientName = (p: Patient): string => formatHumanName(p.name);
 
 const codeText = (c?: { text?: string; coding?: Array<{ display?: string; code?: string }> }): string | undefined => {
   if (!c) return undefined;
@@ -259,17 +282,202 @@ const CARE_PLAN: ResourceListConfig<CarePlan> = {
   formatMeta: (c) => [c.status, c.period?.start],
 };
 
+const APPOINTMENT: ResourceListConfig<Appointment> = {
+  title: "Appointments",
+  singular: "appointment",
+  priorityParams: ["patient", "practitioner", "status", "date", "service-type"],
+  tableColumns: [
+    { path: "status", label: "Status" },
+    { path: "serviceType.text", label: "Service" },
+    { path: "appointmentType.text", label: "Type" },
+    { path: "start", label: "Start" },
+    { path: "end", label: "End" },
+    { path: "description", label: "Description" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["status", "serviceType.text", "start"],
+  formatPrimary: (a) =>
+    codeText(a.serviceType?.[0]) ?? codeText(a.appointmentType) ?? a.description ?? "(appointment)",
+  formatMeta: (a) => [a.status, a.start],
+};
+
+const CARE_TEAM: ResourceListConfig<CareTeam> = {
+  title: "Care teams",
+  singular: "care team",
+  priorityParams: ["patient", "subject", "status", "category"],
+  tableColumns: [
+    { path: "status", label: "Status" },
+    { path: "name", label: "Name" },
+    { path: "category", label: "Category" },
+    { path: "subject.reference", label: "Subject" },
+    { path: "period.start", label: "Started" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["status", "name", "period.start"],
+  formatPrimary: (c) => c.name ?? codeText(c.category?.[0]) ?? "(care team)",
+  formatMeta: (c) => [c.status, c.period?.start],
+};
+
+const DOCUMENT_REFERENCE: ResourceListConfig<DocumentReference> = {
+  title: "Documents",
+  singular: "document",
+  priorityParams: ["patient", "type", "category", "status", "date"],
+  tableColumns: [
+    { path: "status", label: "Status" },
+    { path: "type.text", label: "Type" },
+    { path: "category", label: "Category" },
+    { path: "subject.reference", label: "Subject" },
+    { path: "date", label: "Date" },
+    { path: "description", label: "Description" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["status", "type.text", "date"],
+  formatPrimary: (d) => codeText(d.type) ?? d.description ?? "(document)",
+  formatMeta: (d) => [d.status, d.date],
+};
+
+const GOAL: ResourceListConfig<Goal> = {
+  title: "Goals",
+  singular: "goal",
+  priorityParams: ["patient", "subject", "lifecycle-status", "category", "start-date"],
+  tableColumns: [
+    { path: "lifecycleStatus", label: "Status" },
+    { path: "description.text", label: "Goal" },
+    { path: "category", label: "Category" },
+    { path: "subject.reference", label: "Subject" },
+    { path: "target.dueDate", label: "Target date" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["lifecycleStatus", "description.text", "target.dueDate"],
+  formatPrimary: (g) => codeText(g.description) ?? "(goal)",
+  formatMeta: (g) => [g.lifecycleStatus, g.target?.[0]?.dueDate],
+};
+
+const LOCATION: ResourceListConfig<Location> = {
+  title: "Locations",
+  singular: "location",
+  priorityParams: ["name", "address", "address-city", "type", "status"],
+  tableColumns: [
+    { path: "status", label: "Status" },
+    { path: "name", label: "Name" },
+    { path: "type", label: "Type" },
+    { path: "address.city", label: "City" },
+    { path: "address.state", label: "State" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["status", "name", "address.city"],
+  formatPrimary: (l) => l.name ?? "(location)",
+  formatMeta: (l) => [l.status, codeText(l.type?.[0])],
+};
+
+const MEDICATION: ResourceListConfig<Medication> = {
+  title: "Medications",
+  singular: "medication",
+  priorityParams: ["code", "status", "form", "manufacturer"],
+  tableColumns: [
+    { path: "status", label: "Status" },
+    { path: "code.text", label: "Medication" },
+    { path: "form.text", label: "Form" },
+    { path: "manufacturer.reference", label: "Manufacturer" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["status", "code.text", "form.text"],
+  formatPrimary: (m) => codeText(m.code) ?? "(no code)",
+  formatMeta: (m) => [m.status, codeText(m.form)],
+};
+
+const ORGANIZATION: ResourceListConfig<Organization> = {
+  title: "Organizations",
+  singular: "organization",
+  priorityParams: ["name", "address-city", "type", "active", "identifier"],
+  tableColumns: [
+    { path: "active", label: "Active" },
+    { path: "name", label: "Name" },
+    { path: "type", label: "Type" },
+    { path: "address.city", label: "City" },
+    { path: "telecom", label: "Telecom" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["active", "name", "type"],
+  formatPrimary: (o) => o.name ?? "(organization)",
+  formatMeta: (o) => [codeText(o.type?.[0]), o.active === false ? "inactive" : "active"],
+};
+
+const PRACTITIONER: ResourceListConfig<Practitioner> = {
+  title: "Practitioners",
+  singular: "practitioner",
+  priorityParams: ["name", "family", "given", "identifier", "active"],
+  tableColumns: [
+    { path: "active", label: "Active" },
+    { path: "name", label: "Name" },
+    { path: "gender", label: "Gender" },
+    { path: "qualification", label: "Qualification" },
+    { path: "telecom", label: "Telecom" },
+    { path: "address.city", label: "City" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["active", "name", "qualification"],
+  formatPrimary: (p) => formatHumanName(p.name),
+  formatMeta: (p) => [p.gender, p.active === false ? "inactive" : "active"],
+};
+
+const SERVICE_REQUEST: ResourceListConfig<ServiceRequest> = {
+  title: "Service requests",
+  singular: "service request",
+  priorityParams: ["patient", "code", "status", "intent", "category", "authored"],
+  tableColumns: [
+    { path: "status", label: "Status" },
+    { path: "intent", label: "Intent" },
+    { path: "code.text", label: "Service" },
+    { path: "category", label: "Category" },
+    { path: "subject.reference", label: "Subject" },
+    { path: "authoredOn", label: "Authored" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["status", "code.text", "authoredOn"],
+  formatPrimary: (s) => codeText(s.code) ?? "(service request)",
+  formatMeta: (s) => [s.status, s.authoredOn],
+};
+
+const TASK: ResourceListConfig<Task> = {
+  title: "Tasks",
+  singular: "task",
+  priorityParams: ["patient", "subject", "status", "code", "authored-on"],
+  tableColumns: [
+    { path: "status", label: "Status" },
+    { path: "intent", label: "Intent" },
+    { path: "code.text", label: "Task" },
+    { path: "for.reference", label: "For" },
+    { path: "focus.reference", label: "Focus" },
+    { path: "authoredOn", label: "Authored" },
+    { path: "id", label: "ID" },
+  ],
+  defaultVisibleColumns: ["status", "code.text", "authoredOn"],
+  formatPrimary: (t) => codeText(t.code) ?? t.description ?? "(task)",
+  formatMeta: (t) => [t.status, t.authoredOn],
+};
+
 export const RESOURCE_LIST_CONFIG: Record<TopResourceType, ResourceListConfig> = {
   Patient: PATIENT as ResourceListConfig,
-  Observation: OBSERVATION as ResourceListConfig,
-  Condition: CONDITION as ResourceListConfig,
-  MedicationRequest: MEDICATION_REQUEST as ResourceListConfig,
   AllergyIntolerance: ALLERGY_INTOLERANCE as ResourceListConfig,
-  Procedure: PROCEDURE as ResourceListConfig,
-  Encounter: ENCOUNTER as ResourceListConfig,
-  Immunization: IMMUNIZATION as ResourceListConfig,
-  DiagnosticReport: DIAGNOSTIC_REPORT as ResourceListConfig,
+  Appointment: APPOINTMENT as ResourceListConfig,
   CarePlan: CARE_PLAN as ResourceListConfig,
+  CareTeam: CARE_TEAM as ResourceListConfig,
+  Condition: CONDITION as ResourceListConfig,
+  DiagnosticReport: DIAGNOSTIC_REPORT as ResourceListConfig,
+  DocumentReference: DOCUMENT_REFERENCE as ResourceListConfig,
+  Encounter: ENCOUNTER as ResourceListConfig,
+  Goal: GOAL as ResourceListConfig,
+  Immunization: IMMUNIZATION as ResourceListConfig,
+  Location: LOCATION as ResourceListConfig,
+  Medication: MEDICATION as ResourceListConfig,
+  MedicationRequest: MEDICATION_REQUEST as ResourceListConfig,
+  Observation: OBSERVATION as ResourceListConfig,
+  Organization: ORGANIZATION as ResourceListConfig,
+  Practitioner: PRACTITIONER as ResourceListConfig,
+  Procedure: PROCEDURE as ResourceListConfig,
+  ServiceRequest: SERVICE_REQUEST as ResourceListConfig,
+  Task: TASK as ResourceListConfig,
 };
 
 export const isTopResourceType = (rt: string): rt is TopResourceType =>

@@ -8,7 +8,7 @@ import {
   useStructureDefinition,
 } from "@fhir-place/react-fhir";
 import type { Resource } from "fhir/r4";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { SearchParams } from "@fhir-place/react-fhir";
 import { PatientRowCounts } from "../../../components/PatientRowCounts.js";
@@ -21,10 +21,21 @@ import {
 } from "../../../resourceListConfig.js";
 
 type Layout = "list" | "table";
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 20;
+const pageSizeStorageKey = "fhir-place-demo-page-size";
 
 const layoutKey = (rt: string) => `fhir-place-demo-${rt.toLowerCase()}-layout`;
 const columnKey = (rt: string) => `fhir-place-demo-${rt.toLowerCase()}-columns`;
+
+const readPageSize = (): number => {
+  if (typeof window === "undefined") return DEFAULT_PAGE_SIZE;
+  const raw = window.localStorage.getItem(pageSizeStorageKey);
+  const parsed = raw ? Number(raw) : NaN;
+  return PAGE_SIZE_OPTIONS.includes(parsed as (typeof PAGE_SIZE_OPTIONS)[number])
+    ? parsed
+    : DEFAULT_PAGE_SIZE;
+};
 
 const readLayout = (rt: string, hasListView: boolean, scoped: boolean): Layout => {
   if (!hasListView) return "table";
@@ -74,8 +85,12 @@ const collectPaths = (value: unknown, prefix = "", out = new Set<string>()): Set
   return out;
 };
 
-const paramsFromUrl = (urlParams: URLSearchParams, patientId?: string): SearchParams => {
-  const out: SearchParams = { _count: PAGE_SIZE };
+const paramsFromUrl = (
+  urlParams: URLSearchParams,
+  pageSize: number,
+  patientId?: string,
+): SearchParams => {
+  const out: SearchParams = { _count: pageSize };
   for (const [k, v] of urlParams.entries()) {
     if (k === "patient") continue;
     out[k] = v;
@@ -128,9 +143,15 @@ export function ResourceListPage() {
     window.localStorage.setItem(layoutKey(resourceType), layout);
   }, [layout, resourceType, hasListView, patientId]);
 
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(pageSizeStorageKey, String(pageSize));
+  }, [pageSize]);
+
   const params = useMemo(
-    () => paramsFromUrl(searchParams, patientId),
-    [searchParams, patientId],
+    () => paramsFromUrl(searchParams, pageSize, patientId),
+    [searchParams, pageSize, patientId],
   );
   const [draftParams, setDraftParams] = useState<SearchParams>(params);
   useEffect(() => setDraftParams(params), [params]);
@@ -262,7 +283,7 @@ export function ResourceListPage() {
         {...(priorityParams ? { priorityParams } : {})}
         onChange={(p) =>
           setDraftParams({
-            _count: PAGE_SIZE,
+            _count: pageSize,
             ...(patientId ? { patient: patientId } : {}),
             ...p,
           })
@@ -292,7 +313,7 @@ export function ResourceListPage() {
         params={draftParams}
       />
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         {hasListView ? (
           <div
             role="group"
@@ -321,14 +342,17 @@ export function ResourceListPage() {
         ) : (
           <div />
         )}
-        {(!hasListView || layout === "table") && (
-          <ColumnPicker
-            options={tableColumns}
-            defaultSelected={defaultVisibleColumns}
-            onChange={setColumns}
-            storageKey={columnKey(resourceType)}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          <PageSizePicker value={pageSize} onChange={setPageSize} />
+          {(!hasListView || layout === "table") && (
+            <ColumnPicker
+              options={tableColumns}
+              defaultSelected={defaultVisibleColumns}
+              onChange={setColumns}
+              storageKey={columnKey(resourceType)}
+            />
+          )}
+        </div>
       </div>
 
       {isError && (
@@ -395,6 +419,82 @@ export function ResourceListPage() {
           >
             {isFetchingNextPage ? "Loading…" : "Load more"}
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface PageSizePickerProps {
+  value: number;
+  onChange: (size: number) => void;
+}
+
+function PageSizePicker({ value, onChange }: PageSizePickerProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        data-testid="page-size-picker"
+        className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm hover:bg-slate-50"
+      >
+        <span>Page size: {value}</span>
+        <svg
+          aria-hidden="true"
+          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path
+            d="M4 6l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-10 mt-1 w-max rounded border border-slate-200 bg-white p-1 shadow-md"
+        >
+          {PAGE_SIZE_OPTIONS.map((size) => (
+            <button
+              key={size}
+              type="button"
+              role="menuitemradio"
+              aria-checked={value === size}
+              data-testid={`page-size-option-${size}`}
+              onClick={() => {
+                onChange(size);
+                setOpen(false);
+              }}
+              className={`block w-full rounded px-3 py-1 text-left text-sm ${
+                value === size
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              {size}
+            </button>
+          ))}
         </div>
       )}
     </div>
