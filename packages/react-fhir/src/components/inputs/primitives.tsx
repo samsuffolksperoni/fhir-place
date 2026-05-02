@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useValueSet } from "../../hooks/queries.js";
 import { bindingFor, codesFromValueSet } from "../../structure/binding.js";
 import { baseField, type FhirInputProps, type FhirTypeInput } from "./types.js";
@@ -111,6 +112,9 @@ export const CodeInput: FhirTypeInput<string> = (props) => {
 
   const { data: vs, isLoading } = useValueSet(valueSet);
   const boundCodes = codesFromValueSet(vs);
+  // Hooks must be called in the same order on every render — keep useState
+  // above any early returns.
+  const [otherToggled, setOtherToggled] = useState(false);
 
   const options: Array<{ value: string; label: string }> = [];
   if (boundCodes.length > 0) {
@@ -142,7 +146,8 @@ export const CodeInput: FhirTypeInput<string> = (props) => {
   const allowFreeText = strength !== "required";
   const currentValue = props.value ?? "";
   const valueMatches = options.some((o) => o.value === currentValue);
-  const usingFreeText = !valueMatches && currentValue !== "";
+  const valueIsCustom = !valueMatches && currentValue !== "";
+  const usingFreeText = allowFreeText && (otherToggled || valueIsCustom);
 
   return (
     <div className="flex gap-1">
@@ -152,7 +157,11 @@ export const CodeInput: FhirTypeInput<string> = (props) => {
         value={usingFreeText ? "__other__" : currentValue}
         onChange={(e) => {
           const v = e.target.value;
-          if (v === "__other__") return; // keep free-text input value
+          if (v === "__other__") {
+            setOtherToggled(true);
+            return;
+          }
+          setOtherToggled(false);
           props.onChange(v === "" ? undefined : v);
         }}
       >
@@ -164,7 +173,7 @@ export const CodeInput: FhirTypeInput<string> = (props) => {
         ))}
         {allowFreeText && <option value="__other__">Other…</option>}
       </select>
-      {allowFreeText && usingFreeText && (
+      {usingFreeText && (
         <input
           aria-label={`${fieldName} (custom)`}
           className={baseField}

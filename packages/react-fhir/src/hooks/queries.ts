@@ -32,6 +32,8 @@ export const fhirQueryKeys = {
     [...fhirQueryKeys.all(baseUrl), "StructureDefinition", type, profile ?? ""] as const,
   valueSet: (baseUrl: string, canonical: string) =>
     [...fhirQueryKeys.all(baseUrl), "ValueSet", canonical] as const,
+  valueSetExpansion: (baseUrl: string, canonical: string, filter: string, count: number) =>
+    [...fhirQueryKeys.all(baseUrl), "ValueSet", canonical, "expand", filter, count] as const,
   reference: (baseUrl: string, ref: string) =>
     [...fhirQueryKeys.all(baseUrl), "ref", ref] as const,
   searchParameter: (baseUrl: string, base: string, code: string) =>
@@ -202,6 +204,55 @@ export function useValueSet(
     },
     enabled: Boolean(canonical),
     staleTime: 24 * 60 * 60_000,
+    ...options,
+  });
+}
+
+export interface UseValueSetExpansionOptions extends ReadQueryOpts<ValueSet> {
+  /** Max concepts to ask the server for. Defaults to 20 (combobox-sized). */
+  count?: number;
+  /** When false, the query won't fire even if filter is non-empty. */
+  enabled?: boolean;
+}
+
+/**
+ * Server-side filtered ValueSet expansion. Wraps `ValueSet/$expand?url=...&filter=...`,
+ * intended for "type-ahead against SNOMED/LOINC/ICD" style comboboxes where the
+ * full ValueSet is too large to enumerate locally.
+ *
+ * Disabled when `filter` is empty/whitespace — pair with debouncing in the UI to
+ * avoid hammering the terminology server on every keystroke.
+ *
+ * Cached by `(canonical, filter, count)` so repeated keystrokes that resolve to
+ * the same query share results across the app.
+ */
+export function useValueSetExpansion(
+  canonical: string | undefined,
+  filter: string,
+  options?: UseValueSetExpansionOptions,
+) {
+  const client = useFhirClient();
+  const trimmed = filter.trim();
+  const count = options?.count ?? 20;
+  const enabled = (options?.enabled ?? true) && Boolean(canonical) && trimmed.length > 0;
+  return useQuery({
+    queryKey: fhirQueryKeys.valueSetExpansion(client.baseUrl, canonical ?? "", trimmed, count),
+    queryFn: ({ signal }) => {
+      const url = canonical!;
+      const qs = new URLSearchParams({
+        url,
+        filter: trimmed,
+        count: String(count),
+      });
+      return client.request<ValueSet>({
+        path: `/ValueSet/$expand?${qs.toString()}`,
+        signal,
+      });
+    },
+    enabled,
+    // Filter results are short-lived — server may cap counts and we want fresh
+    // matches as the user keeps typing past previously-seen prefixes.
+    staleTime: 30_000,
     ...options,
   });
 }
