@@ -13,6 +13,7 @@ import {
   USE_MOCK,
   buildRequestHeaders,
 } from "./config.js";
+import { getAccessToken } from "./smart/smartSession.js";
 import "./index.css";
 
 // 4xx responses (404, 410, 422…) aren't transient — retrying them just pads
@@ -39,7 +40,16 @@ const queryClient = new QueryClient({
 
 const fhirClient = new FetchFhirClient({
   baseUrl: FHIR_BASE_URL,
-  headers: buildRequestHeaders(ACTIVE_SERVER_CONFIG),
+  // For SMART servers, tokens are fetched dynamically on each request so that
+  // automatic token refresh works without a page reload.
+  ...(ACTIVE_SERVER_CONFIG.authMode === "smart"
+    ? {
+        getHeaders: async (): Promise<Record<string, string>> => {
+          const token = await getAccessToken(ACTIVE_SERVER_CONFIG.id);
+          return token ? { Authorization: `Bearer ${token}` } : {};
+        },
+      }
+    : { headers: buildRequestHeaders(ACTIVE_SERVER_CONFIG) }),
 });
 
 // Terminology calls (ValueSet/$expand for SNOMED, LOINC, ICD-10, BCP-47…)

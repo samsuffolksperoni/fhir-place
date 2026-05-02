@@ -1,0 +1,22 @@
+{
+  "name": "fhir-place demo",
+  "description": "Backend-agnostic, spec-driven React FHIR UI primitives. A public SMART on FHIR v2 client that works against any conformant FHIR R4 server.",
+  "source_url": "https://github.com/samsuffolksperoni/fhir-place",
+  "launch_uri": "https://samsuffolksperoni.github.io/fhir-place/#/launch",
+  "redirect_uri": "https://samsuffolksperoni.github.io/fhir-place/#/redirect",
+  "scope": "openid fhirUser launch launch/patient patient/*.read offline_access",
+  "fhir_versions": ["4.0"],
+  "client_type": "public",
+  "pkce": "S256-required",
+  "capabilities": [
+    "launch-ehr",
+    "launch-standalone",
+    "client-public",
+    "sso-openid-connect",
+    "context-ehr-patient",
+    "context-standalone-patient",
+    "permission-patient",
+    "permission-user"
+  ],
+  "contacts": []
+}

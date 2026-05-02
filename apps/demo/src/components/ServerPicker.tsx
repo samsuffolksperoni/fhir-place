@@ -1,5 +1,5 @@
 import type { ChangeEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ACTIVE_SERVER_CONFIG,
   loadServers,
@@ -12,16 +12,27 @@ import {
  * localStorage). Switching saves the active id and reloads the page so the
  * singleton `FetchFhirClient` in `main.tsx` rebuilds with the new base URL
  * and headers.
+ *
+ * For SMART servers with no active session the user is sent to Settings to
+ * sign in rather than left with a broken unauthenticated state.
  */
 export function ServerPicker() {
   const servers = loadServers();
   const activeId = ACTIVE_SERVER_CONFIG.id;
+  const navigate = useNavigate();
 
   const onChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value;
     if (next === activeId) return;
+    const nextServer = servers.find((s) => s.id === next);
     saveActiveServerId(next);
-    window.location.reload();
+    if (nextServer?.authMode === "smart") {
+      // Navigate to settings so the user can sign in; then reload to re-init the client.
+      window.location.reload();
+      navigate("/fhir-ui/settings");
+    } else {
+      window.location.reload();
+    }
   };
 
   return (

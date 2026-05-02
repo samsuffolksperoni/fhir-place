@@ -11,6 +11,8 @@ import {
   saveServers,
 } from "./config.js";
 
+// SMART-specific imports tested separately below.
+
 const installLocalStorage = (initial: Record<string, string> = {}) => {
   const store: Record<string, string> = { ...initial };
   const localStorage = {
@@ -269,6 +271,69 @@ describe("resolveEnvOverrideServer", () => {
     const server = resolveEnvOverrideServer("not a url");
     expect(server.id).toBe("env-override");
     expect(server.label).toBe("not a url");
+  });
+});
+
+describe("SMART authMode parsing", () => {
+  it("round-trips a SMART server with clientId and scope", () => {
+    const smart = {
+      id: "my-smart",
+      label: "My SMART Server",
+      baseUrl: "https://fhir.example.org",
+      authMode: "smart" as const,
+      smart: { clientId: "app-123", scope: "openid fhirUser launch/patient patient/*.read" },
+    };
+    saveServers([smart]);
+    const loaded = loadServers().find((s) => s.id === "my-smart");
+    expect(loaded).toMatchObject({
+      authMode: "smart",
+      smart: { clientId: "app-123", scope: "openid fhirUser launch/patient patient/*.read" },
+    });
+  });
+
+  it("round-trips offlineAccess flag", () => {
+    const smart: ServerConfig = {
+      id: "smart-offline",
+      label: "Smart w/ refresh",
+      baseUrl: "https://fhir.example.org",
+      authMode: "smart",
+      smart: { clientId: "x", scope: "openid", offlineAccess: true },
+    };
+    saveServers([smart]);
+    const loaded = loadServers().find((s) => s.id === "smart-offline");
+    expect(loaded?.smart?.offlineAccess).toBe(true);
+  });
+
+  it("drops smart block when clientId/scope are missing", () => {
+    const bad = {
+      id: "bad-smart",
+      label: "Bad",
+      baseUrl: "https://example.org",
+      authMode: "smart",
+      smart: { clientId: 42, scope: "openid" }, // clientId is not a string
+    };
+    saveServers([bad as unknown as ServerConfig]);
+    const loaded = loadServers().find((s) => s.id === "bad-smart");
+    // The server itself is valid (authMode "smart" is allowed), but smart block is stripped.
+    expect(loaded?.smart).toBeUndefined();
+  });
+
+  it("buildRequestHeaders returns empty object for SMART servers", () => {
+    const server: ServerConfig = {
+      id: "s",
+      label: "s",
+      baseUrl: "https://x",
+      authMode: "smart",
+      smart: { clientId: "c", scope: "openid" },
+    };
+    expect(buildRequestHeaders(server)).toEqual({});
+  });
+
+  it("SMART Health IT built-in has authMode smart and a smart block", () => {
+    const smart = BUILTIN_SERVERS.find((s) => s.id === "builtin-smart");
+    expect(smart?.authMode).toBe("smart");
+    expect(smart?.smart?.clientId).toBeTruthy();
+    expect(smart?.smart?.scope).toContain("openid");
   });
 });
 

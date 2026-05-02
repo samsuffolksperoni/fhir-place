@@ -4,9 +4,16 @@ export const USE_MOCK =
 /** Vite's BASE_URL — "/" locally, "/fhir-place/" on GitHub Pages. */
 const BASE = import.meta.env.BASE_URL;
 
-export type AuthMode = "none" | "bearer";
+export type AuthMode = "none" | "bearer" | "smart";
 
 export type CustomHeader = { key: string; value: string };
+
+export interface SmartConfig {
+  clientId: string;
+  /** Space-separated SMART v2 scope string. */
+  scope: string;
+  offlineAccess?: boolean;
+}
 
 export interface ServerConfig {
   id: string;
@@ -15,9 +22,14 @@ export interface ServerConfig {
   authMode: AuthMode;
   bearerToken?: string;
   headers?: CustomHeader[];
+  /** SMART on FHIR v2 launch metadata. Only used when authMode === "smart". */
+  smart?: SmartConfig;
   /** Built-in servers can't be deleted, but their auth/headers can still be edited. */
   builtin?: boolean;
 }
+
+export const DEFAULT_SMART_SCOPE =
+  "openid fhirUser launch launch/patient patient/*.read";
 
 /**
  * Built-in public FHIR R4 servers. Both support open access and CORS so the
@@ -34,9 +46,10 @@ export const BUILTIN_SERVERS: ReadonlyArray<ServerConfig> = [
   },
   {
     id: "builtin-smart",
-    label: "SMART Health IT (R4)",
-    baseUrl: "https://r4.smarthealthit.org",
-    authMode: "none",
+    label: "SMART Health IT Sandbox (R4)",
+    baseUrl: "https://launch.smarthealthit.org/v/r4/fhir",
+    authMode: "smart",
+    smart: { clientId: "fhir-place-demo", scope: DEFAULT_SMART_SCOPE },
     builtin: true,
   },
   {
@@ -82,19 +95,31 @@ export const saveAnthropicApiKey = (key: string): void => {
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
+const parseSmartConfig = (v: unknown): SmartConfig | undefined => {
+  if (!isPlainObject(v)) return undefined;
+  const { clientId, scope, offlineAccess } = v;
+  if (typeof clientId !== "string" || typeof scope !== "string") return undefined;
+  return {
+    clientId,
+    scope,
+    ...(offlineAccess === true ? { offlineAccess: true } : {}),
+  };
+};
+
 const parseServer = (v: unknown): ServerConfig | null => {
   if (!isPlainObject(v)) return null;
-  const { id, label, baseUrl, authMode, bearerToken, headers, builtin } = v;
+  const { id, label, baseUrl, authMode, bearerToken, headers, smart, builtin } = v;
   if (typeof id !== "string" || typeof label !== "string" || typeof baseUrl !== "string") {
     return null;
   }
-  if (authMode !== "none" && authMode !== "bearer") return null;
+  if (authMode !== "none" && authMode !== "bearer" && authMode !== "smart") return null;
   const parsedHeaders = Array.isArray(headers)
     ? headers
         .filter(isPlainObject)
         .filter((h) => typeof h.key === "string" && typeof h.value === "string")
         .map((h) => ({ key: h.key as string, value: h.value as string }))
     : undefined;
+  const parsedSmart = parseSmartConfig(smart);
   return {
     id,
     label,
@@ -102,6 +127,7 @@ const parseServer = (v: unknown): ServerConfig | null => {
     authMode,
     ...(typeof bearerToken === "string" && bearerToken ? { bearerToken } : {}),
     ...(parsedHeaders && parsedHeaders.length > 0 ? { headers: parsedHeaders } : {}),
+    ...(parsedSmart ? { smart: parsedSmart } : {}),
     ...(builtin === true ? { builtin: true } : {}),
   };
 };
@@ -253,6 +279,32 @@ export const buildRequestHeaders = (server: ServerConfig): Record<string, string
     if (h.key.trim()) headers[h.key] = h.value;
   }
   return headers;
+};
+
+/**
+ * The redirect URI for SMART App Launch. Uses hash-routing convention on
+ * GitHub Pages (and any BASE !== "/") so the OAuth callback lands on the same
+ * index.html without a server-side route. On a custom domain with BrowserRouter
+ * (BASE === "/") it uses a clean path form.
+ */
+export const getSmartRedirectUri = (): string => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  if (USE_HASH_ROUTER) {
+    return `${origin}${BASE.replace(/\/$/, "")}#/redirect`;
+  }
+  return `${origin}${ROUTER_BASENAME === "/" ? "" : ROUTER_BASENAME}/redirect`;
+};
+
+/**
+ * The launch URI registered with an EHR for EHR-initiated SMART App Launch.
+ * The EHR will redirect to this URL with `iss` + `launch` query params.
+ */
+export const getSmartLaunchUri = (): string => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  if (USE_HASH_ROUTER) {
+    return `${origin}${BASE.replace(/\/$/, "")}#/launch`;
+  }
+  return `${origin}${ROUTER_BASENAME === "/" ? "" : ROUTER_BASENAME}/launch`;
 };
 
 /**

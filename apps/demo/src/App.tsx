@@ -6,6 +6,8 @@ import { ResourceEditPage } from "./routes/fhir-ui/pages/ResourceEditPage.js";
 import { ResourceListPage } from "./routes/fhir-ui/pages/ResourceListPage.js";
 import { SettingsPage } from "./routes/fhir-ui/pages/SettingsPage.js";
 import { CqlRunnerPage } from "./routes/cql-runner/CqlRunnerPage.js";
+import { LaunchPage } from "./routes/smart/LaunchPage.js";
+import { RedirectPage } from "./routes/smart/RedirectPage.js";
 import { ActiveServerStatus } from "./components/ActiveServerStatus.js";
 import { FhirUiLayout } from "./components/FhirUiLayout.js";
 import { ServerPicker } from "./components/ServerPicker.js";
@@ -48,6 +50,9 @@ export function App() {
       <main className="mx-auto max-w-5xl p-6">
         <Routes>
           <Route path="/" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
+          {/* SMART App Launch routes — must be at root level, outside /fhir-ui */}
+          <Route path="/launch" element={<LaunchPage />} />
+          <Route path="/redirect" element={<RedirectPage />} />
           {/* CQL runner */}
           <Route path="/cql-runner" element={<CqlRunnerPage />} />
           {/* FHIR UI surface */}
