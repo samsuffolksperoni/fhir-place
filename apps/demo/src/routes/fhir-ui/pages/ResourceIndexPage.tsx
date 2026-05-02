@@ -10,8 +10,8 @@ import type { Resource } from "fhir/r4";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { SearchParams } from "@fhir-place/react-fhir";
-import { PATIENT_COMPARTMENT } from "../compartment.js";
-import { SearchRequestPreview } from "../components/SearchRequestPreview.js";
+import { PATIENT_COMPARTMENT } from "../../../compartment.js";
+import { SearchRequestPreview } from "../../../components/SearchRequestPreview.js";
 
 const columnLabelFromPath = (path: string): string => {
   const last = path.split(".").pop() ?? path;

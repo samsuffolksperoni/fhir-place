@@ -9,8 +9,8 @@ import type { Patient } from "fhir/r4";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { SearchParams } from "@fhir-place/react-fhir";
-import { PatientRowCounts } from "../components/PatientRowCounts.js";
-import { SearchRequestPreview } from "../components/SearchRequestPreview.js";
+import { PatientRowCounts } from "../../../components/PatientRowCounts.js";
+import { SearchRequestPreview } from "../../../components/SearchRequestPreview.js";
 
 const formatName = (p: Patient): string => {
   const n = p.name?.[0];

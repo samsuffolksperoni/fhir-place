@@ -9,10 +9,10 @@ import {
 import type { Reference, Resource } from "fhir/r4";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { CompartmentSection } from "../components/CompartmentSection.js";
-import { PatientCompartmentLinks } from "../components/PatientCompartmentLinks.js";
-import { PATIENT_COMPARTMENT } from "../compartment.js";
-import { patientFieldOptions } from "../patientFields.js";
+import { CompartmentSection } from "../../../components/CompartmentSection.js";
+import { PatientCompartmentLinks } from "../../../components/PatientCompartmentLinks.js";
+import { PATIENT_COMPARTMENT } from "../../../compartment.js";
+import { patientFieldOptions } from "../../../patientFields.js";
 
 const PATIENT_FIELDS_KEY = "fhir-place-demo-patient-detail-fields";
 

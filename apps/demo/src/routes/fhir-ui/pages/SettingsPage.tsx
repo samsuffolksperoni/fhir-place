@@ -10,8 +10,8 @@ import {
   saveActiveServerId,
   saveAnthropicApiKey,
   saveServers,
-} from "../config.js";
-import { probeFhirServer } from "../serverProbe.js";
+} from "../../../config.js";
+import { probeFhirServer } from "../../../serverProbe.js";
 
 type TestState =
   | { status: "idle" }

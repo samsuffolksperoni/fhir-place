@@ -14,3 +14,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+  cql-translator:
+    build:
+      context: ./services/cql-translator
+    container_name: fhir-place-cql-translator
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: "8081"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
