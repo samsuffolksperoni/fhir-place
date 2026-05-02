@@ -1,8 +1,10 @@
 import type { CodeableConcept } from "fhir/r4";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   codeSystemLabel,
   DEFAULT_CODING_PRIORITY,
+  defaultTypeRenderers,
   preferredCoding,
 } from "./renderers.js";
 
@@ -100,6 +102,40 @@ describe("preferredCoding", () => {
     expect(preferredCoding(undefined, "Any.path")).toBeUndefined();
     expect(preferredCoding({ text: "only text" }, "Any.path")).toBeUndefined();
     expect(preferredCoding({ coding: [] }, "Any.path")).toBeUndefined();
+  });
+});
+
+describe("CodeableConcept renderer", () => {
+  const renderer = defaultTypeRenderers.CodeableConcept!;
+  const ctx = { path: "Observation.code", typeCode: "CodeableConcept" };
+
+  it("renders the text alongside the preferred coding's code", () => {
+    const cc: CodeableConcept = {
+      text: "Diastolic blood pressure",
+      coding: [
+        { system: "http://loinc.org", code: "8462-4", display: "Diastolic blood pressure" },
+      ],
+    };
+    const { container } = render(<>{renderer(cc, ctx)}</>);
+    expect(container.textContent).toContain("Diastolic blood pressure");
+    expect(container.textContent).toContain("8462-4");
+    expect(container.textContent).toContain("LOINC");
+  });
+
+  it("falls back to plain text when no coding is present", () => {
+    const cc: CodeableConcept = { text: "free text only" };
+    const { container } = render(<>{renderer(cc, ctx)}</>);
+    expect(container.textContent).toBe("free text only");
+    expect(container.querySelector("code")).toBeNull();
+  });
+
+  it("renders just the coding when text is missing", () => {
+    const cc: CodeableConcept = {
+      coding: [{ system: "http://loinc.org", code: "8462-4", display: "Diastolic blood pressure" }],
+    };
+    const { container } = render(<>{renderer(cc, ctx)}</>);
+    expect(container.textContent).toContain("Diastolic blood pressure");
+    expect(container.textContent).toContain("8462-4");
   });
 });
 

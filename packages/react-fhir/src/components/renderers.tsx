@@ -256,6 +256,22 @@ const CodeableConceptRenderer: FhirTypeRenderer = (value, ctx) => {
       ?.map((c) => [codeSystemLabel(c.system), c.code].filter(Boolean).join(" "))
       .filter(Boolean)
       .join(", ");
+    const chosen = preferredCoding(cc, ctx.path);
+    if (chosen?.code) {
+      const sys = codeSystemLabel(chosen.system);
+      return (
+        <span title={codingSummary}>
+          {cc.text}
+          <code
+            className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs"
+            title={chosen.system ? `${chosen.system}#${chosen.code}` : chosen.code}
+          >
+            {sys ? `${sys} ` : ""}
+            {chosen.code}
+          </code>
+        </span>
+      );
+    }
     return <span title={codingSummary}>{cc.text}</span>;
   }
   const chosen = preferredCoding(cc, ctx.path);
