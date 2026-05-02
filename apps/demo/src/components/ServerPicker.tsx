@@ -44,7 +44,7 @@ export function ServerPicker() {
         ))}
       </select>
       <Link
-        to="/settings"
+        to="/fhir-ui/settings"
         className="text-slate-600 underline hover:text-slate-900"
         data-testid="settings-link"
       >

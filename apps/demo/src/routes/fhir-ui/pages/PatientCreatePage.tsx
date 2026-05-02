@@ -12,7 +12,7 @@ export function PatientCreatePage() {
   return (
     <div className="space-y-4">
       <nav className="text-sm text-slate-500">
-        <Link to="/Patient" className="underline">
+        <Link to="/fhir-ui/Patient" className="underline">
           ← All patients
         </Link>
       </nav>
@@ -20,10 +20,10 @@ export function PatientCreatePage() {
         resource={{ resourceType: "Patient" }}
         saveLabel="Create patient"
         saving={create.isPending}
-        onCancel={() => navigate("/Patient")}
+        onCancel={() => navigate("/fhir-ui/Patient")}
         onSave={async (draft) => {
           const created = await create.mutateAsync(draft as Patient);
-          navigate(`/Patient/${created.id}`);
+          navigate(`/fhir-ui/Patient/${created.id}`);
         }}
         className="space-y-4 rounded border border-slate-200 bg-white p-4 shadow-sm"
       />

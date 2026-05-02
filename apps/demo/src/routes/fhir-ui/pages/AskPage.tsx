@@ -1,14 +1,14 @@
 import type { Bundle, Resource } from "fhir/r4";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { naturalLanguageToFhirQuery } from "../ask/anthropicQuery.js";
-import { buildSearchUrl, sameOrigin, type FhirQueryPlan } from "../ask/url.js";
+import { naturalLanguageToFhirQuery } from "../../../ask/anthropicQuery.js";
+import { buildSearchUrl, sameOrigin, type FhirQueryPlan } from "../../../ask/url.js";
 import {
   ACTIVE_SERVER_CONFIG,
   FHIR_BASE_URL,
   buildRequestHeaders,
   loadAnthropicApiKey,
-} from "../config.js";
+} from "../../../config.js";
 
 const EXAMPLES = [
   "patients with diabetes over 65",
@@ -120,7 +120,7 @@ export function AskPage() {
         {!hasKey && (
           <p className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
             No Anthropic API key set —{" "}
-            <Link to="/settings" className="underline">
+            <Link to="/fhir-ui/settings" className="underline">
               add one in Settings
             </Link>{" "}
             to enable query generation.
