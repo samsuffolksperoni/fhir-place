@@ -341,6 +341,7 @@ export function ResourceListPage() {
             cellRenderers={
               resourceType === "Patient"
                 ? {
+                    name: (r) => <span>{config!.formatPrimary!(r)}</span>,
                     __counts: (patient) =>
                       patient.id ? (
                         <PatientRowCounts patientId={patient.id} />
