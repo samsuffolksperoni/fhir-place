@@ -188,6 +188,41 @@ export const resolveActiveServer = (): ServerConfig => {
   return servers[0] ?? { ...FALLBACK_SERVER };
 };
 
+const normalizeBaseUrl = (url: string): string =>
+  url.trim().replace(/\/+$/, "").toLowerCase();
+
+const deriveLabelFromUrl = (url: string): string => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+};
+
+/**
+ * When `VITE_FHIR_BASE_URL` pins the base URL, prefer the matching built-in's
+ * label/id so the header reads "HAPI Public Test Server" instead of a generic
+ * "Env override". Falls back to the URL host so deployments pointing at custom
+ * servers still get a meaningful name.
+ */
+export const resolveEnvOverrideServer = (
+  envBaseUrl: string,
+  builtins: ReadonlyArray<ServerConfig> = BUILTIN_SERVERS,
+): ServerConfig => {
+  const normalized = normalizeBaseUrl(envBaseUrl);
+  const match = builtins.find((s) => normalizeBaseUrl(s.baseUrl) === normalized);
+  if (match) {
+    return { ...match, baseUrl: envBaseUrl };
+  }
+  return {
+    id: "env-override",
+    label: deriveLabelFromUrl(envBaseUrl),
+    baseUrl: envBaseUrl,
+    authMode: "none",
+    builtin: true,
+  };
+};
+
 const ACTIVE_SERVER: ServerConfig = (() => {
   if (USE_MOCK) {
     return {
@@ -199,13 +234,7 @@ const ACTIVE_SERVER: ServerConfig = (() => {
     };
   }
   if (import.meta.env.VITE_FHIR_BASE_URL) {
-    return {
-      id: "env-override",
-      label: "Env override",
-      baseUrl: import.meta.env.VITE_FHIR_BASE_URL,
-      authMode: "none",
-      builtin: true,
-    };
+    return resolveEnvOverrideServer(import.meta.env.VITE_FHIR_BASE_URL);
   }
   return resolveActiveServer();
 })();
