@@ -32,15 +32,13 @@ export function App() {
               <Link to="/fhir-ui/ask" className="text-slate-600 underline">
                 Ask
               </Link>
-              {SETTINGS_ENABLED && (
-                <Link
-                  to="/fhir-ui/settings"
-                  className="text-slate-600 underline"
-                  data-testid="nav-settings-link"
-                >
-                  Settings
-                </Link>
-              )}
+              <Link
+                to="/fhir-ui/settings"
+                className="text-slate-600 underline"
+                data-testid="nav-settings-link"
+              >
+                Settings
+              </Link>
             </nav>
           </div>
           {SETTINGS_ENABLED ? (
