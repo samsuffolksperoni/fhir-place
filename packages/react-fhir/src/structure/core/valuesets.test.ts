@@ -5,6 +5,7 @@ import { AllergyIntoleranceStructureDefinition } from "./AllergyIntolerance.js";
 import { EncounterStructureDefinition } from "./Encounter.js";
 import { ImmunizationStructureDefinition } from "./Immunization.js";
 import { MedicationRequestStructureDefinition } from "./MedicationRequest.js";
+import { PatientStructureDefinition } from "./Patient.js";
 import { ProcedureStructureDefinition } from "./Procedure.js";
 import { bundledValueSetUrls, coreValueSet, coreValueSets } from "./valuesets.js";
 
@@ -100,6 +101,15 @@ describe("bundled core ValueSets", () => {
         sd: ImmunizationStructureDefinition,
         cases: [
           { path: "Immunization.status", expectedVs: "http://hl7.org/fhir/ValueSet/immunization-status", expectedCode: "completed" },
+        ],
+      },
+      {
+        sd: PatientStructureDefinition,
+        cases: [
+          { path: "Patient.gender", expectedVs: "http://hl7.org/fhir/ValueSet/administrative-gender", expectedCode: "female" },
+          { path: "Patient.maritalStatus", expectedVs: "http://hl7.org/fhir/ValueSet/marital-status", expectedCode: "M" },
+          { path: "Patient.contact.relationship", expectedVs: "http://hl7.org/fhir/ValueSet/patient-contactrelationship", expectedCode: "N" },
+          { path: "Patient.contact.gender", expectedVs: "http://hl7.org/fhir/ValueSet/administrative-gender", expectedCode: "male" },
         ],
       },
     ];

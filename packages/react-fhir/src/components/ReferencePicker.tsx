@@ -1,6 +1,8 @@
 import type { Reference, Resource } from "fhir/r4";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { SearchParams } from "../client/types.js";
 import { useSearch } from "../hooks/queries.js";
+import { formatReferenceLabel } from "../structure/format.js";
 
 export interface ReferencePickerProps {
   /** Allowed target resource types (from element.type[].targetProfile). */
@@ -16,33 +18,13 @@ export interface ReferencePickerProps {
   className?: string;
 }
 
-/**
- * Produces a human-readable label for a resource. Covers the common cases
- * encountered when picking references in clinical apps; any resource type not
- * specifically handled falls back to `{ResourceType}/{id}`.
- */
-export function referenceLabel(resource: Resource): string {
-  const r = resource as unknown as Record<string, unknown>;
-  // HumanName-bearing resources
-  const names = r.name as Array<Record<string, unknown>> | string | undefined;
-  if (Array.isArray(names) && names[0]) {
-    const first = names[0];
-    if (typeof first.text === "string") return first.text;
-    const given = Array.isArray(first.given) ? (first.given as string[]).join(" ") : "";
-    const family = typeof first.family === "string" ? first.family : "";
-    const combined = [given, family].filter(Boolean).join(" ").trim();
-    if (combined) return combined;
-  }
-  // Organization / Location / Device / others with a single string `name`
-  if (typeof names === "string") return names;
-  // CodeableConcept-based, e.g. Observation.code
-  const code = r.code as { text?: string; coding?: Array<{ display?: string }> } | undefined;
-  if (code?.text) return code.text;
-  if (code?.coding?.[0]?.display) return code.coding[0].display!;
-  // Practitioner + Patient fallback if name was oddly absent
-  if (typeof r.title === "string") return r.title;
-  return `${resource.resourceType}/${resource.id ?? ""}`.replace(/\/$/, "");
-}
+/** Resource types that support the `birthdate` search parameter in FHIR R4. */
+const birthdateTypes = new Set([
+  "Patient",
+  "Practitioner",
+  "RelatedPerson",
+  "Person",
+]);
 
 /**
  * Debounced search-and-pick picker for FHIR References. Pairs with the
@@ -56,6 +38,7 @@ export function ReferencePicker(props: ReferencePickerProps) {
   );
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [birthdate, setBirthdate] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -64,13 +47,22 @@ export function ReferencePicker(props: ReferencePickerProps) {
   }, [query, debounceMs]);
 
   const searchField = props.searchParam ?? defaultSearchParamFor(selectedType);
+  const supportsBirthdate = birthdateTypes.has(selectedType);
+  const activeBirthdate = supportsBirthdate ? birthdate : "";
+  const hasFilter = Boolean(debouncedQuery) || Boolean(activeBirthdate);
+
+  const searchParams = useMemo<SearchParams | undefined>(() => {
+    if (!hasFilter) return undefined;
+    const p: SearchParams = { _count: limit };
+    if (debouncedQuery) p[searchField] = debouncedQuery;
+    if (activeBirthdate) p.birthdate = activeBirthdate;
+    return p;
+  }, [hasFilter, debouncedQuery, searchField, activeBirthdate, limit]);
 
   const { data, isFetching } = useSearch<Resource>(
     selectedType,
-    debouncedQuery
-      ? { [searchField]: debouncedQuery, _count: limit }
-      : undefined,
-    { enabled: Boolean(debouncedQuery) },
+    searchParams,
+    { enabled: hasFilter },
   );
 
   const results = useMemo(
@@ -82,10 +74,11 @@ export function ReferencePicker(props: ReferencePickerProps) {
   const pick = (resource: Resource) => {
     onChange({
       reference: `${resource.resourceType}/${resource.id ?? ""}`,
-      display: referenceLabel(resource),
+      display: formatReferenceLabel(resource),
     });
     setIsOpen(false);
     setQuery("");
+    setBirthdate("");
   };
 
   return (
@@ -111,7 +104,7 @@ export function ReferencePicker(props: ReferencePickerProps) {
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {targets.length > 1 && (
             <select
               aria-label="target type"
@@ -136,12 +129,26 @@ export function ReferencePicker(props: ReferencePickerProps) {
               setIsOpen(true);
             }}
             onFocus={() => setIsOpen(true)}
-            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+            className="min-w-[12rem] flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
           />
+          {supportsBirthdate && (
+            <input
+              type="date"
+              aria-label="Birth date"
+              title="Filter by date of birth (optional)"
+              value={birthdate}
+              onChange={(e) => {
+                setBirthdate(e.target.value);
+                setIsOpen(true);
+              }}
+              onFocus={() => setIsOpen(true)}
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+            />
+          )}
         </div>
       )}
 
-      {!value?.reference && isOpen && debouncedQuery && (
+      {!value?.reference && isOpen && hasFilter && (
         <ul
           role="listbox"
           className="absolute left-2 right-2 z-10 max-h-64 overflow-auto rounded border border-slate-200 bg-white shadow-lg"
@@ -161,7 +168,7 @@ export function ReferencePicker(props: ReferencePickerProps) {
                 onClick={() => pick(r)}
                 className="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
               >
-                <span className="truncate">{referenceLabel(r)}</span>
+                <span className="truncate">{formatReferenceLabel(r)}</span>
                 <code className="shrink-0 text-xs text-slate-500">{r.id}</code>
               </button>
             </li>

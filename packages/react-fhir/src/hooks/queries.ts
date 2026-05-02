@@ -28,14 +28,20 @@ export const fhirQueryKeys = {
     [...fhirQueryKeys.all(baseUrl), type, id] as const,
   search: (baseUrl: string, type: string, params?: SearchParams) =>
     [...fhirQueryKeys.all(baseUrl), type, "search", params ?? {}] as const,
-  structure: (baseUrl: string, type: string) =>
-    [...fhirQueryKeys.all(baseUrl), "StructureDefinition", type] as const,
+  structure: (baseUrl: string, type: string, profile?: string | null) =>
+    [...fhirQueryKeys.all(baseUrl), "StructureDefinition", type, profile ?? ""] as const,
   valueSet: (baseUrl: string, canonical: string) =>
     [...fhirQueryKeys.all(baseUrl), "ValueSet", canonical] as const,
+  valueSetExpansion: (baseUrl: string, canonical: string, filter: string, count: number) =>
+    [...fhirQueryKeys.all(baseUrl), "ValueSet", canonical, "expand", filter, count] as const,
   reference: (baseUrl: string, ref: string) =>
     [...fhirQueryKeys.all(baseUrl), "ref", ref] as const,
   searchParameter: (baseUrl: string, base: string, code: string) =>
     [...fhirQueryKeys.all(baseUrl), "SearchParameter", base, code] as const,
+  batch: (baseUrl: string, type: string, sortedIds: readonly string[]) =>
+    [...fhirQueryKeys.all(baseUrl), type, "batch", sortedIds] as const,
+  refs: (baseUrl: string, sortedKeys: readonly string[]) =>
+    [...fhirQueryKeys.all(baseUrl), "refs", sortedKeys] as const,
 };
 
 type ReadQueryOpts<T> = Omit<
@@ -110,14 +116,39 @@ export function useInfiniteSearch<T extends Resource = Resource>(
   });
 }
 
+export type StructureDefinitionInput = string | { type: string; profile?: string | null };
+
+const FHIR_CORE_SD_BASE = "http://hl7.org/fhir/StructureDefinition/";
+
+function parseStructureDefinitionInput(
+  input: StructureDefinitionInput,
+): { type: string; profile: string | null | undefined } {
+  if (typeof input !== "string") {
+    return { type: input.type || "Resource", profile: input.profile };
+  }
+  if (!input.includes("://")) {
+    return { type: input, profile: undefined };
+  }
+  // Canonical URL. If it points at a core R4 StructureDefinition, treat it as
+  // a base type so the resolver's bundled-core fallback stays reachable.
+  if (input.startsWith(FHIR_CORE_SD_BASE)) {
+    const tail = input.slice(FHIR_CORE_SD_BASE.length);
+    if (tail && !tail.includes("/")) {
+      return { type: tail, profile: undefined };
+    }
+  }
+  return { type: "Resource", profile: input };
+}
+
 export function useStructureDefinition(
-  type: string,
+  input: StructureDefinitionInput,
   options?: ReadQueryOpts<StructureDefinition>,
 ) {
   const client = useFhirClient();
+  const { type, profile } = parseStructureDefinitionInput(input);
   return useQuery({
-    queryKey: fhirQueryKeys.structure(client.baseUrl, type),
-    queryFn: ({ signal }) => resolveStructureDefinition(client, type, { signal }),
+    queryKey: fhirQueryKeys.structure(client.baseUrl, type, profile),
+    queryFn: ({ signal }) => resolveStructureDefinition(client, type, { signal, profile }),
     staleTime: 60 * 60_000,
     ...options,
   });
@@ -177,6 +208,55 @@ export function useValueSet(
   });
 }
 
+export interface UseValueSetExpansionOptions extends ReadQueryOpts<ValueSet> {
+  /** Max concepts to ask the server for. Defaults to 20 (combobox-sized). */
+  count?: number;
+  /** When false, the query won't fire even if filter is non-empty. */
+  enabled?: boolean;
+}
+
+/**
+ * Server-side filtered ValueSet expansion. Wraps `ValueSet/$expand?url=...&filter=...`,
+ * intended for "type-ahead against SNOMED/LOINC/ICD" style comboboxes where the
+ * full ValueSet is too large to enumerate locally.
+ *
+ * Disabled when `filter` is empty/whitespace — pair with debouncing in the UI to
+ * avoid hammering the terminology server on every keystroke.
+ *
+ * Cached by `(canonical, filter, count)` so repeated keystrokes that resolve to
+ * the same query share results across the app.
+ */
+export function useValueSetExpansion(
+  canonical: string | undefined,
+  filter: string,
+  options?: UseValueSetExpansionOptions,
+) {
+  const client = useFhirClient();
+  const trimmed = filter.trim();
+  const count = options?.count ?? 20;
+  const enabled = (options?.enabled ?? true) && Boolean(canonical) && trimmed.length > 0;
+  return useQuery({
+    queryKey: fhirQueryKeys.valueSetExpansion(client.baseUrl, canonical ?? "", trimmed, count),
+    queryFn: ({ signal }) => {
+      const url = canonical!;
+      const qs = new URLSearchParams({
+        url,
+        filter: trimmed,
+        count: String(count),
+      });
+      return client.request<ValueSet>({
+        path: `/ValueSet/$expand?${qs.toString()}`,
+        signal,
+      });
+    },
+    enabled,
+    // Filter results are short-lived — server may cap counts and we want fresh
+    // matches as the user keeps typing past previously-seen prefixes.
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
 /**
  * Resolves the canonical `SearchParameter` resource for a `(base, code)` pair.
  *
@@ -228,6 +308,141 @@ export function useReadReference<T extends Resource = Resource>(
     queryKey: fhirQueryKeys.reference(client.baseUrl, refKey),
     queryFn: ({ signal }) => client.readReference<T>(reference!, { signal }),
     enabled: Boolean(reference?.reference),
+    ...options,
+  });
+}
+
+/**
+ * Batch read N resources of the same type by id in a single FHIR search call
+ * (`{type}?_id=a,b,c`). Returns the resolved resources as a flat array; empty
+ * or undefined `ids` short-circuits with no network request.
+ *
+ * Order-independent caching: re-rendering with the same ids in a different
+ * order does not re-fetch (ids are sorted + deduped before forming the
+ * query key).
+ *
+ * Cache hydration: each returned resource is also written to its individual
+ * read cache key, so a later `useResource(type, id)` for the same id resolves
+ * from cache without an extra round-trip.
+ *
+ * Servers may return only a subset (e.g. one id was deleted). The hook does
+ * not synthesise missing entries — the result reflects what the server
+ * actually returned.
+ */
+export function useResources<T extends Resource = Resource>(
+  type: string,
+  ids: string[] | undefined,
+  options?: ReadQueryOpts<T[]>,
+) {
+  const client = useFhirClient();
+  const qc = useQueryClient();
+  const sortedIds = [...new Set(ids ?? [])].sort();
+  return useQuery<T[], Error, T[], readonly unknown[]>({
+    queryKey: fhirQueryKeys.batch(client.baseUrl, type, sortedIds),
+    queryFn: async ({ signal }): Promise<T[]> => {
+      const bundle = await client.search<T>(
+        type,
+        { _id: sortedIds.join(",") },
+        { signal },
+      );
+      const resources =
+        bundle.entry?.flatMap((e) => (e.resource ? [e.resource] : [])) ?? [];
+      for (const r of resources) {
+        if (r.id) {
+          qc.setQueryData(
+            fhirQueryKeys.resource(client.baseUrl, type, r.id),
+            r,
+          );
+        }
+      }
+      return resources;
+    },
+    enabled: sortedIds.length > 0,
+    ...options,
+  });
+}
+
+/**
+ * Group references by target resource type, returning `{ [Type]: [id, ...] }`
+ * with each group deduped + sorted. Skips references that can't be batched
+ * via `_id=a,b,c` search:
+ *   - no `.reference` (only `.identifier`)
+ *   - contained refs (`#frag`)
+ *   - urn-style refs (`urn:uuid:...`)
+ *   - absolute URLs (different server)
+ *   - versioned refs (`/_history/`) — `_id` returns the current version
+ */
+export function parseBatchableRefs(
+  refs: Reference[] | undefined,
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  if (!refs) return result;
+  for (const ref of refs) {
+    const r = ref.reference;
+    if (!r) continue;
+    if (r.startsWith("#") || r.startsWith("urn:")) continue;
+    if (/^https?:\/\//i.test(r)) continue;
+    if (r.includes("/_history/")) continue;
+    const [type, id] = r.split("/");
+    if (!type || !id) continue;
+    (result[type] ??= []).push(id);
+  }
+  for (const t of Object.keys(result)) {
+    result[t] = [...new Set(result[t]!)].sort();
+  }
+  return result;
+}
+
+/**
+ * Batch resolve a heterogeneous list of `Reference`s. Groups by target
+ * resource type, fires one `_id=a,b,c` search per group in parallel, and
+ * returns a `Map` keyed by `Type/id` ("Patient/123", "Goal/abc").
+ *
+ * Cache hydration mirrors {@link useResources} — each resolved resource lands
+ * in `fhirQueryKeys.resource(...)` — and additionally populates the per-ref
+ * cache, so later `useReadReference(...)` calls for the same refs hit cache.
+ *
+ * References that can't be batched ({@link parseBatchableRefs} skip rules)
+ * are silently dropped from the result Map. Callers that need them should
+ * fall back to {@link useReadReference} per reference.
+ */
+export function useReadReferences<T extends Resource = Resource>(
+  refs: Reference[] | undefined,
+  options?: ReadQueryOpts<Map<string, T>>,
+) {
+  const client = useFhirClient();
+  const qc = useQueryClient();
+  const grouped = parseBatchableRefs(refs);
+  const sortedKeys = Object.keys(grouped)
+    .sort()
+    .flatMap((t) => grouped[t]!.map((id) => `${t}/${id}`));
+  return useQuery<Map<string, T>, Error, Map<string, T>, readonly unknown[]>({
+    queryKey: fhirQueryKeys.refs(client.baseUrl, sortedKeys),
+    queryFn: async ({ signal }): Promise<Map<string, T>> => {
+      const result = new Map<string, T>();
+      const groups = Object.entries(grouped);
+      const bundles = await Promise.all(
+        groups.map(([type, ids]) =>
+          client.search<T>(type, { _id: ids.join(",") }, { signal }),
+        ),
+      );
+      bundles.forEach((bundle, i) => {
+        const [type] = groups[i]!;
+        for (const e of bundle.entry ?? []) {
+          const r = e.resource;
+          if (!r?.id) continue;
+          const key = `${type}/${r.id}`;
+          result.set(key, r);
+          qc.setQueryData(
+            fhirQueryKeys.resource(client.baseUrl, type, r.id),
+            r,
+          );
+          qc.setQueryData(fhirQueryKeys.reference(client.baseUrl, key), r);
+        }
+      });
+      return result;
+    },
+    enabled: sortedKeys.length > 0,
     ...options,
   });
 }

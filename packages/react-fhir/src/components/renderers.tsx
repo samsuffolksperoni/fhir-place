@@ -16,6 +16,11 @@ import type {
   Reference,
 } from "fhir/r4";
 import type { ReactNode } from "react";
+import { Fragment, useState } from "react";
+import {
+  formatAddress,
+  formatHumanName,
+} from "../structure/format.js";
 
 /** Context passed to every renderer. */
 export interface RendererContext {
@@ -70,17 +75,6 @@ const Uri_: FhirTypeRenderer = (value) => {
 
 /* ---------- complex datatypes ---------- */
 
-const formatHumanName = (n: HumanName): string => {
-  if (n.text) return n.text;
-  const parts = [
-    n.prefix?.join(" "),
-    n.given?.join(" "),
-    n.family,
-    n.suffix?.join(" "),
-  ].filter(Boolean);
-  return parts.join(" ").trim();
-};
-
 const HumanNameRenderer: FhirTypeRenderer = (value) => {
   const n = value as HumanName;
   const formatted = formatHumanName(n);
@@ -91,19 +85,6 @@ const HumanNameRenderer: FhirTypeRenderer = (value) => {
       {useLabel && <span className="text-slate-400">{useLabel}</span>}
     </span>
   );
-};
-
-const formatAddress = (a: Address): string => {
-  if (a.text) return a.text;
-  return [
-    a.line?.join(", "),
-    a.city,
-    a.state,
-    a.postalCode,
-    a.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
 };
 
 const AddressRenderer: FhirTypeRenderer = (value) => {
@@ -241,45 +222,91 @@ export function preferredCoding(
   return cc.coding[0];
 }
 
-const CodingRenderer: FhirTypeRenderer = (value) => {
-  const c = value as Coding;
-  const sys = codeSystemLabel(c.system);
-  if (c.display) {
-    return (
-      <span>
-        {c.display}
-        <code
-          className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs"
-          title={c.system ? `${c.system}#${c.code}` : c.code}
-        >
-          {sys ? `${sys} ` : ""}
-          {c.code}
-        </code>
-      </span>
-    );
-  }
+function CodeChip({ coding }: { coding: Coding }) {
+  const sys = codeSystemLabel(coding.system);
   return (
     <code
       className="rounded bg-slate-100 px-1 py-0.5 text-xs"
-      title={c.system ? `${c.system}#${c.code}` : c.code}
+      title={coding.system ? `${coding.system}#${coding.code}` : coding.code}
     >
       {sys ? `${sys} ` : ""}
-      {c.code}
+      {coding.code}
     </code>
   );
+}
+
+function ExtraCodings({ codings }: { codings: readonly Coding[] }) {
+  const [open, setOpen] = useState(false);
+  if (codings.length === 0) return null;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="ml-1 text-xs text-slate-500 underline"
+        aria-expanded={open}
+        aria-label={
+          open ? "Hide other codings" : `Show ${codings.length} other coding${codings.length === 1 ? "" : "s"}`
+        }
+      >
+        {open ? "hide" : `+${codings.length} more`}
+      </button>
+      {open && (
+        <span className="ml-1 inline-flex flex-wrap gap-1">
+          {codings.map((c, i) => (
+            <CodeChip key={`${c.system ?? ""}#${c.code ?? ""}#${i}`} coding={c} />
+          ))}
+        </span>
+      )}
+    </>
+  );
+}
+
+const CodingRenderer: FhirTypeRenderer = (value) => {
+  const c = value as Coding;
+  if (c.display) {
+    return (
+      <span>
+        {c.display} <CodeChip coding={c} />
+      </span>
+    );
+  }
+  return <CodeChip coding={c} />;
 };
 
 const CodeableConceptRenderer: FhirTypeRenderer = (value, ctx) => {
   const cc = value as CodeableConcept;
+  const all = cc.coding ?? [];
+  const chosen = preferredCoding(cc, ctx.path);
+  const extras = chosen ? all.filter((c) => c !== chosen) : all.slice();
+
   if (cc.text) {
-    const codingSummary = cc.coding
-      ?.map((c) => [codeSystemLabel(c.system), c.code].filter(Boolean).join(" "))
+    const codingSummary = all
+      .map((c) => [codeSystemLabel(c.system), c.code].filter(Boolean).join(" "))
       .filter(Boolean)
       .join(", ");
-    return <span title={codingSummary}>{cc.text}</span>;
+    return (
+      <span title={codingSummary}>
+        {cc.text}
+        {chosen?.code && (
+          <>
+            {" "}
+            <CodeChip coding={chosen} />
+          </>
+        )}
+        <ExtraCodings codings={extras} />
+      </span>
+    );
   }
-  const chosen = preferredCoding(cc, ctx.path);
-  if (chosen) return CodingRenderer(chosen, ctx);
+  if (chosen) {
+    return (
+      <span>
+        {chosen.display ? <>{chosen.display} </> : null}
+        <CodeChip coding={chosen} />
+        <ExtraCodings codings={extras} />
+      </span>
+    );
+  }
   return <span className="text-slate-400">—</span>;
 };
 
@@ -380,14 +407,84 @@ const AttachmentRenderer: FhirTypeRenderer = (value) => {
   return <span>{label}</span>;
 };
 
-const MetaRenderer: FhirTypeRenderer = (value) => {
+const MetaRenderer: FhirTypeRenderer = (value, ctx) => {
   const m = value as Meta;
-  const parts = [
+  const summaryParts = [
     m.versionId && `v${m.versionId}`,
     m.lastUpdated,
     m.source,
   ].filter(Boolean);
-  return <span className="text-slate-600">{parts.join(" · ")}</span>;
+  const fields: { label: string; node: ReactNode }[] = [];
+  if (m.versionId) {
+    fields.push({ label: "Version Id", node: <span>{m.versionId}</span> });
+  }
+  if (m.lastUpdated) {
+    fields.push({
+      label: "Last Updated",
+      node: <time dateTime={m.lastUpdated}>{m.lastUpdated}</time>,
+    });
+  }
+  if (m.source) {
+    fields.push({ label: "Source", node: <span className="break-all">{m.source}</span> });
+  }
+  if (m.profile?.length) {
+    fields.push({
+      label: "Profile",
+      node: (
+        <ul className="space-y-1">
+          {m.profile.map((p, i) => (
+            <li key={`${p}-${i}`} className="break-all">
+              {Uri_(p, ctx)}
+            </li>
+          ))}
+        </ul>
+      ),
+    });
+  }
+  if (m.security?.length) {
+    fields.push({
+      label: "Security",
+      node: (
+        <ul className="space-y-1">
+          {m.security.map((c, i) => (
+            <li key={`${c.system ?? ""}#${c.code ?? ""}#${i}`}>{CodingRenderer(c, ctx)}</li>
+          ))}
+        </ul>
+      ),
+    });
+  }
+  if (m.tag?.length) {
+    fields.push({
+      label: "Tag",
+      node: (
+        <ul className="space-y-1">
+          {m.tag.map((c, i) => (
+            <li key={`${c.system ?? ""}#${c.code ?? ""}#${i}`}>{CodingRenderer(c, ctx)}</li>
+          ))}
+        </ul>
+      ),
+    });
+  }
+
+  if (fields.length === 0) {
+    return <span className="text-slate-400">—</span>;
+  }
+
+  return (
+    <details className="group">
+      <summary className="cursor-pointer text-slate-600 marker:text-slate-400">
+        {summaryParts.join(" · ")}
+      </summary>
+      <dl className="mt-2 grid grid-cols-1 gap-x-3 gap-y-1 border-l-2 border-slate-200 pl-3 sm:grid-cols-[minmax(6rem,1fr)_3fr]">
+        {fields.map((f) => (
+          <Fragment key={f.label}>
+            <dt className="text-xs font-medium text-slate-500">{f.label}</dt>
+            <dd className="text-sm">{f.node}</dd>
+          </Fragment>
+        ))}
+      </dl>
+    </details>
+  );
 };
 
 const AnnotationRenderer: FhirTypeRenderer = (value) => {

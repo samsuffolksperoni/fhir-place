@@ -29,7 +29,11 @@ test.describe("Patient compartment links + index pages", () => {
     await expect(page).toHaveURL(/\/Condition\?patient=ada$/);
     await expect(page.getByRole("heading", { name: "Condition" })).toBeVisible();
     await expect(page.getByText(/scoped to/i)).toBeVisible();
-    await expect(page.getByText("Essential hypertension")).toBeVisible();
+    // ResourceTable renders both desktop and mobile layouts in the DOM
+    // at the same time, so scope to the desktop table to avoid
+    // strict-mode duplicate matches.
+    const desktopTable = page.getByTestId("resource-table-table");
+    await expect(desktopTable.getByText("Essential hypertension")).toBeVisible();
 
     await page.screenshot({
       path: "../../screenshots/14-condition-index.png",
@@ -37,10 +41,13 @@ test.describe("Patient compartment links + index pages", () => {
     });
 
     // Row click → detail page for that condition.
-    await page.getByText("Essential hypertension").click();
+    await desktopTable.getByText("Essential hypertension").click();
     await expect(page).toHaveURL(/\/Condition\/cond-htn-ada$/);
-    await expect(page.getByTestId("resource-view")).toBeVisible();
-    await expect(page.getByText(/essential hypertension/i)).toBeVisible();
+    const view = page.getByTestId("resource-view");
+    await expect(view).toBeVisible();
+    // Scope to the rendered view; the JSON `<details>` block also
+    // contains "essential hypertension" verbatim.
+    await expect(view.getByText(/essential hypertension/i)).toBeVisible();
 
     // Edit button goes to the generic edit page, which already supports Condition.
     await page.getByTestId("edit-resource").click();
@@ -56,13 +63,14 @@ test.describe("Patient compartment links + index pages", () => {
     await expect(page).toHaveURL(/\/Patient\/ada$/);
   });
 
-  test("unscoped index page (no ?patient=) shows the all-patients link", async ({
+  test("unscoped index page (no ?patient=) shows the sidebar and no compartment scope", async ({
     page,
   }) => {
     await page.goto("/Condition");
-    await expect(
-      page.getByRole("link", { name: /all patients/i }),
-    ).toBeVisible();
+    // The FHIR UI sidebar provides cross-resource navigation in place of
+    // the old per-page "Back to patients" affordance.
+    await expect(page.getByTestId("fhir-ui-sidebar")).toBeVisible();
+    await expect(page.getByTestId("sidebar-link-Patient")).toBeVisible();
     await expect(page.getByText(/scoped to/i)).not.toBeVisible();
   });
 });

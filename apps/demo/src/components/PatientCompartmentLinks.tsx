@@ -54,7 +54,7 @@ function CompartmentChip({
 
   return (
     <Link
-      to={`/${resourceType}?patient=${patientId}`}
+      to={`/fhir-ui/${resourceType}?patient=${patientId}`}
       data-testid={`compartment-chip-${resourceType}`}
       className="inline-flex items-baseline gap-2 rounded-full border border-slate-300 bg-white px-3 py-1 text-sm shadow-sm hover:border-slate-400 hover:bg-slate-50"
     >
