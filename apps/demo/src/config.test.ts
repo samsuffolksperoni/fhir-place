@@ -6,6 +6,7 @@ import {
   loadActiveServerId,
   loadServers,
   resolveActiveServer,
+  resolveEnvOverrideServer,
   saveActiveServerId,
   saveServers,
 } from "./config.js";
@@ -234,6 +235,40 @@ describe("resolveActiveServer", () => {
   it("falls back to the first server when active id matches nothing", () => {
     saveActiveServerId("never-existed");
     expect(resolveActiveServer().id).toBe(BUILTIN_SERVERS[0]!.id);
+  });
+});
+
+describe("resolveEnvOverrideServer", () => {
+  it("reuses the built-in label/id when the env URL matches a known server", () => {
+    const server = resolveEnvOverrideServer("https://hapi.fhir.org/baseR4");
+    expect(server.id).toBe("builtin-hapi");
+    expect(server.label).toBe("HAPI Public Test Server");
+    expect(server.baseUrl).toBe("https://hapi.fhir.org/baseR4");
+  });
+
+  it("matches built-ins regardless of trailing slash and case", () => {
+    const server = resolveEnvOverrideServer("HTTPS://Server.Fire.ly/");
+    expect(server.id).toBe("builtin-firely");
+    expect(server.label).toBe("Firely Server (R4)");
+  });
+
+  it("preserves the env-supplied URL verbatim even when it matches a built-in", () => {
+    const server = resolveEnvOverrideServer("https://hapi.fhir.org/baseR4/");
+    expect(server.id).toBe("builtin-hapi");
+    expect(server.baseUrl).toBe("https://hapi.fhir.org/baseR4/");
+  });
+
+  it("falls back to the URL host when no built-in matches", () => {
+    const server = resolveEnvOverrideServer("https://fhir.example.org/r4");
+    expect(server.id).toBe("env-override");
+    expect(server.label).toBe("fhir.example.org");
+    expect(server.baseUrl).toBe("https://fhir.example.org/r4");
+  });
+
+  it("falls back to the raw value when the URL is unparseable", () => {
+    const server = resolveEnvOverrideServer("not a url");
+    expect(server.id).toBe("env-override");
+    expect(server.label).toBe("not a url");
   });
 });
 
