@@ -201,6 +201,18 @@ describe("ReferencePicker", () => {
     expect(screen.queryByLabelText(/birth date/i)).not.toBeInTheDocument();
   });
 
+  it("labels the DOB input visibly so the empty box reads as an optional filter", () => {
+    render(
+      <ReferencePicker targets={["Patient"]} value={undefined} onChange={() => {}} />,
+      { wrapper: wrap() },
+    );
+    // The visible "DOB" prefix is what tells the user the otherwise-blank
+    // type=date input is a date-of-birth filter.
+    const dob = screen.getByLabelText(/birth date/i);
+    expect(dob).toBeInTheDocument();
+    expect(dob.closest("label")).toHaveTextContent(/^DOB/);
+  });
+
   it("searches by birthdate alone (no free-text query) for Patient", async () => {
     const seen: string[] = [];
     server.use(

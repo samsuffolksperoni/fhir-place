@@ -377,8 +377,13 @@ function ReferenceSearchField({ base, param, value, onChange }: SearchFieldProps
   }
 
   return fieldWrapper(
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {textInput}
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-400">
+        <span className="h-px flex-1 bg-slate-200" />
+        <span>or look up</span>
+        <span className="h-px flex-1 bg-slate-200" />
+      </div>
       <ReferencePicker
         targets={targets}
         // Always undefined so the picker stays in search mode; the raw text
