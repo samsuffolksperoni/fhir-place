@@ -1,13 +1,26 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CodeableConcept, ElementDefinition } from "fhir/r4";
 import { describe, expect, it, vi } from "vitest";
+import { FetchFhirClient } from "../../client/FetchFhirClient.js";
+import { FhirClientProvider } from "../../hooks/FhirClientProvider.js";
 import { DataAbsentReasonInput } from "./DataAbsentReason.js";
 
 const element: ElementDefinition = {
   path: "Observation.dataAbsentReason",
   type: [{ code: "CodeableConcept" }],
   short: "Why the result is missing",
+};
+
+const mkWrapper = () => {
+  const client = new FetchFhirClient({ baseUrl: "https://fhir.example.test/fhir" });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>
+      <FhirClientProvider client={client}>{children}</FhirClientProvider>
+    </QueryClientProvider>
+  );
 };
 
 const renderInput = (
@@ -20,6 +33,7 @@ const renderInput = (
       onChange={onChange}
       context={{ path: element.path!, typeCode: "CodeableConcept", element }}
     />,
+    { wrapper: mkWrapper() },
   );
 
 describe("DataAbsentReasonInput", () => {
