@@ -1,12 +1,26 @@
 import type { Coding } from "fhir/r4";
+import { useState } from "react";
 import { useValueSet } from "../../hooks/queries.js";
-import { bindingFor, codesFromValueSet } from "../../structure/binding.js";
+import {
+  bindingFor,
+  codesFromValueSet,
+  type ResolvedCode,
+} from "../../structure/binding.js";
+import { AsyncCodeCombobox } from "./AsyncCodeCombobox.js";
 import {
   baseField,
   subLabel,
   type FhirInputProps,
   type FhirTypeInput,
 } from "./types.js";
+
+/**
+ * Threshold above which we switch from a static `<select>` to an async
+ * combobox backed by `$expand?filter=`. Sizes much larger than this make a
+ * dropdown unusable; more importantly, large terminologies (SNOMED, LOINC,
+ * BCP-47 languages) are typically returned as partial expansions anyway.
+ */
+const STATIC_OPTION_LIMIT = 100;
 
 /**
  * Three-input free-form Coding editor (system/code/display). Used as the
@@ -49,15 +63,19 @@ const FreeFormCoding = ({
 };
 
 /**
- * Coding editor that follows the same binding-driven pattern as `CodeInput`:
+ * Coding editor that follows the same binding-driven pattern as `CodeInput`,
+ * with three rendering modes chosen from the resolved ValueSet:
  *
- *   1. If the element binds a ValueSet, fetch it via `useValueSet` and render
- *      a `<select>` of the contained concepts. Picking one writes a full
- *      `{ system, code, display }` triple.
- *   2. Required bindings lock to the enumeration; extensible/preferred also
- *      offer an "Other…" option that exposes the free-form 3-input editor for
- *      any pre-existing custom value (matching `CodeInput`'s UX).
- *   3. With no usable binding, falls back to the free-form 3-input editor.
+ *   1. **Static `<select>`** when the bound ValueSet enumerates fully and is
+ *      small enough (≤ {@link STATIC_OPTION_LIMIT} concepts). Required bindings
+ *      lock to the enumeration; extensible/preferred also offer an "Other…"
+ *      option that exposes the free-form 3-input editor.
+ *   2. **Async combobox** ({@link AsyncCodeCombobox}) when the ValueSet is too
+ *      big to enumerate locally (partial server expansion or > limit), or
+ *      when the bundled definition has no concrete codes — typical for SNOMED,
+ *      LOINC, ICD-10, and BCP-47 languages. Backed by `$expand?filter=...`.
+ *   3. **Free-form 3-input** when the element has no binding, or the binding
+ *      can't be resolved at all (server doesn't know it and we don't bundle it).
  */
 export const CodingInput: FhirTypeInput<Coding> = ({
   value,
@@ -66,25 +84,85 @@ export const CodingInput: FhirTypeInput<Coding> = ({
 }) => {
   const v = value ?? {};
   const { strength, valueSet } = bindingFor(context.element);
-  const { data: vs, isLoading } = useValueSet(valueSet);
+  const { data: vs, isLoading, isError } = useValueSet(valueSet);
   const boundCodes = codesFromValueSet(vs);
   const fieldName = context.element.path?.split(".").pop() ?? "coding";
+  const allowFreeText = strength !== "required";
+  // Hooks must be called in the same order on every render — keep useState
+  // above any early returns.
+  const [otherToggled, setOtherToggled] = useState(false);
 
-  if (boundCodes.length === 0) {
-    if (valueSet && isLoading) {
-      return (
-        <input
-          aria-label={fieldName}
-          className={baseField}
-          value=""
-          readOnly
-          placeholder="Loading value set…"
-        />
-      );
-    }
+  // No binding at all — pure free-form.
+  if (!valueSet) {
     return <FreeFormCoding value={value} onChange={onChange} />;
   }
 
+  if (isLoading) {
+    return (
+      <input
+        aria-label={fieldName}
+        className={baseField}
+        value=""
+        readOnly
+        placeholder="Loading value set…"
+      />
+    );
+  }
+
+  // Couldn't resolve the binding at all — server doesn't know it and we don't
+  // bundle it. Don't strand the user; let them type freely.
+  if (isError && !vs) {
+    return <FreeFormCoding value={value} onChange={onChange} />;
+  }
+
+  const expansion = vs?.expansion;
+  const expansionTotal = expansion?.total;
+  const isPartialExpansion =
+    expansionTotal !== undefined && expansionTotal > boundCodes.length;
+  const tooManyForSelect = boundCodes.length > STATIC_OPTION_LIMIT;
+  const useCombobox =
+    boundCodes.length === 0 || isPartialExpansion || tooManyForSelect;
+
+  if (useCombobox) {
+    return (
+      <div className="space-y-2">
+        <AsyncCodeCombobox
+          valueSet={valueSet}
+          value={
+            v.code !== undefined
+              ? ({
+                  ...(v.system !== undefined ? { system: v.system } : {}),
+                  code: v.code,
+                  ...(v.display !== undefined ? { display: v.display } : {}),
+                } as ResolvedCode)
+              : undefined
+          }
+          onChange={(c) =>
+            c
+              ? onChange({
+                  ...(c.system !== undefined ? { system: c.system } : {}),
+                  code: c.code,
+                  ...(c.display !== undefined ? { display: c.display } : {}),
+                })
+              : onChange(undefined)
+          }
+          fieldName={fieldName}
+        />
+        {allowFreeText && (
+          <details className="text-xs text-slate-500">
+            <summary className="cursor-pointer select-none">
+              Enter a custom code…
+            </summary>
+            <div className="mt-2">
+              <FreeFormCoding value={value} onChange={onChange} />
+            </div>
+          </details>
+        )}
+      </div>
+    );
+  }
+
+  // Static <select> path.
   const keyOf = (system: string | undefined, code: string) =>
     `${system ?? ""}|${code}`;
   const options = boundCodes.map((c) => ({
@@ -93,10 +171,11 @@ export const CodingInput: FhirTypeInput<Coding> = ({
     label: c.display ? `${c.display} (${c.code})` : c.code,
   }));
 
-  const allowFreeText = strength !== "required";
   const currentKey = v.code !== undefined ? keyOf(v.system, v.code) : "";
   const matchedOption = options.find((o) => o.key === currentKey);
-  const usingFreeText = allowFreeText && v.code !== undefined && !matchedOption;
+  const valueIsCustom = v.code !== undefined && !matchedOption;
+  const usingFreeText = allowFreeText && (otherToggled || valueIsCustom);
+  // (`otherToggled` is hoisted above the early returns at the top of this fn.)
 
   return (
     <div className="space-y-2">
@@ -106,7 +185,11 @@ export const CodingInput: FhirTypeInput<Coding> = ({
         value={usingFreeText ? "__other__" : matchedOption?.key ?? ""}
         onChange={(e) => {
           const k = e.target.value;
-          if (k === "__other__") return; // keep current free-text value
+          if (k === "__other__") {
+            setOtherToggled(true);
+            return;
+          }
+          setOtherToggled(false);
           if (k === "") {
             onChange(undefined);
             return;

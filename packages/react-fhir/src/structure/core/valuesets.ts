@@ -280,6 +280,39 @@ export const coreValueSets: Map<string, ValueSet> = new Map(
         "http://hl7.org/fhir/allergy-intolerance-type",
       ),
       mk(
+        // Patient.maritalStatus binding (extensible). Bundles the v3-MaritalStatus
+        // codes; the spec's ValueSet also includes NullFlavor#UNK which users can
+        // still enter via the "Other…" escape on extensible bindings.
+        "http://hl7.org/fhir/ValueSet/marital-status",
+        [
+          { code: "A", display: "Annulled" },
+          { code: "D", display: "Divorced" },
+          { code: "I", display: "Interlocutory" },
+          { code: "L", display: "Legally Separated" },
+          { code: "M", display: "Married" },
+          { code: "P", display: "Polygamous" },
+          { code: "S", display: "Never Married" },
+          { code: "T", display: "Domestic Partner" },
+          { code: "U", display: "Unmarried" },
+          { code: "W", display: "Widowed" },
+        ],
+        "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+      ),
+      mk(
+        // Patient.contact.relationship binding (extensible). v2-0131 codes.
+        "http://hl7.org/fhir/ValueSet/patient-contactrelationship",
+        [
+          { code: "C", display: "Emergency Contact" },
+          { code: "E", display: "Employer" },
+          { code: "F", display: "Federal Agency" },
+          { code: "I", display: "Insurance Company" },
+          { code: "N", display: "Next-of-Kin" },
+          { code: "S", display: "State Agency" },
+          { code: "U", display: "Unknown" },
+        ],
+        "http://terminology.hl7.org/CodeSystem/v2-0131",
+      ),
+      mk(
         "http://terminology.hl7.org/ValueSet/v3-ActEncounterCode",
         [
           { code: "AMB", display: "Ambulatory" },

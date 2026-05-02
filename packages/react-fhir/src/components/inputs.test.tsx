@@ -364,3 +364,273 @@ describe("CodeableConceptInput (binding propagation)", () => {
     });
   });
 });
+
+describe("Other… UX from empty value", () => {
+  it("CodeInput: picking 'Other…' on an empty extensible binding surfaces a free-text input", async () => {
+    server.use(
+      http.get(`${BASE}/ValueSet/$expand`, () =>
+        HttpResponse.json({
+          resourceType: "ValueSet",
+          status: "active",
+          url: "http://hl7.org/fhir/ValueSet/administrative-gender",
+          expansion: {
+            identifier: "x",
+            timestamp: "2024-01-01T00:00:00Z",
+            contains: [
+              { system: "http://hl7.org/fhir/administrative-gender", code: "male" },
+            ],
+          },
+        }),
+      ),
+    );
+    const el: ElementDefinition = {
+      path: "Patient.gender",
+      type: [{ code: "code" }],
+      binding: {
+        strength: "extensible",
+        valueSet: "http://hl7.org/fhir/ValueSet/administrative-gender",
+      },
+    };
+    render(
+      <CodeInput
+        value={undefined}
+        onChange={() => {}}
+        context={{ path: "Patient.gender", typeCode: "code", element: el }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /other…/i })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "gender" }),
+      "__other__",
+    );
+    expect(
+      screen.getByRole("textbox", { name: /gender \(custom\)/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("CodingInput: picking 'Other…' on an empty extensible binding surfaces the free-form editor", async () => {
+    server.use(
+      http.get(`${BASE}/ValueSet/$expand`, () =>
+        HttpResponse.json({
+          resourceType: "ValueSet",
+          status: "active",
+          url: "http://hl7.org/fhir/ValueSet/marital-status",
+          expansion: {
+            identifier: "x",
+            timestamp: "2024-01-01T00:00:00Z",
+            contains: [
+              {
+                system: "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+                code: "M",
+                display: "Married",
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    const el: ElementDefinition = {
+      path: "Patient.maritalStatus.coding",
+      type: [{ code: "Coding" }],
+      binding: {
+        strength: "extensible",
+        valueSet: "http://hl7.org/fhir/ValueSet/marital-status",
+      },
+    };
+    render(
+      <CodingInput
+        value={undefined}
+        onChange={() => {}}
+        context={{
+          path: "Patient.maritalStatus.coding",
+          typeCode: "Coding",
+          element: el,
+        }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /other…/i })).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("System")).not.toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "coding" }),
+      "__other__",
+    );
+    expect(screen.getByText("System")).toBeInTheDocument();
+    expect(screen.getByText("Code")).toBeInTheDocument();
+  });
+});
+
+describe("CodingInput async combobox (large/partial ValueSets)", () => {
+  const snomedVs = "http://snomed.info/sct?fhir_vs";
+  const snomedSystem = "http://snomed.info/sct";
+
+  const installSnomedHandler = () => {
+    server.use(
+      http.get(`${BASE}/ValueSet/$expand`, ({ request }) => {
+        const url = new URL(request.url);
+        const filter = url.searchParams.get("filter");
+        if (!filter) {
+          // Initial useValueSet probe — server returns a partial expansion
+          // signaling the ValueSet is too large to enumerate locally.
+          return HttpResponse.json({
+            resourceType: "ValueSet",
+            status: "active",
+            url: snomedVs,
+            expansion: {
+              identifier: "x",
+              timestamp: "2024-01-01T00:00:00Z",
+              total: 999_999,
+              contains: [],
+            },
+          });
+        }
+        const all = [
+          { system: snomedSystem, code: "73211009", display: "Diabetes mellitus" },
+          { system: snomedSystem, code: "44054006", display: "Diabetes mellitus type 2" },
+          { system: snomedSystem, code: "84114007", display: "Heart failure" },
+        ];
+        const matching = all.filter((c) =>
+          c.display.toLowerCase().includes(filter.toLowerCase()),
+        );
+        return HttpResponse.json({
+          resourceType: "ValueSet",
+          status: "active",
+          url: snomedVs,
+          expansion: {
+            identifier: "x",
+            timestamp: "2024-01-01T00:00:00Z",
+            total: 999_999,
+            contains: matching,
+          },
+        });
+      }),
+    );
+  };
+
+  const conditionCodeElement: ElementDefinition = {
+    path: "Condition.code",
+    type: [{ code: "Coding" }],
+    binding: { strength: "extensible", valueSet: snomedVs },
+  };
+
+  it("switches to combobox when expansion is partial and queries on type-ahead", async () => {
+    installSnomedHandler();
+    const onChange = vi.fn();
+    render(
+      <CodingInput
+        value={undefined}
+        onChange={onChange}
+        context={{ path: "Condition.code", typeCode: "Coding", element: conditionCodeElement }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    const input = await screen.findByRole("combobox", { name: "code" });
+    expect(input.tagName).toBe("INPUT"); // not <select>
+    await userEvent.type(input, "diab");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("option", { name: /Diabetes mellitus 73211009/ }),
+      ).toBeInTheDocument(),
+    );
+    await userEvent.click(
+      screen.getByRole("option", { name: /Diabetes mellitus 73211009/ }),
+    );
+    expect(onChange).toHaveBeenCalledWith({
+      system: snomedSystem,
+      code: "73211009",
+      display: "Diabetes mellitus",
+    });
+  });
+
+  it("ArrowDown + Enter selects the highlighted option", async () => {
+    installSnomedHandler();
+    const onChange = vi.fn();
+    render(
+      <CodingInput
+        value={undefined}
+        onChange={onChange}
+        context={{ path: "Condition.code", typeCode: "Coding", element: conditionCodeElement }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    const input = await screen.findByRole("combobox", { name: "code" });
+    await userEvent.type(input, "heart");
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /Heart failure/ })).toBeInTheDocument(),
+    );
+    await userEvent.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledWith({
+      system: snomedSystem,
+      code: "84114007",
+      display: "Heart failure",
+    });
+  });
+
+  it("exposes a 'Enter a custom code…' details escape on extensible bindings", async () => {
+    installSnomedHandler();
+    render(
+      <CodingInput
+        value={undefined}
+        onChange={() => {}}
+        context={{ path: "Condition.code", typeCode: "Coding", element: conditionCodeElement }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    await screen.findByRole("combobox", { name: "code" });
+    expect(screen.getByText(/Enter a custom code…/i)).toBeInTheDocument();
+  });
+
+  it("hides the custom-code escape on required bindings", async () => {
+    installSnomedHandler();
+    const required: ElementDefinition = {
+      ...conditionCodeElement,
+      binding: { strength: "required", valueSet: snomedVs },
+    };
+    render(
+      <CodingInput
+        value={undefined}
+        onChange={() => {}}
+        context={{ path: "Condition.code", typeCode: "Coding", element: required }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    await screen.findByRole("combobox", { name: "code" });
+    expect(screen.queryByText(/Enter a custom code…/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the free-form editor when the binding can't be resolved at all", async () => {
+    server.use(
+      http.get(`${BASE}/ValueSet/$expand`, () =>
+        HttpResponse.json({ error: "no" }, { status: 500 }),
+      ),
+      http.get(`${BASE}/ValueSet`, () =>
+        HttpResponse.json({ error: "no" }, { status: 500 }),
+      ),
+    );
+    const el: ElementDefinition = {
+      path: "Foo.bar",
+      type: [{ code: "Coding" }],
+      binding: {
+        strength: "preferred",
+        valueSet: "http://example.com/vs/unknown-by-everyone",
+      },
+    };
+    render(
+      <CodingInput
+        value={undefined}
+        onChange={() => {}}
+        context={{ path: "Foo.bar", typeCode: "Coding", element: el }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    await waitFor(() => expect(screen.getByText("System")).toBeInTheDocument());
+    expect(screen.getByText("Code")).toBeInTheDocument();
+    expect(screen.getByText("Display")).toBeInTheDocument();
+  });
+});
