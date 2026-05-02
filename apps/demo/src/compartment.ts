@@ -9,8 +9,7 @@ import type { CompartmentSectionProps } from "./components/CompartmentSection.js
  * app-level editorial decision (which types matter, which columns, what order,
  * how to label them) that every real app will want to tailor.
  *
- * Explicit `columnLabels` avoid "Text" showing twice when two columns end in
- * `.text` (e.g. `clinicalStatus.text` + `code.text`).
+ * Explicit `columnLabels` override the auto-generated header from the path segment.
  */
 export const PATIENT_COMPARTMENT: Array<
   Omit<CompartmentSectionProps, "patientId">
@@ -38,11 +37,11 @@ export const PATIENT_COMPARTMENT: Array<
   {
     resourceType: "AllergyIntolerance",
     title: "Allergies & intolerances",
-    columns: ["clinicalStatus.text", "code.text", "reaction.manifestation.text"],
+    columns: ["clinicalStatus", "code", "reaction.manifestation"],
     columnLabels: {
-      "clinicalStatus.text": "Status",
-      "code.text": "Substance",
-      "reaction.manifestation.text": "Reaction",
+      clinicalStatus: "Status",
+      code: "Code",
+      "reaction.manifestation": "Reaction",
     },
   },
   {
