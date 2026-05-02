@@ -74,7 +74,11 @@ describe("ReferencePicker", () => {
     );
     // DOB + gender render as the secondary disambiguator beneath the name.
     expect(screen.getByText(/DOB 1815-12-10 · female/)).toBeInTheDocument();
-    await user.click(screen.getByRole("option", { name: /Ada Lovelace/ }));
+    // Raw id is intentionally not surfaced — name + DOB are enough to
+    // disambiguate, and the id is noise for clinical users.
+    const option = screen.getByRole("option", { name: /Ada Lovelace/ });
+    expect(option).not.toHaveTextContent("p1");
+    await user.click(option);
     expect(onChange).toHaveBeenCalledWith({
       reference: "Patient/p1",
       display: "Ada Lovelace",
