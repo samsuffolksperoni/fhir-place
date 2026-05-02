@@ -11,3 +11,9 @@ coverage
 playwright-report
 test-results
 *.tsbuildinfo
+
+# workbench local-first SQLite db
+apps/workbench/workbench.sqlite*
+
+# workbench eval CLI output
+apps/workbench/eval-report.json

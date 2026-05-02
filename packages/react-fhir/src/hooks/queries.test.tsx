@@ -7,37 +7,48 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { FetchFhirClient } from "../client/FetchFhirClient.js";
 import { FhirClientProvider } from "./FhirClientProvider.js";
 import {
+  fhirQueryKeys,
   nextPageUrl,
+  parseBatchableRefs,
   useCapabilities,
   useCreateResource,
   useDeleteResource,
   useInfiniteSearch,
+  useReadReferences,
   useResource,
+  useResources,
   useSearch,
   useSearchParameter,
   useStructureDefinition,
   useUpdateResource,
   useValueSet,
+  useValueSetExpansion,
 } from "./queries.js";
 
 const BASE = "https://fhir.example.test/fhir";
+const TX_BASE = "https://tx.example.test/r4";
 const server = setupServer();
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-const mkWrapper = () => {
+const mkWrapper = (opts?: { terminologyBaseUrl?: string }) => {
   const client = new FetchFhirClient({ baseUrl: BASE });
+  const terminologyClient = opts?.terminologyBaseUrl
+    ? new FetchFhirClient({ baseUrl: opts.terminologyBaseUrl })
+    : undefined;
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={qc}>
-      <FhirClientProvider client={client}>{children}</FhirClientProvider>
+      <FhirClientProvider client={client} terminologyClient={terminologyClient}>
+        {children}
+      </FhirClientProvider>
     </QueryClientProvider>
   );
-  return { wrapper, qc, client };
+  return { wrapper, qc, client, terminologyClient };
 };
 
 describe("query hooks", () => {
@@ -117,6 +128,47 @@ describe("query hooks", () => {
     const { result } = renderHook(() => useStructureDefinition("Patient"), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.id).toBe("Patient");
+  });
+
+
+
+  it("useStructureDefinition treats a core canonical the same as a bare type (bundled fallback applies)", async () => {
+    // Both server endpoints miss; success here means the bundled core Patient SD
+    // was returned, which only happens when the resolver recognises the canonical
+    // as the base Patient type.
+    server.use(
+      http.get(`${BASE}/StructureDefinition/Patient`, () => new HttpResponse(null, { status: 404 })),
+      http.get(`${BASE}/StructureDefinition`, () =>
+        HttpResponse.json({ resourceType: "Bundle", type: "searchset", entry: [] }),
+      ),
+    );
+    const { wrapper } = mkWrapper();
+    const { result } = renderHook(
+      () => useStructureDefinition("http://hl7.org/fhir/StructureDefinition/Patient"),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.type).toBe("Patient");
+    expect(result.current.data?.snapshot?.element.some((e) => e.path === "Patient.name")).toBe(true);
+  });
+
+  it("useStructureDefinition accepts canonical profile URLs", async () => {
+    const profile = "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient";
+    server.use(
+      http.get(`${BASE}/StructureDefinition/us-core-patient`, () => new HttpResponse(null, { status: 404 })),
+      http.get(`${BASE}/StructureDefinition`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("url")).toBe(profile);
+        return HttpResponse.json({
+          resourceType: "Bundle",
+          type: "searchset",
+          entry: [{ resource: { resourceType: "StructureDefinition", id: "us-core-patient", url: profile, name: "USCorePatient", status: "active", kind: "resource", abstract: false, type: "Patient" } }],
+        });
+      }),
+    );
+    const { wrapper } = mkWrapper();
+    const { result } = renderHook(() => useStructureDefinition(profile), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.url).toBe(profile);
   });
 
   it("useCreateResource POSTs and invalidates caches", async () => {
@@ -289,6 +341,185 @@ describe("query hooks", () => {
       expect(result.current.data?.url).toBe(base);
       expect(result.current.data?.expansion?.contains).toBeDefined();
     });
+
+    it("routes $expand to the terminology client when one is provided", async () => {
+      const url = "http://snomed.info/sct?fhir_vs=isa/123037004";
+      const dataExpand = vi.fn();
+      const txExpand = vi.fn();
+      server.use(
+        http.get(`${BASE}/ValueSet/$expand`, () => {
+          dataExpand();
+          return HttpResponse.json({ resourceType: "OperationOutcome" }, { status: 501 });
+        }),
+        http.get(`${TX_BASE}/ValueSet/$expand`, ({ request }) => {
+          txExpand();
+          expect(new URL(request.url).searchParams.get("url")).toBe(url);
+          return HttpResponse.json({
+            resourceType: "ValueSet",
+            status: "active",
+            url,
+            expansion: {
+              identifier: "x",
+              timestamp: "2024-01-01T00:00:00Z",
+              contains: [{ system: "http://snomed.info/sct", code: "1" }],
+            },
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper({ terminologyBaseUrl: TX_BASE });
+      const { result } = renderHook(() => useValueSet(url), { wrapper });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(txExpand).toHaveBeenCalled();
+      expect(dataExpand).not.toHaveBeenCalled();
+      expect(result.current.data?.expansion?.contains).toHaveLength(1);
+    });
+
+    it("falls through to the data client when no terminology client is provided", async () => {
+      const url = "http://hl7.org/fhir/ValueSet/administrative-gender";
+      const dataExpand = vi.fn();
+      server.use(
+        http.get(`${BASE}/ValueSet/$expand`, () => {
+          dataExpand();
+          return HttpResponse.json({
+            resourceType: "ValueSet",
+            status: "active",
+            url,
+            expansion: {
+              identifier: "x",
+              timestamp: "2024-01-01T00:00:00Z",
+              contains: [{ system: "s", code: "male" }],
+            },
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(() => useValueSet(url), { wrapper });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(dataExpand).toHaveBeenCalled();
+    });
+
+    it("scopes the query cache by the terminology client's baseUrl", async () => {
+      const url = "http://hl7.org/fhir/ValueSet/administrative-gender";
+      server.use(
+        http.get(`${TX_BASE}/ValueSet/$expand`, () =>
+          HttpResponse.json({
+            resourceType: "ValueSet",
+            status: "active",
+            url,
+            expansion: {
+              identifier: "x",
+              timestamp: "2024-01-01T00:00:00Z",
+              contains: [],
+            },
+          }),
+        ),
+      );
+      const { wrapper, qc } = mkWrapper({ terminologyBaseUrl: TX_BASE });
+      const { result } = renderHook(() => useValueSet(url), { wrapper });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      const keys = qc.getQueryCache().getAll().map((q) => q.queryKey);
+      const valueSetKey = keys.find(
+        (k) => Array.isArray(k) && k.includes("ValueSet"),
+      );
+      expect(valueSetKey).toBeDefined();
+      expect((valueSetKey as readonly unknown[])[1]).toBe(TX_BASE);
+      expect((valueSetKey as readonly unknown[])[1]).not.toBe(BASE);
+    });
+  });
+
+  describe("useValueSetExpansion", () => {
+    const url = "http://snomed.info/sct?fhir_vs=isa/123037004";
+
+    it("hits the terminology client's base URL when one is provided", async () => {
+      const dataExpand = vi.fn();
+      const txExpand = vi.fn();
+      server.use(
+        http.get(`${BASE}/ValueSet/$expand`, () => {
+          dataExpand();
+          return HttpResponse.json({ resourceType: "OperationOutcome" }, { status: 501 });
+        }),
+        http.get(`${TX_BASE}/ValueSet/$expand`, ({ request }) => {
+          txExpand();
+          const params = new URL(request.url).searchParams;
+          expect(params.get("url")).toBe(url);
+          expect(params.get("filter")).toBe("body");
+          expect(params.get("count")).toBe("20");
+          return HttpResponse.json({
+            resourceType: "ValueSet",
+            status: "active",
+            url,
+            expansion: {
+              identifier: "x",
+              timestamp: "2024-01-01T00:00:00Z",
+              contains: [{ system: "http://snomed.info/sct", code: "1", display: "body part" }],
+            },
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper({ terminologyBaseUrl: TX_BASE });
+      const { result } = renderHook(() => useValueSetExpansion(url, "body"), {
+        wrapper,
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(txExpand).toHaveBeenCalled();
+      expect(dataExpand).not.toHaveBeenCalled();
+      expect(result.current.data?.expansion?.contains).toHaveLength(1);
+    });
+
+    it("falls through to the data client when no terminology client is provided", async () => {
+      const dataExpand = vi.fn();
+      server.use(
+        http.get(`${BASE}/ValueSet/$expand`, () => {
+          dataExpand();
+          return HttpResponse.json({
+            resourceType: "ValueSet",
+            status: "active",
+            url,
+            expansion: {
+              identifier: "x",
+              timestamp: "2024-01-01T00:00:00Z",
+              contains: [],
+            },
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(() => useValueSetExpansion(url, "anything"), {
+        wrapper,
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(dataExpand).toHaveBeenCalled();
+    });
+
+    it("scopes the cache key by the terminology client's baseUrl, not the data client's", async () => {
+      server.use(
+        http.get(`${TX_BASE}/ValueSet/$expand`, () =>
+          HttpResponse.json({
+            resourceType: "ValueSet",
+            status: "active",
+            url,
+            expansion: {
+              identifier: "x",
+              timestamp: "2024-01-01T00:00:00Z",
+              contains: [],
+            },
+          }),
+        ),
+      );
+      const { wrapper, qc } = mkWrapper({ terminologyBaseUrl: TX_BASE });
+      const { result } = renderHook(() => useValueSetExpansion(url, "x"), {
+        wrapper,
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      const keys = qc.getQueryCache().getAll().map((q) => q.queryKey);
+      const expansionKey = keys.find(
+        (k) =>
+          Array.isArray(k) && k.includes("ValueSet") && k.includes("expand"),
+      );
+      expect(expansionKey).toBeDefined();
+      expect((expansionKey as readonly unknown[])[1]).toBe(TX_BASE);
+      expect((expansionKey as readonly unknown[])[1]).not.toBe(BASE);
+    });
   });
 
   describe("useSearchParameter", () => {
@@ -459,14 +690,274 @@ describe("query hooks", () => {
     });
   });
 
+  describe("useResources", () => {
+    it("issues one search and returns the matching resources", async () => {
+      let captured: URLSearchParams | null = null;
+      server.use(
+        http.get(`${BASE}/Patient`, ({ request }) => {
+          captured = new URL(request.url).searchParams;
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [
+              { resource: { resourceType: "Patient", id: "a" } },
+              { resource: { resourceType: "Patient", id: "b" } },
+              { resource: { resourceType: "Patient", id: "c" } },
+            ],
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useResources<Patient>("Patient", ["a", "b", "c"]),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(captured!.get("_id")).toBe("a,b,c");
+      expect(result.current.data?.map((r) => r.id)).toEqual(["a", "b", "c"]);
+    });
+
+    it("hydrates the per-resource cache so useResource hits without a second request", async () => {
+      let searchCalls = 0;
+      let readCalls = 0;
+      server.use(
+        http.get(`${BASE}/Patient`, () => {
+          searchCalls += 1;
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [
+              { resource: { resourceType: "Patient", id: "a", gender: "male" } },
+            ],
+          });
+        }),
+        // Per-id read handler counts hits instead of relying on MSW's
+        // unhandled-request error — keeps stderr clean while still proving
+        // the cached read path is taken.
+        http.get(`${BASE}/Patient/:id`, ({ params }) => {
+          readCalls += 1;
+          return HttpResponse.json({
+            resourceType: "Patient",
+            id: params.id,
+            gender: "male",
+          });
+        }),
+      );
+      const { wrapper, qc, client } = mkWrapper();
+      const { result: r1 } = renderHook(
+        () => useResources<Patient>("Patient", ["a"]),
+        { wrapper },
+      );
+      await waitFor(() => expect(r1.current.isSuccess).toBe(true));
+      expect(searchCalls).toBe(1);
+
+      const cached = qc.getQueryData(
+        fhirQueryKeys.resource(client.baseUrl, "Patient", "a"),
+      ) as Patient | undefined;
+      expect(cached?.gender).toBe("male");
+
+      const { result: r2 } = renderHook(
+        // staleTime keeps the cached entry fresh so the read isn't refetched
+        // in the background — without it TanStack still serves cache on the
+        // first render but fires a background refresh.
+        () => useResource<Patient>("Patient", "a", { staleTime: 60_000 }),
+        { wrapper },
+      );
+      await waitFor(() => expect(r2.current.isSuccess).toBe(true));
+      expect(r2.current.data?.gender).toBe("male");
+      expect(searchCalls).toBe(1);
+      expect(readCalls).toBe(0);
+    });
+
+    it("short-circuits with no network when ids is empty or undefined", () => {
+      const { wrapper } = mkWrapper();
+      const { result: r1 } = renderHook(
+        () => useResources<Patient>("Patient", []),
+        { wrapper },
+      );
+      expect(r1.current.fetchStatus).toBe("idle");
+      const { result: r2 } = renderHook(
+        () => useResources<Patient>("Patient", undefined),
+        { wrapper },
+      );
+      expect(r2.current.fetchStatus).toBe("idle");
+    });
+
+    it("uses an order-independent query key", () => {
+      const { wrapper, qc, client } = mkWrapper();
+      // Seed cache for the canonical (sorted) key, then assert that the
+      // same hook with a shuffled `ids` array reads it back. `staleTime`
+      // pins the cached entry so the assertion isn't racing a background
+      // refetch.
+      qc.setQueryData(
+        fhirQueryKeys.batch(client.baseUrl, "Patient", ["a", "b", "c"]),
+        [{ resourceType: "Patient", id: "a" }] as Patient[],
+      );
+      const { result } = renderHook(
+        () =>
+          useResources<Patient>("Patient", ["c", "a", "b"], {
+            staleTime: Infinity,
+          }),
+        { wrapper },
+      );
+      expect(result.current.data?.[0]?.id).toBe("a");
+      expect(result.current.fetchStatus).toBe("idle");
+    });
+
+    it("returns whatever the server returned when the result is partial", async () => {
+      server.use(
+        http.get(`${BASE}/Patient`, () =>
+          HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [{ resource: { resourceType: "Patient", id: "a" } }],
+          }),
+        ),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useResources<Patient>("Patient", ["a", "b", "c"]),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.map((r) => r.id)).toEqual(["a"]);
+    });
+  });
+
+  describe("parseBatchableRefs", () => {
+    it("groups by target type and dedupes / sorts each group", () => {
+      const result = parseBatchableRefs([
+        { reference: "Patient/p1" },
+        { reference: "Goal/g2" },
+        { reference: "Goal/g1" },
+        { reference: "Goal/g1" }, // dup
+      ]);
+      expect(result).toEqual({ Patient: ["p1"], Goal: ["g1", "g2"] });
+    });
+
+    it("skips refs that aren't batchable via _id search", () => {
+      const result = parseBatchableRefs([
+        { reference: "Patient/p1" },
+        { reference: "#contained" },
+        { reference: "urn:uuid:abc" },
+        { reference: "https://other.example.com/fhir/Patient/p2" },
+        { reference: "Patient/p3/_history/1" },
+        { identifier: { system: "x", value: "y" } }, // no .reference
+      ]);
+      expect(result).toEqual({ Patient: ["p1"] });
+    });
+
+    it("returns {} for undefined / empty input", () => {
+      expect(parseBatchableRefs(undefined)).toEqual({});
+      expect(parseBatchableRefs([])).toEqual({});
+    });
+  });
+
+  describe("useReadReferences", () => {
+    it("groups by type, fires one search per group, returns a Map keyed by Type/id", async () => {
+      const calls: Record<string, number> = {};
+      server.use(
+        http.get(`${BASE}/Patient`, ({ request }) => {
+          calls.Patient = (calls.Patient ?? 0) + 1;
+          const ids = (new URL(request.url).searchParams.get("_id") ?? "")
+            .split(",")
+            .filter(Boolean);
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: ids.map((id) => ({
+              resource: { resourceType: "Patient", id },
+            })),
+          });
+        }),
+        http.get(`${BASE}/Goal`, ({ request }) => {
+          calls.Goal = (calls.Goal ?? 0) + 1;
+          const ids = (new URL(request.url).searchParams.get("_id") ?? "")
+            .split(",")
+            .filter(Boolean);
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: ids.map((id) => ({
+              resource: { resourceType: "Goal", id },
+            })),
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () =>
+          useReadReferences([
+            { reference: "Patient/p1" },
+            { reference: "Goal/g1" },
+            { reference: "Goal/g2" },
+          ]),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(calls).toEqual({ Patient: 1, Goal: 1 });
+      expect(result.current.data?.size).toBe(3);
+      expect(result.current.data?.get("Patient/p1")?.id).toBe("p1");
+      expect(result.current.data?.get("Goal/g1")?.resourceType).toBe("Goal");
+      expect(result.current.data?.get("Goal/g2")?.resourceType).toBe("Goal");
+    });
+
+    it("hydrates both per-resource and per-reference cache entries", async () => {
+      server.use(
+        http.get(`${BASE}/Goal`, () =>
+          HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            entry: [
+              { resource: { resourceType: "Goal", id: "g1", description: { text: "x" } } },
+            ],
+          }),
+        ),
+      );
+      const { wrapper, qc, client } = mkWrapper();
+      const { result } = renderHook(
+        () => useReadReferences([{ reference: "Goal/g1" }]),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(
+        qc.getQueryData(fhirQueryKeys.resource(client.baseUrl, "Goal", "g1")),
+      ).toMatchObject({ id: "g1" });
+      expect(
+        qc.getQueryData(fhirQueryKeys.reference(client.baseUrl, "Goal/g1")),
+      ).toMatchObject({ id: "g1" });
+    });
+
+    it("is disabled when no batchable refs are provided", () => {
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () =>
+          useReadReferences([
+            { reference: "#contained" },
+            { reference: "urn:uuid:abc" },
+            { identifier: { system: "x", value: "y" } },
+          ]),
+        { wrapper },
+      );
+      expect(result.current.fetchStatus).toBe("idle");
+    });
+  });
+
   it("throws when useFhirClient is used without provider", async () => {
     const { renderHook: rh } = await import("@testing-library/react");
     const qc = new QueryClient();
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     );
-    expect(() =>
-      rh(() => useResource("Patient", "1"), { wrapper }),
-    ).toThrow(/FhirClientProvider/);
+    // React/jsdom log the thrown render error to console.error; silence it
+    // here so the expected-failure path doesn't pollute CI logs.
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() =>
+        rh(() => useResource("Patient", "1"), { wrapper }),
+      ).toThrow(/FhirClientProvider/);
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 });

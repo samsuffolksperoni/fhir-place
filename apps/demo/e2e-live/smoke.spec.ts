@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
  * Live-site smoke tests. Run nightly by `.github/workflows/live-site-monitor.yml`
  * against the deployed demo, hitting real HAPI. Failures auto-file GitHub
  * issues — keep test names short and stable so the dedupe logic
- * (`[live-monitor] <test name>`) works.
+ * (`[demo] <test name>`) works.
  *
  * Tests should be data-shape tolerant — HAPI is a shared public server, the
  * specific patients there change. Assert structure and behavior, not literal
@@ -23,13 +23,13 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test("home redirects to Patient list and renders", async ({ page }) => {
-  const response = await page.goto("/");
+  const response = await page.goto("./");
   expect(response?.status(), "home should respond 2xx").toBeLessThan(400);
   await expect(page.getByRole("heading", { name: /patients/i })).toBeVisible();
 });
 
 test("Patient list shows at least one row", async ({ page }) => {
-  await page.goto("/Patient");
+  await page.goto("./#/Patient");
   await expect(page.getByRole("heading", { name: /patients/i })).toBeVisible();
   const rows = page.getByTestId("patient-row");
   await expect(rows.first()).toBeVisible({ timeout: 30_000 });
@@ -37,7 +37,7 @@ test("Patient list shows at least one row", async ({ page }) => {
 });
 
 test("Patient detail page renders without an error wall", async ({ page }) => {
-  await page.goto("/Patient");
+  await page.goto("./#/Patient");
   const firstRow = page.getByTestId("patient-row").first();
   await expect(firstRow).toBeVisible({ timeout: 30_000 });
   await firstRow.click();
@@ -52,7 +52,7 @@ test("Patient detail page renders without an error wall", async ({ page }) => {
 });
 
 test("Patient detail shows compartment chips", async ({ page }) => {
-  await page.goto("/Patient");
+  await page.goto("./#/Patient");
   await page.getByTestId("patient-row").first().click();
   // The chip nav is rendered for every Patient detail page (counts may be 0).
   await expect(page.getByTestId("compartment-links")).toBeVisible({
@@ -63,7 +63,7 @@ test("Patient detail shows compartment chips", async ({ page }) => {
 test("ResourceSearch documentation is clipped (no Multiple Resources dump)", async ({
   page,
 }) => {
-  await page.goto("/Patient");
+  await page.goto("./#/Patient");
   // Open the search form (visible inline on the list).
   await expect(page.getByTestId("resource-search")).toBeVisible();
   // No field on this page should display the literal "Multiple Resources:"
@@ -72,7 +72,7 @@ test("ResourceSearch documentation is clipped (no Multiple Resources dump)", asy
 });
 
 test("no console errors on the Patient list", async ({ page }) => {
-  await page.goto("/Patient");
+  await page.goto("./#/Patient");
   await expect(page.getByRole("heading", { name: /patients/i })).toBeVisible();
   // Wait for any async errors to surface.
   await page.waitForTimeout(2_000);

@@ -2,6 +2,7 @@ import type {
   CapabilityStatementRestResourceSearchParam,
   CapabilityStatement,
   ElementDefinition,
+  Reference,
 } from "fhir/r4";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -15,6 +16,7 @@ import { bindingFor, codesFromValueSet } from "../structure/binding.js";
 import { elementPathForSearchParam } from "../structure/searchBinding.js";
 import { clipSearchParamDoc } from "../structure/searchDoc.js";
 import { findElement } from "../structure/walker.js";
+import { ReferencePicker } from "./ReferencePicker.js";
 
 export interface ResourceSearchProps {
   resourceType: string;
@@ -30,6 +32,7 @@ export interface ResourceSearchProps {
   /** Reorders the searchParams list. Params not listed keep their original order after these. */
   priorityParams?: string[];
   className?: string;
+  profile?: string;
 }
 
 type SpecType = CapabilityStatementRestResourceSearchParam["type"];
@@ -98,6 +101,7 @@ export function ResourceSearch(props: ResourceSearchProps) {
     initialVisible = 6,
     priorityParams = ["_id", "identifier", "name", "family", "given", "status", "code", "subject", "patient", "date"],
     className,
+    profile,
   } = props;
 
   const capQuery = useCapabilities({ enabled: !capabilityStatement });
@@ -161,6 +165,7 @@ export function ResourceSearch(props: ResourceSearchProps) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((p) => (
           <SearchField
+            profile={profile}
             key={p.name}
             base={resourceType}
             param={p}
@@ -211,6 +216,7 @@ export function ResourceSearch(props: ResourceSearchProps) {
 }
 
 interface SearchFieldProps {
+  profile?: string;
   base: string;
   param: CapabilityStatementRestResourceSearchParam;
   value: string;
@@ -237,14 +243,19 @@ const fieldWrapper = (
   );
 };
 
-function SearchField({ base, param, value, onChange }: SearchFieldProps): ReactNode {
+function SearchField({ base, param, value, onChange, profile }: SearchFieldProps): ReactNode {
   if (param.type === "token") {
     return (
-      <TokenSearchField base={base} param={param} value={value} onChange={onChange} />
+      <TokenSearchField base={base} param={param} value={value} onChange={onChange} profile={profile} />
     );
   }
   if (param.type === "date") {
     return <DateSearchField base={base} param={param} value={value} onChange={onChange} />;
+  }
+  if (param.type === "reference") {
+    return (
+      <ReferenceSearchField base={base} param={param} value={value} onChange={onChange} />
+    );
   }
   return fieldWrapper(
     <input
@@ -266,13 +277,13 @@ function SearchField({ base, param, value, onChange }: SearchFieldProps): ReactN
  * Falls back to a plain text input when the binding can't be resolved or when
  * the ValueSet is too large to enumerate in a dropdown.
  */
-function TokenSearchField({ base, param, value, onChange }: SearchFieldProps): ReactNode {
+function TokenSearchField({ base, param, value, onChange, profile }: SearchFieldProps): ReactNode {
   // Try the canonical SearchParameter first (covers custom IG params and the
   // few core params whose `expression` doesn't match the kebab→camel rule).
   // Falls through silently when the server doesn't expose SearchParameter.
   const { data: spec } = useSearchParameter(base, param.name ?? "");
   const elementPath = elementPathForSearchParam(param, base, spec ?? undefined);
-  const { data: sd } = useStructureDefinition(base, { enabled: Boolean(elementPath) });
+  const { data: sd } = useStructureDefinition({ type: base, profile }, { enabled: Boolean(elementPath) });
   const element = elementPath && sd ? findElement(sd, elementPath) : undefined;
   const { valueSet: valueSetUrl } = bindingFor(element);
   const { data: vs, isLoading } = useValueSet(valueSetUrl);
@@ -325,6 +336,82 @@ function TokenSearchField({ base, param, value, onChange }: SearchFieldProps): R
     param,
     base,
   );
+}
+
+/* ---------- reference ---------- */
+
+/**
+ * Reference search field: hands off to the autocomplete `ReferencePicker` so
+ * users can find e.g. a Patient by name instead of pasting `Patient/123`. The
+ * picker emits a {@link Reference}; we serialise just `Type/id` for the
+ * underlying form value (FHIR servers accept both `?patient=Patient/123` and
+ * `?patient=123`, but the qualified form survives multi-target params).
+ *
+ * Targets come from `SearchParameter.target` when the server exposes them;
+ * for the common single-target params used in clinical apps (`patient`,
+ * `subject`, `practitioner`, etc.) we fall back to a baked-in mapping so the
+ * picker still works against servers that don't surface SearchParameter.
+ * When no targets can be derived we render the plain `Type/id` text input.
+ */
+function ReferenceSearchField({ base, param, value, onChange }: SearchFieldProps): ReactNode {
+  const { data: spec } = useSearchParameter(base, param.name ?? "");
+
+  const targets = useMemo(() => {
+    const fromSpec = (spec?.target ?? []).filter(Boolean);
+    if (fromSpec.length > 0) return fromSpec;
+    return defaultReferenceTargets(param.name ?? "");
+  }, [spec, param.name]);
+
+  if (targets.length === 0) {
+    return fieldWrapper(
+      <input
+        type="text"
+        aria-label={param.name}
+        placeholder={inputPlaceholder(param.type)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+      />,
+      param,
+      base,
+    );
+  }
+
+  const ref: Reference | undefined = value ? { reference: value } : undefined;
+
+  return fieldWrapper(
+    <ReferencePicker
+      targets={targets}
+      value={ref}
+      onChange={(r) => onChange(r?.reference ?? "")}
+      className="relative space-y-2"
+    />,
+    param,
+    base,
+  );
+}
+
+/**
+ * Fallback targets for reference search params whose name is conventionally
+ * tied to a single resource type. Keeps the picker useful when the server
+ * doesn't expose `SearchParameter.target`. Conservative on purpose: only
+ * params with one near-universal target are listed.
+ */
+function defaultReferenceTargets(name: string): string[] {
+  switch (name) {
+    case "patient":
+      return ["Patient"];
+    case "practitioner":
+      return ["Practitioner"];
+    case "organization":
+      return ["Organization"];
+    case "location":
+      return ["Location"];
+    case "encounter":
+      return ["Encounter"];
+    default:
+      return [];
+  }
 }
 
 /* ---------- date ---------- */

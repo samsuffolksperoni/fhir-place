@@ -26,9 +26,33 @@ export interface FetchFhirClientOptions {
   headers?: Record<string, string>;
   /** Async header producer, called per request. Overrides `headers` on collision. */
   getHeaders?: () => Promise<Record<string, string>> | Record<string, string>;
+  /** Fails requests that stall beyond this duration (ms). Defaults to 15s. */
+  requestTimeoutMs?: number;
 }
 
 const trimSlash = (s: string): string => s.replace(/\/+$/, "");
+
+// jsdom 25 (the test environment) does not implement AbortSignal.any.
+// Fall back to a manual fan-in when the runtime lacks it.
+function anySignal(signals: ReadonlyArray<AbortSignal>): AbortSignal {
+  const native = (AbortSignal as unknown as {
+    any?: (s: ReadonlyArray<AbortSignal>) => AbortSignal;
+  }).any;
+  if (typeof native === "function") return native.call(AbortSignal, signals);
+  const controller = new AbortController();
+  const onAbort = (event: Event) => {
+    const reason = (event.target as AbortSignal).reason;
+    controller.abort(reason);
+  };
+  for (const s of signals) {
+    if (s.aborted) {
+      controller.abort(s.reason);
+      return controller.signal;
+    }
+    s.addEventListener("abort", onAbort, { once: true });
+  }
+  return controller.signal;
+}
 
 export class FetchFhirClient implements FhirClient {
   readonly baseUrl: string;
@@ -37,6 +61,7 @@ export class FetchFhirClient implements FhirClient {
   private readonly fetchImpl: typeof fetch;
   private readonly staticHeaders: Record<string, string>;
   private readonly getHeaders: FetchFhirClientOptions["getHeaders"];
+  private readonly requestTimeoutMs: number;
 
   constructor(opts: FetchFhirClientOptions) {
     this.baseUrl = trimSlash(opts.baseUrl);
@@ -44,6 +69,7 @@ export class FetchFhirClient implements FhirClient {
     this.fetchImpl = opts.fetch ?? globalThis.fetch.bind(globalThis);
     this.staticHeaders = opts.headers ?? {};
     this.getHeaders = opts.getHeaders;
+    this.requestTimeoutMs = Math.max(1, opts.requestTimeoutMs ?? 15_000);
   }
 
   capabilities(options?: RequestOptions): Promise<CapabilityStatement> {
@@ -207,13 +233,33 @@ export class FetchFhirClient implements FhirClient {
       body = JSON.stringify(init.body);
     }
 
-    const response = await this.fetchImpl(url, {
-      method: init.method ?? "GET",
-      headers,
-      body,
-      signal: init.signal,
-      cache: init.cache,
-    });
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), this.requestTimeoutMs);
+    const signal = init.signal
+      ? anySignal([init.signal, timeoutController.signal])
+      : timeoutController.signal;
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: init.method ?? "GET",
+        headers,
+        body,
+        signal,
+        cache: init.cache,
+      });
+    } catch (err) {
+      const timedOut = timeoutController.signal.aborted && !init.signal?.aborted;
+      if (timedOut) {
+        throw new FhirError(
+          `FHIR ${init.method ?? "GET"} ${url} timed out after ${this.requestTimeoutMs}ms`,
+          { status: 408, url },
+        );
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       let outcome: OperationOutcome | undefined;

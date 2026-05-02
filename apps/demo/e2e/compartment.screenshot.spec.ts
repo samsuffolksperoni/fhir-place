@@ -30,13 +30,18 @@ test.describe("Patient compartment tables", () => {
     }
 
     // A specific known fixture appears under the right section.
+    // ResourceTable renders both desktop (`resource-table-table`) and
+    // mobile (`resource-table-cards`) layouts in the DOM at the same
+    // time and toggles visibility via Tailwind. Scope assertions to
+    // the desktop table to avoid strict-mode duplicate matches.
+    const desktopTables = compartment.locator(
+      "[data-testid='resource-table-table']",
+    );
+    await expect(desktopTables.getByText("Essential hypertension")).toBeVisible();
     await expect(
-      compartment.getByText("Essential hypertension"),
+      desktopTables.getByText("Lisinopril 20 mg oral tablet"),
     ).toBeVisible();
-    await expect(
-      compartment.getByText("Lisinopril 20 mg oral tablet"),
-    ).toBeVisible();
-    await expect(compartment.getByText("Penicillin")).toBeVisible();
+    await expect(desktopTables.getByText("Penicillin")).toBeVisible();
 
     await page.screenshot({
       path: "../../screenshots/12-patient-compartment.png",

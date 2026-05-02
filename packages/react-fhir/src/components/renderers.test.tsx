@@ -1,8 +1,10 @@
-import type { CodeableConcept } from "fhir/r4";
+import type { CodeableConcept, Meta } from "fhir/r4";
+import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   codeSystemLabel,
   DEFAULT_CODING_PRIORITY,
+  defaultTypeRenderers,
   preferredCoding,
 } from "./renderers.js";
 
@@ -100,6 +102,139 @@ describe("preferredCoding", () => {
     expect(preferredCoding(undefined, "Any.path")).toBeUndefined();
     expect(preferredCoding({ text: "only text" }, "Any.path")).toBeUndefined();
     expect(preferredCoding({ coding: [] }, "Any.path")).toBeUndefined();
+  });
+});
+
+describe("CodeableConcept renderer", () => {
+  const renderer = defaultTypeRenderers.CodeableConcept!;
+  const ctx = { path: "Observation.code", typeCode: "CodeableConcept" };
+
+  it("renders the text alongside the preferred coding's code", () => {
+    const cc: CodeableConcept = {
+      text: "Diastolic blood pressure",
+      coding: [
+        { system: "http://loinc.org", code: "8462-4", display: "Diastolic blood pressure" },
+      ],
+    };
+    const { container } = render(<>{renderer(cc, ctx)}</>);
+    expect(container.textContent).toContain("Diastolic blood pressure");
+    expect(container.textContent).toContain("8462-4");
+    expect(container.textContent).toContain("LOINC");
+  });
+
+  it("falls back to plain text when no coding is present", () => {
+    const cc: CodeableConcept = { text: "free text only" };
+    const { container } = render(<>{renderer(cc, ctx)}</>);
+    expect(container.textContent).toBe("free text only");
+    expect(container.querySelector("code")).toBeNull();
+  });
+
+  it("renders just the coding when text is missing", () => {
+    const cc: CodeableConcept = {
+      coding: [{ system: "http://loinc.org", code: "8462-4", display: "Diastolic blood pressure" }],
+    };
+    const { container } = render(<>{renderer(cc, ctx)}</>);
+    expect(container.textContent).toContain("Diastolic blood pressure");
+    expect(container.textContent).toContain("8462-4");
+  });
+
+  it("hides non-preferred codings behind a +N more toggle", () => {
+    const cc: CodeableConcept = {
+      text: "Diastolic blood pressure",
+      coding: [
+        { system: "http://loinc.org", code: "8462-4" },
+        { system: "http://snomed.info/sct", code: "271650006" },
+        { system: "http://example.org/custom", code: "DBP-9" },
+      ],
+    };
+    const { container, getByRole } = render(<>{renderer(cc, ctx)}</>);
+    // preferred coding visible
+    expect(container.textContent).toContain("8462-4");
+    // extras hidden initially
+    expect(container.textContent).not.toContain("271650006");
+    expect(container.textContent).not.toContain("DBP-9");
+    // expand toggle visible
+    const toggle = getByRole("button", { name: /show 2 other codings/i });
+    expect(toggle.textContent).toBe("+2 more");
+    fireEvent.click(toggle);
+    // extras now visible
+    expect(container.textContent).toContain("271650006");
+    expect(container.textContent).toContain("DBP-9");
+    expect(toggle.textContent).toBe("hide");
+  });
+
+  it("does not render the toggle when there is only one coding", () => {
+    const cc: CodeableConcept = {
+      text: "Diastolic blood pressure",
+      coding: [{ system: "http://loinc.org", code: "8462-4" }],
+    };
+    const { container } = render(<>{renderer(cc, ctx)}</>);
+    expect(container.querySelector("button")).toBeNull();
+  });
+});
+
+describe("Meta renderer", () => {
+  const renderer = defaultTypeRenderers.Meta!;
+  const ctx = { path: "Patient.meta", typeCode: "Meta" };
+
+  it("renders a summary line with versionId, lastUpdated, and source", () => {
+    const m: Meta = {
+      versionId: "1",
+      lastUpdated: "2026-02-10T17:48:37.700+00:00",
+      source: "#wiWDxr1Jk1z1zMIZ",
+    };
+    const { container } = render(<>{renderer(m, ctx)}</>);
+    const summary = container.querySelector("summary");
+    expect(summary).not.toBeNull();
+    expect(summary!.textContent).toContain("v1");
+    expect(summary!.textContent).toContain("2026-02-10T17:48:37.700+00:00");
+    expect(summary!.textContent).toContain("#wiWDxr1Jk1z1zMIZ");
+  });
+
+  it("exposes one row per Meta field inside the expandable", () => {
+    const m: Meta = {
+      versionId: "3",
+      lastUpdated: "2026-02-10T17:48:37.700+00:00",
+      source: "#abc",
+      profile: ["http://hl7.org/fhir/StructureDefinition/Patient"],
+      security: [{ system: "http://example.org/sec", code: "TOP" }],
+      tag: [{ system: "http://example.org/tag", code: "demo" }],
+    };
+    const { container } = render(<>{renderer(m, ctx)}</>);
+    const labels = Array.from(container.querySelectorAll("dt")).map((n) => n.textContent);
+    expect(labels).toEqual([
+      "Version Id",
+      "Last Updated",
+      "Source",
+      "Profile",
+      "Security",
+      "Tag",
+    ]);
+    expect(container.textContent).toContain("http://hl7.org/fhir/StructureDefinition/Patient");
+    expect(container.textContent).toContain("TOP");
+    expect(container.textContent).toContain("demo");
+  });
+
+  it("toggles open and closed via the summary element", () => {
+    const m: Meta = { versionId: "1", lastUpdated: "2026-02-10T17:48:37.700+00:00" };
+    const { container } = render(<>{renderer(m, ctx)}</>);
+    const details = container.querySelector("details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    fireEvent.click(container.querySelector("summary")!);
+    expect(details.open).toBe(true);
+  });
+
+  it("hides rows for fields that are absent", () => {
+    const m: Meta = { versionId: "1" };
+    const { container } = render(<>{renderer(m, ctx)}</>);
+    const labels = Array.from(container.querySelectorAll("dt")).map((n) => n.textContent);
+    expect(labels).toEqual(["Version Id"]);
+  });
+
+  it("renders an em-dash when there are no fields", () => {
+    const { container } = render(<>{renderer({} as Meta, ctx)}</>);
+    expect(container.querySelector("details")).toBeNull();
+    expect(container.textContent).toBe("—");
   });
 });
 

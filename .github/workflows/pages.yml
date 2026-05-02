@@ -33,6 +33,16 @@ jobs:
           VITE_USE_MOCK: "false"
           VITE_FHIR_BASE_URL: "https://hapi.fhir.org/baseR4"
           VITE_BASE_PATH: "/${{ github.event.repository.name }}/"
+      - name: Build goals-tasks for GitHub Pages (live HAPI R4)
+        run: pnpm --filter @fhir-place/goals-tasks build
+        env:
+          VITE_USE_MOCK: "false"
+          VITE_FHIR_BASE_URL: "https://hapi.fhir.org/baseR4"
+          VITE_BASE_PATH: "/${{ github.event.repository.name }}/goals/"
+      - name: Stage goals-tasks under /goals
+        run: |
+          mkdir -p apps/demo/dist/goals
+          cp -R apps/goals-tasks/dist/. apps/demo/dist/goals/
       - name: SPA 404 fallback
         run: cp apps/demo/dist/index.html apps/demo/dist/404.html
       - uses: actions/upload-pages-artifact@v3
