@@ -1,4 +1,9 @@
-import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { CCTopbar } from "./components/CCTopbar.js";
+import { CCSidebar } from "./components/CCSidebar.js";
+import { CCTabs } from "./components/CCTabs.js";
+import { ThemeProvider } from "./context/ThemeContext.js";
+import { RouteTabSync, TabsProvider } from "./context/TabsContext.js";
 import { AskPage } from "./routes/fhir-ui/pages/AskPage.js";
 import { ResourceCreatePage } from "./routes/fhir-ui/pages/ResourceCreatePage.js";
 import { ResourceDetailPage } from "./routes/fhir-ui/pages/ResourceDetailPage.js";
@@ -6,85 +11,102 @@ import { ResourceEditPage } from "./routes/fhir-ui/pages/ResourceEditPage.js";
 import { ResourceListPage } from "./routes/fhir-ui/pages/ResourceListPage.js";
 import { SettingsPage } from "./routes/fhir-ui/pages/SettingsPage.js";
 import { CqlRunnerPage } from "./routes/cql-runner/CqlRunnerPage.js";
-import { ActiveServerStatus } from "./components/ActiveServerStatus.js";
-import { FhirUiLayout } from "./components/FhirUiLayout.js";
-import { ServerPicker } from "./components/ServerPicker.js";
-import { SETTINGS_ENABLED } from "./config.js";
 
 export function App() {
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white px-6 py-3">
-        <div className="flex items-baseline justify-between gap-4">
-          <div className="flex items-baseline gap-4">
-            <Link to="/" className="text-lg font-semibold text-slate-900">
-              fhir-place
-            </Link>
-            <nav className="flex items-baseline gap-3 text-sm">
-              <Link to="/fhir-ui/Patient" className="text-slate-700 underline">
-                FHIR UI
-              </Link>
-              <Link to="/fhir-ui/Goal" className="text-slate-700 underline">
-                Goals
-              </Link>
-              <Link to="/cql-runner" className="text-slate-700 underline">
-                CQL Runner
-              </Link>
-              <Link to="/fhir-ui/ask" className="text-slate-600 underline">
-                Ask
-              </Link>
-              <Link
-                to="/fhir-ui/settings"
-                className="text-slate-600 underline"
-                data-testid="nav-settings-link"
-              >
-                Settings
-              </Link>
-            </nav>
-          </div>
-          {SETTINGS_ENABLED ? <ServerPicker /> : <ActiveServerStatus />}
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl p-6">
-        <Routes>
-          <Route path="/" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
-          {/* CQL runner */}
-          <Route path="/cql-runner" element={<CqlRunnerPage />} />
-          {/* FHIR UI surface */}
-          <Route path="/fhir-ui" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
-          <Route path="/fhir-ui/ask" element={<AskPage />} />
-          <Route path="/fhir-ui/settings" element={<SettingsPage />} />
-          <Route path="/fhir-ui/:resourceType/new" element={<ResourceCreatePage />} />
-          <Route path="/fhir-ui/:resourceType/:id/edit" element={<ResourceEditPage />} />
-          <Route path="/fhir-ui/:resourceType/:id" element={<ResourceDetailPage />} />
-          <Route element={<FhirUiLayout />}>
+    <ThemeProvider>
+      <TabsProvider>
+        <Shell />
+      </TabsProvider>
+    </ThemeProvider>
+  );
+}
+
+function Shell() {
+  return (
+    <div
+      className="cc-shell"
+      style={{
+        display: "flex",
+        height: "100vh",
+        background: "var(--bg)",
+        color: "var(--text)",
+        overflow: "hidden",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      }}
+    >
+      {/* Route syncing (no UI) */}
+      <RouteTabSync />
+
+      {/* Sidebar */}
+      <CCSidebar />
+
+      {/* Main column */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <CCTopbar />
+        <CCTabs />
+
+        {/* Page content */}
+        <main style={{ flex: 1, overflow: "auto", background: "var(--bg)" }}>
+          <Routes>
+            <Route path="/" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
+            <Route path="/cql-runner" element={<CqlRunnerPage />} />
+            <Route path="/fhir-ui" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
+            <Route path="/fhir-ui/ask" element={<AskPage />} />
+            <Route path="/fhir-ui/settings" element={<SettingsPage />} />
+            <Route path="/fhir-ui/:resourceType/new" element={<ResourceCreatePage />} />
+            <Route path="/fhir-ui/:resourceType/:id/edit" element={<ResourceEditPage />} />
+            <Route path="/fhir-ui/:resourceType/:id" element={<ResourceDetailPage />} />
             <Route path="/fhir-ui/:resourceType" element={<ResourceListPage />} />
-          </Route>
-          {/* Backwards-compat redirects from the old flat layout. These exist for
-              live bookmarks (and HashRouter on GitHub Pages) — in-app navigation
-              targets /fhir-ui/* directly. All redirects preserve the query string
-              and hash so e.g. /Patient?given=Alan keeps the filter. */}
-          <Route path="/ask" element={<RedirectWithQuery to="/fhir-ui/ask" />} />
-          <Route path="/settings" element={<RedirectWithQuery to="/fhir-ui/settings" />} />
-          <Route path="/Patient/new" element={<RedirectWithQuery to="/fhir-ui/Patient/new" />} />
-          <Route
-            path="/:resourceType/:id/edit"
-            element={<RedirectToFhirUi suffix="/edit" includeId />}
-          />
-          <Route
-            path="/:resourceType/:id"
-            element={<RedirectToFhirUi includeId />}
-          />
-          <Route path="/:resourceType" element={<RedirectToFhirUi />} />
-        </Routes>
-      </main>
+            {/* Backwards-compat redirects */}
+            <Route path="/ask" element={<RedirectWithQuery to="/fhir-ui/ask" />} />
+            <Route path="/settings" element={<RedirectWithQuery to="/fhir-ui/settings" />} />
+            <Route path="/Patient/new" element={<RedirectWithQuery to="/fhir-ui/Patient/new" />} />
+            <Route path="/:resourceType/:id/edit" element={<RedirectToFhirUi suffix="/edit" includeId />} />
+            <Route path="/:resourceType/:id" element={<RedirectToFhirUi includeId />} />
+            <Route path="/:resourceType" element={<RedirectToFhirUi />} />
+          </Routes>
+        </main>
+
+        {/* Status bar */}
+        <StatusBar />
+      </div>
     </div>
   );
 }
 
-// Forwards old flat URLs like /Patient/123/edit to /fhir-ui/Patient/123/edit,
-// keeping the query string + hash so live bookmarks like /Patient?given=Alan
-// don't lose their filters when the redirect fires.
+function StatusBar() {
+  return (
+    <div
+      style={{
+        padding: "6px 20px",
+        borderTop: "1px solid var(--border)",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        fontSize: 11,
+        color: "var(--text-muted)",
+        background: "var(--surface)",
+        flexShrink: 0,
+        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+      }}
+    >
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+        <span
+          style={{ width: 6, height: 6, borderRadius: 3, background: "var(--success)" }}
+        />
+        FHIR R4
+      </span>
+      <span style={{ color: "var(--border-strong)" }}>·</span>
+      <span>← → navigate</span>
+      <span>·</span>
+      <span>⏎ open</span>
+      <div style={{ flex: 1 }} />
+      <span style={{ color: "var(--text-subtle)" }}>fhir-place</span>
+    </div>
+  );
+}
+
 function RedirectToFhirUi({
   includeId = false,
   suffix = "",

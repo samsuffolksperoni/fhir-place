@@ -2,6 +2,107 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Clean Clinical design tokens ─────────────────────────────────────── */
 :root {
   color-scheme: light;
+
+  --bg:            #fafafa;
+  --surface:       #ffffff;
+  --sunken:        #f4f4f5;
+  --border:        #e4e4e7;
+  --border-strong: #d4d4d8;
+
+  --text:          #09090b;
+  --text-muted:    #71717a;
+  --text-subtle:   #a1a1aa;
+
+  --accent:        #4f46e5;
+  --accent-soft:   #eef2ff;
+  --accent-text:   #3730a3;
+
+  --chip:          #f4f4f5;
+  --chip-text:     #52525b;
+
+  --success:       #16a34a;
+  --success-soft:  #f0fdf4;
+  --warn:          #d97706;
+  --warn-soft:     #fffbeb;
+  --danger:        #dc2626;
+  --danger-soft:   #fef2f2;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --bg:            #09090b;
+  --surface:       #0f0f12;
+  --sunken:        #18181b;
+  --border:        #27272a;
+  --border-strong: #3f3f46;
+
+  --text:          #fafafa;
+  --text-muted:    #a1a1aa;
+  --text-subtle:   #71717a;
+
+  --accent:        #818cf8;
+  --accent-soft:   #1e1b4b;
+  --accent-text:   #a5b4fc;
+
+  --chip:          #27272a;
+  --chip-text:     #d4d4d8;
+
+  --success:       #22c55e;
+  --success-soft:  #052e16;
+  --warn:          #f59e0b;
+  --warn-soft:     #1c1002;
+  --danger:        #ef4444;
+  --danger-soft:   #450a0a;
+}
+
+/* ─── Base resets ───────────────────────────────────────────────────────── */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* ─── Theme transition ──────────────────────────────────────────────────── */
+body, .cc-shell * {
+  transition: background-color 200ms ease, border-color 200ms ease, color 80ms ease;
+}
+
+/* ─── Scrollbars ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+/* ─── Mono utility ──────────────────────────────────────────────────────── */
+.cc-mono {
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+/* ─── Responsive sidebar ────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .cc-sidebar {
+    display: none !important;
+  }
 }

@@ -3,7 +3,19 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CodeableConcept, ElementDefinition } from "fhir/r4";
 import { describe, expect, it, vi } from "vitest";
+import { FetchFhirClient } from "../../client/FetchFhirClient.js";
+import { FhirClientProvider } from "../../hooks/FhirClientProvider.js";
 import { DataAbsentReasonInput } from "./DataAbsentReason.js";
+
+const mkWrapper = () => {
+  const client = new FetchFhirClient({ baseUrl: "https://fhir.example.test/fhir" });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>
+      <FhirClientProvider client={client}>{children}</FhirClientProvider>
+    </QueryClientProvider>
+  );
+};
 
 const element: ElementDefinition = {
   path: "Observation.dataAbsentReason",
@@ -123,10 +135,14 @@ describe("DataAbsentReasonInput", () => {
   });
 
   it("renders the raw CodeableConcept fields when value is custom (non-standard system)", () => {
-    renderInput({
-      text: "see attached",
-      coding: [{ system: "https://example/local", code: "x" }],
-    });
+    render(
+      <DataAbsentReasonInput
+        value={{ text: "see attached", coding: [{ system: "https://example/local", code: "x" }] }}
+        onChange={() => {}}
+        context={{ path: element.path!, typeCode: "CodeableConcept", element }}
+      />,
+      { wrapper: mkWrapper() },
+    );
     expect(screen.getByText(/^Text$/)).toBeInTheDocument();
     expect(screen.getByText(/^System$/)).toBeInTheDocument();
     expect(screen.getByText(/^Code$/)).toBeInTheDocument();
