@@ -2,7 +2,7 @@ import type { Bundle, Resource } from "fhir/r4";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { naturalLanguageToFhirQuery } from "../ask/anthropicQuery.js";
-import { buildSearchUrl, type FhirQueryPlan } from "../ask/url.js";
+import { buildSearchUrl, sameOrigin, type FhirQueryPlan } from "../ask/url.js";
 import {
   ACTIVE_SERVER_CONFIG,
   FHIR_BASE_URL,
@@ -73,9 +73,15 @@ export function AskPage() {
     setBundle(null);
     setRunning(true);
     try {
-      const headers = {
+      // The URL is user-editable; only attach the active server's auth headers
+      // when the request still targets the configured FHIR origin. Otherwise a
+      // user who edits the host could leak bearer tokens to a third party.
+      const referenceHref =
+        typeof window !== "undefined" ? window.location.href : "http://localhost/";
+      const isSameOrigin = sameOrigin(url, FHIR_BASE_URL, referenceHref);
+      const headers: Record<string, string> = {
         Accept: "application/fhir+json",
-        ...buildRequestHeaders(ACTIVE_SERVER_CONFIG),
+        ...(isSameOrigin ? buildRequestHeaders(ACTIVE_SERVER_CONFIG) : {}),
       };
       const response = await fetch(url, { headers });
       if (!response.ok) {
@@ -92,6 +98,10 @@ export function AskPage() {
 
   const resources =
     bundle?.entry?.flatMap((e) => (e.resource ? [e.resource] : [])) ?? [];
+
+  const referenceHref =
+    typeof window !== "undefined" ? window.location.href : "http://localhost/";
+  const urlOffOrigin = Boolean(url) && !sameOrigin(url, FHIR_BASE_URL, referenceHref);
 
   return (
     <div className="space-y-5" data-testid="ask-page">
@@ -172,6 +182,15 @@ export function AskPage() {
               data-testid="ask-url"
             />
           </label>
+          {urlOffOrigin && (
+            <p
+              className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800"
+              data-testid="ask-off-origin"
+            >
+              URL targets a different origin than the configured FHIR server —
+              auth headers will not be sent to avoid leaking credentials.
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"

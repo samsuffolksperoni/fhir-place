@@ -38,3 +38,24 @@ export const parseSearchUrl = (url: string): ParsedSearchUrl => {
   });
   return { baseUrl, resourceType, params };
 };
+
+/**
+ * True when `target` resolves to the same origin as `base`. Both inputs may be
+ * absolute (`https://x/fhir`) or root-relative (`/fhir`) — relative ones are
+ * resolved against `referenceHref` (typically `window.location.href`).
+ *
+ * Used to gate sending the active FHIR server's auth headers on the /ask page,
+ * since the request URL there is user-editable. Without this check, a user who
+ * edits the host could leak bearer tokens to a third party.
+ */
+export const sameOrigin = (
+  target: string,
+  base: string,
+  referenceHref: string,
+): boolean => {
+  try {
+    return new URL(target, referenceHref).origin === new URL(base, referenceHref).origin;
+  } catch {
+    return false;
+  }
+};

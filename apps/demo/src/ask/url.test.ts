@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSearchUrl, parseSearchUrl } from "./url.js";
+import { buildSearchUrl, parseSearchUrl, sameOrigin } from "./url.js";
 
 describe("buildSearchUrl", () => {
   it("appends params to resource type", () => {
@@ -52,5 +52,48 @@ describe("parseSearchUrl", () => {
     expect(parsed.params).toEqual({
       "_has:Condition:patient:code": "44054006",
     });
+  });
+});
+
+describe("sameOrigin", () => {
+  const ref = "https://app.example/";
+
+  it("matches identical absolute origins", () => {
+    expect(
+      sameOrigin(
+        "https://hapi.fhir.org/baseR4/Patient?name=ada",
+        "https://hapi.fhir.org/baseR4",
+        ref,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects different hosts", () => {
+    expect(
+      sameOrigin(
+        "https://attacker.example/Patient",
+        "https://hapi.fhir.org/baseR4",
+        ref,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects http vs https on the same host", () => {
+    expect(
+      sameOrigin(
+        "http://hapi.fhir.org/baseR4/Patient",
+        "https://hapi.fhir.org/baseR4",
+        ref,
+      ),
+    ).toBe(false);
+  });
+
+  it("treats relative base URLs as same-origin against the reference", () => {
+    expect(sameOrigin("https://app.example/fhir/Patient", "/fhir", ref)).toBe(true);
+    expect(sameOrigin("https://other.example/fhir/Patient", "/fhir", ref)).toBe(false);
+  });
+
+  it("returns false for malformed inputs", () => {
+    expect(sameOrigin("not a url", "https://x", ref)).toBe(false);
   });
 });
