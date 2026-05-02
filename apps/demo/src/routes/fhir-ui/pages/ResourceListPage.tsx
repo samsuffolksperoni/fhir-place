@@ -13,6 +13,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import type { SearchParams } from "@fhir-place/react-fhir";
 import { PatientRowCounts } from "../../../components/PatientRowCounts.js";
 import { SearchRequestPreview } from "../../../components/SearchRequestPreview.js";
+import { CC_FONT, CC_MONO, ccBtn } from "../../../components/ccStyles.js";
 import {
   RESOURCE_LIST_CONFIG,
   isTopResourceType,
@@ -20,7 +21,7 @@ import {
   type ResourceListConfig,
 } from "../../../resourceListConfig.js";
 
-type Layout = "list" | "table";
+type Layout = "list" | "table" | "json";
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200] as const;
 const DEFAULT_PAGE_SIZE = 20;
 const pageSizeStorageKey = "fhir-place-demo-page-size";
@@ -39,8 +40,6 @@ const readPageSize = (): number => {
 
 const readLayout = (rt: string, hasListView: boolean, scoped: boolean): Layout => {
   if (!hasListView) return "table";
-  // Compartment-scoped views (e.g. Conditions for one patient) default to
-  // the denser table layout — the typical use case is comparing rows.
   if (scoped) return "table";
   if (typeof window === "undefined") return "list";
   const v = window.localStorage.getItem(layoutKey(rt));
@@ -108,16 +107,6 @@ const formInitialFromUrl = (urlParams: URLSearchParams): Record<string, string> 
   return out;
 };
 
-/**
- * Generic index/list page for any FHIR resource type. Configured types
- * (top-N in the sidebar) get curated columns, priority search params, and a
- * list view; unconfigured types fall back to columns derived from the
- * StructureDefinition `isSummary` set.
- *
- * Reads `?patient=<id>` to scope the search to a Patient compartment, in
- * which case the page hides the "+ New" button and shows a back-to-patient
- * nav.
- */
 export function ResourceListPage() {
   const { resourceType = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -137,8 +126,6 @@ export function ResourceListPage() {
     setLayout(readLayout(resourceType, hasListView, Boolean(patientId)));
   }, [resourceType, hasListView, patientId]);
   useEffect(() => {
-    // Don't persist the auto-chosen `table` from the scoped view — it would
-    // clobber the user's unscoped preference for the same resource type.
     if (typeof window === "undefined" || !hasListView || patientId) return;
     window.localStorage.setItem(layoutKey(resourceType), layout);
   }, [layout, resourceType, hasListView, patientId]);
@@ -210,9 +197,10 @@ export function ResourceListPage() {
     setColumns((current) => {
       const available = new Set(tableColumns.map((c) => c.path));
       const kept = current.filter((path) => available.has(path));
-      const next = kept.length > 0
-        ? kept
-        : defaultVisibleColumns.filter((path) => available.has(path));
+      const next =
+        kept.length > 0
+          ? kept
+          : defaultVisibleColumns.filter((path) => available.has(path));
       if (next.length === current.length && next.every((p, i) => p === current[i])) {
         return current;
       }
@@ -237,193 +225,375 @@ export function ResourceListPage() {
   const showCreate = !patientId && Boolean(config);
   const priorityParams = config?.priorityParams;
 
+  const totalStr = (() => {
+    if (!data) return "…";
+    if (totalAdvertised !== undefined) return `${totalAdvertised.toLocaleString()} records`;
+    return `${resources.length} loaded`;
+  })();
+
   return (
-    <div className="space-y-4">
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        fontFamily: CC_FONT,
+      }}
+    >
+      {/* Patient compartment back-link */}
       {patientId && (
-        <nav className="text-sm">
-          <Link to={`/fhir-ui/Patient/${patientId}`} className="text-slate-500 underline">
-            ← Back to patient
+        <div style={{ padding: "12px 24px 0" }}>
+          <Link
+            to={`/fhir-ui/Patient/${patientId}`}
+            style={{ fontSize: 12, color: "var(--text-muted)", textDecoration: "none" }}
+          >
+            ← Back to Patient/{patientId}
           </Link>
-        </nav>
+        </div>
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold">{heading}</h1>
-          <p className="text-sm text-slate-500">
-            {data
-              ? totalAdvertised !== undefined
-                ? `${resources.length} of ${totalAdvertised}`
-                : `${resources.length} loaded`
-              : "…"}
-            {patientId && (
-              <>
-                {" "}· scoped to{" "}
-                <code className="rounded bg-slate-100 px-1">Patient/{patientId}</code>
-              </>
-            )}
-          </p>
-        </div>
-        {showCreate && (
-          <Link
-            to={`/fhir-ui/${resourceType}/new`}
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-            data-testid={`create-${resourceType.toLowerCase()}`}
+      {/* Page header */}
+      <div style={{ padding: "20px 24px 0" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
+          <h1
+            style={{
+              fontSize: 20,
+              fontWeight: 600,
+              margin: 0,
+              letterSpacing: -0.3,
+              color: "var(--text)",
+            }}
           >
-            + New {singular}
-          </Link>
-        )}
-      </div>
-
-      <ResourceSearch
-        key={formKey}
-        resourceType={resourceType}
-        initialVisible={6}
-        initialParams={formInitial}
-        {...(priorityParams ? { priorityParams } : {})}
-        onChange={(p) =>
-          setDraftParams({
-            _count: pageSize,
-            ...(patientId ? { patient: patientId } : {}),
-            ...p,
-          })
-        }
-        onSubmit={submitFilters}
-      />
-
-      <SortPicker
-        resourceType={resourceType}
-        value={searchParams.get("_sort") ?? undefined}
-        priorityParams={priorityParams}
-        onChange={(param) => {
-          const entries: Array<[string, string]> = [];
-          if (patientId) entries.push(["patient", patientId]);
-          for (const [k, v] of searchParams.entries()) {
-            if (k === "patient" || k === "_sort") continue;
-            entries.push([k, v]);
-          }
-          if (param) entries.push(["_sort", param]);
-          setSearchParams(Object.fromEntries(entries), { replace: true });
-        }}
-      />
-
-      <SearchRequestPreview
-        baseUrl={client.baseUrl}
-        resourceType={resourceType}
-        params={draftParams}
-      />
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {hasListView ? (
-          <div
-            role="group"
-            aria-label="Layout"
-            className="inline-flex rounded border border-slate-300 bg-white text-sm shadow-sm"
+            {heading}
+          </h1>
+          <span
+            style={{
+              fontSize: 12,
+              color: "var(--text-muted)",
+              fontVariantNumeric: "tabular-nums",
+            }}
           >
-            <button
-              type="button"
-              onClick={() => setLayout("list")}
-              aria-pressed={layout === "list"}
-              data-testid="layout-list"
-              className={`rounded-l px-3 py-1 ${layout === "list" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-600 hover:bg-slate-50"}`}
+            {totalStr}
+          </span>
+          {patientId && (
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--text-muted)",
+                fontFamily: CC_MONO,
+              }}
             >
-              List view
-            </button>
-            <button
-              type="button"
-              onClick={() => setLayout("table")}
-              aria-pressed={layout === "table"}
-              data-testid="layout-table"
-              className={`rounded-r border-l border-slate-300 px-3 py-1 ${layout === "table" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-600 hover:bg-slate-50"}`}
-            >
-              Table view
-            </button>
-          </div>
-        ) : (
-          <div />
-        )}
-        <div className="flex items-center gap-2">
-          <PageSizePicker value={pageSize} onChange={setPageSize} />
-          {(!hasListView || layout === "table") && (
-            <ColumnPicker
-              options={tableColumns}
-              defaultSelected={defaultVisibleColumns}
-              onChange={setColumns}
-              storageKey={columnKey(resourceType)}
-            />
+              · Patient/<span style={{ color: "var(--accent-text)" }}>{patientId}</span>
+            </span>
           )}
         </div>
+        {config?.title && (
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+            {config.title}
+          </p>
+        )}
       </div>
 
+      {/* Search card */}
+      <div style={{ padding: "16px 24px 0" }}>
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--text-subtle)",
+                letterSpacing: 0.5,
+                textTransform: "uppercase",
+              }}
+            >
+              Search params
+            </span>
+            <div style={{ flex: 1 }} />
+            <button style={{ ...ccBtn("ghost"), fontSize: 12 }}>Save query</button>
+            <button style={{ ...ccBtn("secondary"), fontSize: 12 }}>Clear</button>
+          </div>
+
+          <ResourceSearch
+            key={formKey}
+            resourceType={resourceType}
+            initialVisible={6}
+            initialParams={formInitial}
+            {...(priorityParams ? { priorityParams } : {})}
+            onChange={(p) =>
+              setDraftParams({
+                _count: pageSize,
+                ...(patientId ? { patient: patientId } : {}),
+                ...p,
+              })
+            }
+            onSubmit={submitFilters}
+          />
+
+          {/* Request preview */}
+          <div style={{ marginTop: 10 }}>
+            <SearchRequestPreview
+              baseUrl={client.baseUrl}
+              resourceType={resourceType}
+              params={draftParams}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Results toolbar */}
+      <div
+        style={{
+          padding: "14px 24px 0",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Layout toggle */}
+        <div
+          style={{
+            display: "flex",
+            background: "var(--sunken)",
+            borderRadius: 6,
+            padding: 2,
+            border: "1px solid var(--border)",
+          }}
+        >
+          {(["list", "table", "json"] as const).map((l) => {
+            const labels: Record<string, string> = { list: "List", table: "Table", json: "JSON" };
+            const active = layout === l || (!hasListView && l === "table");
+            const disabled = l === "list" && !hasListView;
+            return (
+              <button
+                key={l}
+                onClick={() => !disabled && setLayout(l)}
+                aria-pressed={active}
+                data-testid={`layout-${l}`}
+                disabled={disabled}
+                style={{
+                  ...ccBtn("ghost"),
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  background: active ? "var(--surface)" : "transparent",
+                  color: active ? "var(--text)" : "var(--text-muted)",
+                  boxShadow: active ? "0 1px 2px rgba(0,0,0,.04)" : "none",
+                  opacity: disabled ? 0.4 : 1,
+                }}
+              >
+                {labels[l]}
+              </button>
+            );
+          })}
+        </div>
+
+        <SortPicker
+          resourceType={resourceType}
+          value={searchParams.get("_sort") ?? undefined}
+          priorityParams={priorityParams}
+          onChange={(param) => {
+            const entries: Array<[string, string]> = [];
+            if (patientId) entries.push(["patient", patientId]);
+            for (const [k, v] of searchParams.entries()) {
+              if (k === "patient" || k === "_sort") continue;
+              entries.push([k, v]);
+            }
+            if (param) entries.push(["_sort", param]);
+            setSearchParams(Object.fromEntries(entries), { replace: true });
+          }}
+        />
+
+        <div style={{ flex: 1 }} />
+
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          {data
+            ? `Showing ${resources.length}${totalAdvertised !== undefined ? ` of ${totalAdvertised.toLocaleString()}` : ""}`
+            : "…"}
+        </span>
+
+        <PageSizePicker value={pageSize} onChange={setPageSize} />
+
+        {(!hasListView || layout === "table") && (
+          <ColumnPicker
+            options={tableColumns}
+            defaultSelected={defaultVisibleColumns}
+            onChange={setColumns}
+            storageKey={columnKey(resourceType)}
+          />
+        )}
+      </div>
+
+      {/* Error state */}
       {isError && (
-        <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div
+          style={{
+            margin: "12px 24px 0",
+            padding: "10px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--danger)",
+            background: "var(--danger-soft)",
+            fontSize: 13,
+            color: "var(--danger)",
+          }}
+        >
           {(error as Error)?.message ?? "Search failed"}
+        </div>
+      )}
+
+      {/* Loading */}
+      {isLoading && (
+        <p
+          style={{ padding: "16px 24px 0", fontSize: 13, color: "var(--text-muted)" }}
+          data-testid="resource-loading"
+        >
+          Loading…
         </p>
       )}
 
-      {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
-
-      {hasListView && layout === "list" ? (
-        <ResourceList
-          resources={resources}
-          resourceType={resourceType}
-          singular={singular}
-          config={config!}
-          isLoading={isLoading}
-        />
-      ) : (
-        resources.length > 0 ? (
-          <ResourceTable<Resource>
+      {/* Results */}
+      <div
+        style={{
+          padding: "12px 24px",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
+      >
+        {layout === "json" ? (
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              flex: 1,
+              overflow: "auto",
+              padding: 16,
+            }}
+          >
+            <pre
+              style={{
+                margin: 0,
+                fontSize: 12,
+                lineHeight: 1.6,
+                color: "var(--text)",
+                fontFamily: CC_MONO,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {JSON.stringify(resources, null, 2)}
+            </pre>
+          </div>
+        ) : hasListView && layout === "list" ? (
+          <ResourceList
             resources={resources}
-            columns={tableColumns
-              .map((c) => c.path)
-              .filter((p) => columns.includes(p))}
-            columnLabels={Object.fromEntries(tableColumns.map((c) => [c.path, c.label]))}
-            cellRenderers={
-              resourceType === "Patient"
-                ? {
-                    name: (r) => <span>{config!.formatPrimary!(r)}</span>,
-                    __counts: (patient) =>
-                      patient.id ? (
-                        <PatientRowCounts patientId={patient.id} />
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      ),
-                  }
-                : undefined
-            }
-            onRowClick={(r) => r.id && navigate(`/fhir-ui/${r.resourceType}/${r.id}`)}
-            emptyState={
-              <p className="px-4 py-6 text-center text-sm text-slate-500">
-                No {singular} records match.
-              </p>
-            }
+            resourceType={resourceType}
+            singular={singular}
+            config={config!}
+            isLoading={isLoading}
           />
+        ) : resources.length > 0 ? (
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              overflow: "hidden",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            <ResourceTable<Resource>
+              resources={resources}
+              columns={tableColumns.map((c) => c.path).filter((p) => columns.includes(p))}
+              columnLabels={Object.fromEntries(tableColumns.map((c) => [c.path, c.label]))}
+              cellRenderers={
+                resourceType === "Patient"
+                  ? {
+                      name: (r) => <span>{config!.formatPrimary!(r)}</span>,
+                      __counts: (patient) =>
+                        patient.id ? (
+                          <PatientRowCounts patientId={patient.id} />
+                        ) : (
+                          <span style={{ color: "var(--text-subtle)" }}>—</span>
+                        ),
+                    }
+                  : undefined
+              }
+              onRowClick={(r) => r.id && navigate(`/fhir-ui/${r.resourceType}/${r.id}`)}
+              emptyState={
+                <p
+                  style={{
+                    padding: "24px 16px",
+                    textAlign: "center",
+                    fontSize: 13,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  No {singular} records match.
+                </p>
+              }
+            />
+          </div>
         ) : (
           !isLoading && (
-            <p className="rounded border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "24px 16px",
+                textAlign: "center",
+                fontSize: 13,
+                color: "var(--text-muted)",
+              }}
+            >
               No {singular} records match.
-            </p>
+            </div>
           )
-        )
-      )}
+        )}
 
-      {hasNextPage && (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-            data-testid="load-more"
-            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-          >
-            {isFetchingNextPage ? "Loading…" : "Load more"}
-          </button>
-        </div>
-      )}
+        {/* Load more */}
+        {hasNextPage && (
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+            <button
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              data-testid="load-more"
+              style={{
+                ...ccBtn("secondary"),
+                fontSize: 12,
+                opacity: isFetchingNextPage ? 0.6 : 1,
+              }}
+            >
+              {isFetchingNextPage ? "Loading…" : "Load more"}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+// ─── Page size picker ─────────────────────────────────────────────────────────
 
 interface PageSizePickerProps {
   value: number;
@@ -444,53 +614,63 @@ function PageSizePicker({ value, onChange }: PageSizePickerProps) {
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} style={{ position: "relative" }}>
       <button
-        type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         data-testid="page-size-picker"
-        className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm hover:bg-slate-50"
+        style={{ ...ccBtn("ghost"), fontSize: 12 }}
       >
-        <span>Page size: {value}</span>
+        {value} / page
         <svg
-          aria-hidden="true"
-          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
+          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 120ms" }}
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
         >
-          <path
-            d="M4 6l4 4 4-4"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <path d="M2 3l3 3 3-3" />
         </svg>
       </button>
-
       {open && (
         <div
-          role="menu"
-          className="absolute right-0 top-full z-10 mt-1 w-max rounded border border-slate-200 bg-white p-1 shadow-md"
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "100%",
+            zIndex: 20,
+            marginTop: 4,
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: 4,
+            boxShadow: "0 4px 16px rgba(0,0,0,.08)",
+            minWidth: 100,
+          }}
         >
           {PAGE_SIZE_OPTIONS.map((size) => (
             <button
               key={size}
-              type="button"
-              role="menuitemradio"
-              aria-checked={value === size}
               data-testid={`page-size-option-${size}`}
               onClick={() => {
                 onChange(size);
                 setOpen(false);
               }}
-              className={`block w-full rounded px-3 py-1 text-left text-sm ${
-                value === size
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-700 hover:bg-slate-100"
-              }`}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "6px 10px",
+                borderRadius: 5,
+                fontSize: 13,
+                cursor: "pointer",
+                border: "none",
+                background: value === size ? "var(--accent)" : "transparent",
+                color: value === size ? "#fff" : "var(--text)",
+                fontFamily: CC_FONT,
+              }}
             >
               {size}
             </button>
@@ -501,6 +681,8 @@ function PageSizePicker({ value, onChange }: PageSizePickerProps) {
   );
 }
 
+// ─── List view ────────────────────────────────────────────────────────────────
+
 interface ResourceListProps {
   resources: Resource[];
   resourceType: string;
@@ -509,44 +691,77 @@ interface ResourceListProps {
   isLoading: boolean;
 }
 
-function ResourceList({
-  resources,
-  resourceType,
-  singular,
-  config,
-  isLoading,
-}: ResourceListProps) {
+function ResourceList({ resources, resourceType, singular, config, isLoading }: ResourceListProps) {
   const formatPrimary = config.formatPrimary!;
   const formatMeta = config.formatMeta;
   const rowTestId = `${resourceType.toLowerCase()}-row`;
 
   return (
-    <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
-      {resources.map((r) => {
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        overflow: "hidden",
+        flex: 1,
+      }}
+    >
+      {resources.map((r, i) => {
         const meta = formatMeta?.(r).filter((v): v is string => Boolean(v)) ?? [];
         return (
-          <li key={r.id} data-testid={rowTestId}>
-            <Link
-              to={`/fhir-ui/${resourceType}/${r.id}`}
-              className="flex flex-col gap-1 px-4 py-3 hover:bg-slate-50"
+          <Link
+            key={r.id}
+            to={`/fhir-ui/${resourceType}/${r.id}`}
+            data-testid={rowTestId}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "10px 16px",
+              borderBottom:
+                i < resources.length - 1 ? "1px solid var(--border)" : "none",
+              textDecoration: "none",
+              color: "var(--text)",
+              transition: "background 80ms ease",
+            }}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLAnchorElement).style.background = "var(--sunken)")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLAnchorElement).style.background = "transparent")
+            }
+          >
+            <span style={{ fontSize: 13, fontWeight: 500 }}>{formatPrimary(r)}</span>
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--text-muted)",
+                fontFamily: CC_MONO,
+                whiteSpace: "nowrap",
+              }}
             >
-              <div className="flex items-baseline justify-between gap-4">
-                <span className="font-medium text-slate-900">{formatPrimary(r)}</span>
-                <span className="text-xs text-slate-500">
-                  {meta.length > 0 ? `${meta.join(" · ")} · ` : ""}
-                  <code className="rounded bg-slate-100 px-1 py-0.5">{r.id}</code>
-                </span>
-              </div>
-              {resourceType === "Patient" && r.id && <PatientRowCounts patientId={r.id} />}
-            </Link>
-          </li>
+              {meta.length > 0 ? `${meta.join(" · ")} · ` : ""}
+              {r.id}
+            </span>
+            {resourceType === "Patient" && r.id && (
+              <PatientRowCounts patientId={r.id} />
+            )}
+          </Link>
         );
       })}
       {!isLoading && resources.length === 0 && (
-        <li className="px-4 py-6 text-center text-sm text-slate-500">
+        <p
+          style={{
+            padding: "24px 16px",
+            textAlign: "center",
+            fontSize: 13,
+            color: "var(--text-muted)",
+          }}
+        >
           No {singular} records match.
-        </li>
+        </p>
       )}
-    </ul>
+    </div>
   );
 }

@@ -11,10 +11,31 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CompartmentSection } from "../../../components/CompartmentSection.js";
 import { PatientCompartmentLinks } from "../../../components/PatientCompartmentLinks.js";
+import { CC_FONT, CC_MONO, ccBtn } from "../../../components/ccStyles.js";
 import { PATIENT_COMPARTMENT } from "../../../compartment.js";
 import { patientFieldOptions } from "../../../patientFields.js";
 
 const PATIENT_FIELDS_KEY = "fhir-place-demo-patient-detail-fields";
+
+function colorJson(line: string): string {
+  return line
+    .replace(
+      /("(?:[^"\\]|\\.)*")(\s*:)/g,
+      `<span style="color:var(--accent-text)">$1</span>$2`,
+    )
+    .replace(
+      /:\s*("(?:[^"\\]|\\.)*")/g,
+      `: <span style="color:var(--success)">$1</span>`,
+    )
+    .replace(
+      /:\s*(true|false|null)/g,
+      `: <span style="color:var(--accent)">$1</span>`,
+    )
+    .replace(
+      /:\s*(-?\d+(?:\.\d+)?)/g,
+      `: <span style="color:var(--accent)">$1</span>`,
+    );
+}
 
 export function ResourceDetailPage() {
   const { resourceType = "", id = "" } = useParams();
@@ -24,6 +45,7 @@ export function ResourceDetailPage() {
     error instanceof FhirError && (error.status === 404 || error.status === 410);
   const del = useDeleteResource();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [rightPane, setRightPane] = useState<"formatted" | "json" | "refs">("formatted");
 
   const isPatient = resourceType === "Patient";
   const patientSdQuery = useStructureDefinition("Patient", { enabled: isPatient });
@@ -49,18 +71,39 @@ export function ResourceDetailPage() {
       await del.mutateAsync({ type: resourceType, id });
       navigate(`/fhir-ui/${resourceType}`);
     } catch {
-      // del.error is now populated; the confirm panel renders it inline so
-      // the user can read the server message and retry or cancel.
+      // del.error is populated; the confirm panel renders it inline.
     }
   };
 
+  const jsonLines = data ? JSON.stringify(data, null, 2).split("\n") : [];
+
   return (
-    <div className="space-y-4">
-      <nav className="flex items-center justify-between text-sm">
-        <Link to={`/fhir-ui/${resourceType}`} className="text-slate-500 underline">
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        fontFamily: CC_FONT,
+      }}
+    >
+      {/* Nav row */}
+      <div
+        style={{
+          padding: "12px 24px 0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexShrink: 0,
+        }}
+      >
+        <Link
+          to={`/fhir-ui/${resourceType}`}
+          style={{ fontSize: 12, color: "var(--text-muted)", textDecoration: "none" }}
+        >
           ← All {resourceType.toLowerCase()}s
         </Link>
-        <div className="flex gap-2">
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {isPatient && patientFields.length > 0 && (
             <ColumnPicker
               options={patientFields}
@@ -71,53 +114,66 @@ export function ResourceDetailPage() {
           )}
           <Link
             to={`/fhir-ui/${resourceType}/${id}/edit`}
-            className="rounded border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+            style={ccBtn("secondary")}
             data-testid="edit-resource"
           >
             Edit
           </Link>
           <button
-            type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="rounded border border-red-300 bg-white px-3 py-1 text-xs text-red-700 hover:bg-red-50"
+            style={ccBtn("danger")}
             data-testid="delete-resource"
           >
             Delete
           </button>
         </div>
-      </nav>
+      </div>
 
+      {/* Delete confirm */}
       {confirmingDelete && (
         <div
           data-testid="delete-confirm"
-          className="rounded border border-red-300 bg-red-50 p-3 text-sm"
+          style={{
+            margin: "12px 24px 0",
+            padding: "12px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--danger)",
+            background: "var(--danger-soft)",
+            fontSize: 13,
+          }}
         >
-          <p className="mb-2 text-red-800">
+          <p style={{ margin: "0 0 8px", color: "var(--danger)" }}>
             Delete {resourceType}/{id}? This cannot be undone.
           </p>
           {del.isError && (
             <p
               role="alert"
               data-testid="delete-error"
-              className="mb-2 rounded border border-red-300 bg-white p-2 text-xs text-red-800"
+              style={{
+                margin: "0 0 8px",
+                padding: "6px 10px",
+                borderRadius: 5,
+                border: "1px solid var(--danger)",
+                background: "var(--surface)",
+                fontSize: 12,
+                color: "var(--danger)",
+              }}
             >
               {(del.error as Error)?.message ?? "Delete failed"}
             </p>
           )}
-          <div className="flex gap-2">
+          <div style={{ display: "flex", gap: 8 }}>
             <button
-              type="button"
               onClick={() => setConfirmingDelete(false)}
-              className="rounded border border-slate-300 bg-white px-3 py-1 text-xs"
+              style={ccBtn("secondary")}
             >
               Cancel
             </button>
             <button
-              type="button"
               onClick={handleDelete}
               disabled={del.isPending}
               data-testid="delete-confirm-button"
-              className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              style={{ ...ccBtn("danger"), opacity: del.isPending ? 0.6 : 1 }}
             >
               {del.isPending ? "Deleting…" : "Yes, delete"}
             </button>
@@ -125,85 +181,382 @@ export function ResourceDetailPage() {
         </div>
       )}
 
+      {/* Loading */}
       {isLoading && (
-        <p className="text-sm text-slate-500" data-testid="resource-loading">
+        <p
+          style={{ padding: "16px 24px 0", fontSize: 13, color: "var(--text-muted)" }}
+          data-testid="resource-loading"
+        >
           Loading {resourceType}/{id}…
         </p>
       )}
+
+      {/* Not found */}
       {isError && notFound && (
         <div
           data-testid="resource-not-found"
-          className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          style={{
+            margin: "16px 24px 0",
+            padding: "14px 16px",
+            borderRadius: 8,
+            border: "1px solid var(--warn)",
+            background: "var(--warn-soft)",
+            fontSize: 13,
+            color: "var(--text)",
+          }}
         >
-          <p className="font-medium">{resourceType} not found</p>
-          <p className="mt-1 text-amber-800">
-            {resourceType}/{id} doesn't exist on this server, or it was deleted. It
-            may also be cached in a stale link.
+          <p style={{ margin: "0 0 4px", fontWeight: 500 }}>{resourceType} not found</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)" }}>
+            {resourceType}/{id} doesn't exist on this server, or it was deleted.
           </p>
           <Link
             to={`/fhir-ui/${resourceType}`}
-            className="mt-2 inline-block text-amber-900 underline"
+            style={{ fontSize: 12, color: "var(--text-muted)" }}
           >
             ← Back to all {resourceType.toLowerCase()}s
           </Link>
         </div>
       )}
+
+      {/* Generic error */}
       {isError && !notFound && (
         <div
           data-testid="resource-error"
-          className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          style={{
+            margin: "16px 24px 0",
+            padding: "12px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--danger)",
+            background: "var(--danger-soft)",
+            fontSize: 13,
+            color: "var(--danger)",
+          }}
         >
-          <p>{(error as Error)?.message ?? `Failed to load ${resourceType}/${id}.`}</p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="mt-2 rounded border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
-          >
+          <p style={{ margin: "0 0 8px" }}>
+            {(error as Error)?.message ?? `Failed to load ${resourceType}/${id}.`}
+          </p>
+          <button onClick={() => refetch()} style={ccBtn("secondary")}>
             Retry
           </button>
         </div>
       )}
-      {data && (
-        <ResourceView
-          resource={data}
-          onReferenceClick={onReferenceClick}
-          visibleFields={isPatient && visibleFields ? visibleFields : undefined}
-          className="rounded border border-slate-200 bg-white p-4 shadow-sm"
-        />
-      )}
 
+      {/* Main content: split left/right */}
       {data && (
-        <details className="rounded border border-slate-200 bg-white" data-testid="resource-json">
-          <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-slate-700">
-            View full JSON
-          </summary>
-          <pre className="max-h-[32rem] overflow-auto border-t border-slate-200 bg-slate-50 p-4 text-xs text-slate-800">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        </details>
-      )}
-
-      {data && resourceType === "Patient" && (
-        <section
-          className="space-y-6 pt-2"
-          data-testid="patient-compartment"
-          aria-label="Patient compartment"
+        <div
+          style={{
+            flex: 1,
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            minHeight: 0,
+            padding: "16px 24px",
+            gap: 16,
+            overflow: "hidden",
+          }}
         >
-          <div className="border-t border-slate-200 pt-4">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900">
-              Clinical data
-            </h2>
-            <PatientCompartmentLinks patientId={id} />
+          {/* Left: structured view */}
+          <div
+            style={{
+              overflow: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+            }}
+          >
+            {/* Resource title + badges */}
+            <div>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "var(--text-subtle)",
+                  letterSpacing: 0.6,
+                  textTransform: "uppercase",
+                  marginBottom: 4,
+                  fontFamily: CC_MONO,
+                }}
+              >
+                {resourceType}
+              </div>
+              <h1
+                style={{
+                  fontSize: 22,
+                  fontWeight: 600,
+                  margin: "0 0 8px",
+                  letterSpacing: -0.3,
+                  color: "var(--text)",
+                }}
+              >
+                {id}
+              </h1>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                  fontFamily: CC_MONO,
+                }}
+              >
+                {(data as Resource & { meta?: { versionId?: string; lastUpdated?: string } })
+                  .meta?.lastUpdated
+                  ? `Updated ${(data as Resource & { meta?: { lastUpdated?: string } }).meta?.lastUpdated}`
+                  : null}
+              </div>
+            </div>
+
+            {/* Structured view using existing ResourceView */}
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                overflow: "hidden",
+              }}
+            >
+              <ResourceView
+                resource={data}
+                onReferenceClick={onReferenceClick}
+                visibleFields={isPatient && visibleFields ? visibleFields : undefined}
+              />
+            </div>
+
+            {/* Patient compartment */}
+            {isPatient && (
+              <section
+                data-testid="patient-compartment"
+                aria-label="Patient compartment"
+                style={{ display: "flex", flexDirection: "column", gap: 16 }}
+              >
+                <div
+                  style={{
+                    borderTop: "1px solid var(--border)",
+                    paddingTop: 16,
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      margin: "0 0 12px",
+                      color: "var(--text)",
+                    }}
+                  >
+                    Clinical data
+                  </h2>
+                  <PatientCompartmentLinks patientId={id} />
+                </div>
+                {PATIENT_COMPARTMENT.map((section) => (
+                  <CompartmentSection key={section.resourceType} patientId={id} {...section} />
+                ))}
+              </section>
+            )}
           </div>
-          {PATIENT_COMPARTMENT.map((section) => (
-            <CompartmentSection
-              key={section.resourceType}
-              patientId={id}
-              {...section}
-            />
-          ))}
-        </section>
+
+          {/* Right: JSON viewer */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              overflow: "hidden",
+              minHeight: 0,
+            }}
+          >
+            {/* Toolbar */}
+            <div
+              style={{
+                padding: "10px 14px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  background: "var(--sunken)",
+                  borderRadius: 6,
+                  padding: 2,
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {(["formatted", "json", "refs"] as const).map((v) => {
+                  const labels = { formatted: "View", json: "JSON", refs: "References" };
+                  const active = rightPane === v;
+                  return (
+                    <button
+                      key={v}
+                      onClick={() => setRightPane(v)}
+                      style={{
+                        ...ccBtn("ghost"),
+                        padding: "4px 10px",
+                        fontSize: 12,
+                        background: active ? "var(--surface)" : "transparent",
+                        color: active ? "var(--text)" : "var(--text-muted)",
+                        boxShadow: active ? "0 1px 2px rgba(0,0,0,.04)" : "none",
+                      }}
+                    >
+                      {labels[v]}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ flex: 1 }} />
+              <button
+                onClick={() => navigator.clipboard?.writeText(JSON.stringify(data, null, 2))}
+                style={{ ...ccBtn("ghost"), fontSize: 12 }}
+              >
+                Copy
+              </button>
+            </div>
+
+            {/* JSON content */}
+            {(rightPane === "json" || rightPane === "formatted") && (
+              <div
+                style={{
+                  flex: 1,
+                  overflow: "auto",
+                  padding: 14,
+                  background: "var(--surface)",
+                  fontFamily: CC_MONO,
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                  color: "var(--text)",
+                }}
+              >
+                <pre style={{ margin: 0, whiteSpace: "pre" }}>
+                  {jsonLines.map((line, i) => (
+                    <div key={i} style={{ display: "flex" }}>
+                      <span
+                        style={{
+                          width: 30,
+                          color: "var(--text-subtle)",
+                          textAlign: "right",
+                          paddingRight: 12,
+                          userSelect: "none",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span dangerouslySetInnerHTML={{ __html: colorJson(line) }} />
+                    </div>
+                  ))}
+                </pre>
+              </div>
+            )}
+
+            {/* References pane */}
+            {rightPane === "refs" && <ReferencesPane resource={data} onNavigate={(path) => navigate(path)} />}
+          </div>
+        </div>
       )}
     </div>
   );
+}
+
+function ReferencesPane({
+  resource,
+  onNavigate,
+}: {
+  resource: Resource;
+  onNavigate: (path: string) => void;
+}) {
+  const refs = extractReferences(resource);
+
+  if (refs.length === 0) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 13,
+          color: "var(--text-muted)",
+        }}
+      >
+        No references found
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, overflow: "auto", padding: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {refs.map((ref, i) => {
+          const [type, refId] = ref.reference?.split("/") ?? [];
+          const clickable = type && refId && !/^https?:\/\//i.test(ref.reference ?? "");
+          return (
+            <div
+              key={i}
+              onClick={() => clickable && onNavigate(`/fhir-ui/${type}/${refId}`)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                background: "var(--surface)",
+                cursor: clickable ? "pointer" : "default",
+                transition: "background 80ms ease",
+              }}
+              onMouseEnter={(e) => {
+                if (clickable)
+                  (e.currentTarget as HTMLDivElement).style.background = "var(--sunken)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = "var(--surface)";
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text)" }}>
+                  {ref.display ?? ref.reference ?? "—"}
+                </div>
+                <div
+                  style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: CC_MONO }}
+                >
+                  {ref.reference}
+                </div>
+              </div>
+              {clickable && (
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="var(--text-subtle)"
+                  strokeWidth="1.5"
+                >
+                  <path d="M4 2l4 4-4 4" />
+                </svg>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function extractReferences(
+  obj: unknown,
+  out: Array<{ reference?: string; display?: string }> = [],
+): Array<{ reference?: string; display?: string }> {
+  if (!obj || typeof obj !== "object") return out;
+  if (Array.isArray(obj)) {
+    obj.forEach((item) => extractReferences(item, out));
+    return out;
+  }
+  const record = obj as Record<string, unknown>;
+  if (typeof record.reference === "string") {
+    out.push({ reference: record.reference, display: record.display as string | undefined });
+    return out;
+  }
+  Object.values(record).forEach((v) => extractReferences(v, out));
+  return out;
 }
