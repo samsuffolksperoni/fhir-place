@@ -1,5 +1,5 @@
 import type { Reference, Resource } from "fhir/r4";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SearchParams } from "../client/types.js";
 import { useSearch } from "../hooks/queries.js";
 import { formatReferenceLabel } from "../structure/format.js";

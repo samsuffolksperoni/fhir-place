@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CodeableConcept, ElementDefinition } from "fhir/r4";
@@ -13,14 +14,18 @@ const element: ElementDefinition = {
 const renderInput = (
   value: CodeableConcept | undefined,
   onChange: (v: CodeableConcept | undefined) => void = () => {},
-) =>
-  render(
-    <DataAbsentReasonInput
-      value={value}
-      onChange={onChange}
-      context={{ path: element.path!, typeCode: "CodeableConcept", element }}
-    />,
+) => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <DataAbsentReasonInput
+        value={value}
+        onChange={onChange}
+        context={{ path: element.path!, typeCode: "CodeableConcept", element }}
+      />
+    </QueryClientProvider>,
   );
+};
 
 describe("DataAbsentReasonInput", () => {
   it("renders a trigger button when no reason is set", () => {
