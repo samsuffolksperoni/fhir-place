@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { APIError } from "@anthropic-ai/sdk";
 import type { FhirQueryPlan } from "./url.js";
 
 const SYSTEM_PROMPT = `You convert natural-language clinical questions into a single FHIR R4 REST search.
@@ -36,31 +36,45 @@ export const naturalLanguageToFhirQuery = async (
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   const today = new Date().toISOString().slice(0, 10);
 
-  const response = await client.messages.create({
-    model: "claude-opus-4-7",
-    max_tokens: 1024,
-    system: [
-      {
-        type: "text",
-        text: SYSTEM_PROMPT,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: `Today's date is ${today}.\n\nQuestion: ${question}`,
-      },
-    ],
-    tools: [
-      {
-        name: "emit_fhir_query",
-        description: "Emit the FHIR R4 search query that answers the question.",
-        input_schema: SCHEMA,
-      },
-    ],
-    tool_choice: { type: "tool", name: "emit_fhir_query" },
-  });
+  let response: Awaited<ReturnType<typeof client.messages.create>>;
+  try {
+    response = await client.messages.create({
+      model: "claude-opus-4-7",
+      max_tokens: 1024,
+      system: [
+        {
+          type: "text",
+          text: SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [
+        {
+          role: "user",
+          content: `Today's date is ${today}.\n\nQuestion: ${question}`,
+        },
+      ],
+      tools: [
+        {
+          name: "emit_fhir_query",
+          description: "Emit the FHIR R4 search query that answers the question.",
+          input_schema: SCHEMA,
+        },
+      ],
+      tool_choice: { type: "tool", name: "emit_fhir_query" },
+    });
+  } catch (err) {
+    if (err instanceof APIError) {
+      const body = err.error as Record<string, unknown> | undefined;
+      const inner = body?.error as Record<string, unknown> | undefined;
+      const msg =
+        (typeof inner?.message === "string" ? inner.message : null) ??
+        (typeof body?.message === "string" ? body.message : null) ??
+        err.message;
+      throw new Error(msg);
+    }
+    throw err;
+  }
 
   const toolBlock = response.content.find((b) => b.type === "tool_use");
   if (!toolBlock || toolBlock.type !== "tool_use") {
