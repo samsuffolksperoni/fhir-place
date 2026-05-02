@@ -27,7 +27,6 @@ jobs:
       # signal visible in CI logs and fails the build on regression.
       - run: pnpm --filter @fhir-place/react-fhir test:ci
       - run: pnpm --filter @fhir-place/demo build
-      - run: pnpm --filter @fhir-place/workbench build
 
   e2e:
     runs-on: ubuntu-latest

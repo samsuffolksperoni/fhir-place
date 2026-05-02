@@ -15,11 +15,8 @@ Closes #
 - [ ] `manual-qa` label added when any acceptance item is not fully automated
 - [ ] Linked/created manual QA issue(s):
 
-## TASKS.md update
-- [ ] Updated `apps/workbench/TASKS.md` for backlog/done status
-
 ## Screenshots / recordings
-Required for UI/UX changes. Add links to assets committed in `apps/workbench/docs/screenshots/` or externally hosted recordings.
+Required for UI/UX changes. Add links to externally hosted recordings or assets committed under the relevant app's `docs/`.
 -
 
 ## Risks

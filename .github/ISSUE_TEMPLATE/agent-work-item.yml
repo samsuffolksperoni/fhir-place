@@ -1,8 +1,6 @@
 name: Agent work item
 description: Scoped implementation packet for Codex/Claude
 title: "[work] "
-labels:
-  - fhir-workbench-phase-a
 body:
   - type: textarea
     id: problem
@@ -46,7 +44,7 @@ body:
       label: Relevant files
       description: List likely files/areas.
       value: |
-        - `apps/workbench/...`
+        -
 
   - type: textarea
     id: constraints

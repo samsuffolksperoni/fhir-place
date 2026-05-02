@@ -32,9 +32,7 @@ Operationally:
 - Do not rename. The npm name is scoped and already published; renaming
   destroys distribution. Address the bare-name SEO collision in `README.md`
   copy, not via a package rename.
-- Library positioning is independent of `apps/workbench` Phase A constraints.
-  Workbench docs and tasks live under `apps/workbench/` per `AGENTS.md`;
-  library strategy lives in `docs/` and `README.md` per ADR 0001.
+- Library strategy lives in `docs/` and `README.md` per ADR 0001.
 
 ## Consequences
 - Net new tracks (typed search builder, profile-aware codegen,
@@ -42,8 +40,6 @@ Operationally:
   adapter, optional `@fhir-place/mcp` package, interop demo matrix) are filed
   as GitHub Issues and surface in the `README.md` "Roadmap" table, not as a
   parallel doc tree.
-- Workbench-only constraints (no MCP server, no SMART, no write-back during
-  Phase A) do not apply to the library. An MCP package is permitted under
-  `packages/`.
+- An MCP package is permitted under `packages/`.
 - The `README.md` "Comparison" table is the authoritative competitive matrix.
   No separate `market-gap-comparison.md` is maintained.
