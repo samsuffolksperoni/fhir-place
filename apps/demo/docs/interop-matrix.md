@@ -241,9 +241,6 @@ does not point at an Aidbox instance, so the suite is safe to run anywhere.
   README "Roadmap → Deferred".
 - **Conformance / certification claims.** This matrix demonstrates the shape
   of "backend-agnostic"; it does not claim ONC certification for any path.
-- **`apps/workbench` interop coverage.** The workbench operates on synthetic
-  data per its Phase A constraints — see
-  [`apps/workbench/README.md`](../../../apps/workbench/README.md).
 
 ## Running the suite locally
 
