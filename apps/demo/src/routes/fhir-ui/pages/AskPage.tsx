@@ -120,7 +120,7 @@ export function AskPage() {
         {!hasKey && (
           <p className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
             No Anthropic API key set —{" "}
-            <Link to="/settings" className="underline">
+            <Link to="/fhir-ui/settings" className="underline">
               add one in Settings
             </Link>{" "}
             to enable query generation.

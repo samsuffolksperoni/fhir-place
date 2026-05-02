@@ -154,11 +154,11 @@ export function ResourceIndexPage() {
     <div className="space-y-4">
       <nav className="flex items-center justify-between gap-2 text-sm">
         {patientId ? (
-          <Link to={`/Patient/${patientId}`} className="text-slate-500 underline">
+          <Link to={`/fhir-ui/Patient/${patientId}`} className="text-slate-500 underline">
             ← Back to patient
           </Link>
         ) : (
-          <Link to="/Patient" className="text-slate-500 underline">
+          <Link to="/fhir-ui/Patient" className="text-slate-500 underline">
             ← All patients
           </Link>
         )}
@@ -219,7 +219,7 @@ export function ResourceIndexPage() {
           resources={resources}
           columns={columns}
           columnLabels={columnLabels}
-          onRowClick={(r) => r.id && navigate(`/${r.resourceType}/${r.id}`)}
+          onRowClick={(r) => r.id && navigate(`/fhir-ui/${r.resourceType}/${r.id}`)}
         />
       ) : (
         !isLoading && (

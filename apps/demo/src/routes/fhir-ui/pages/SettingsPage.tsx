@@ -137,7 +137,7 @@ export function SettingsPage() {
           </h2>
           <p className="text-xs text-slate-600">
             Paste an Anthropic API key to enable the{" "}
-            <Link to="/ask" className="underline">
+            <Link to="/fhir-ui/ask" className="underline">
               Ask
             </Link>{" "}
             page, which converts plain-English questions into FHIR search URLs.

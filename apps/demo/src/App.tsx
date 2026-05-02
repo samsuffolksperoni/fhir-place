@@ -1,4 +1,4 @@
-import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { AskPage } from "./routes/fhir-ui/pages/AskPage.js";
 import { PatientCreatePage } from "./routes/fhir-ui/pages/PatientCreatePage.js";
 import { PatientListPage } from "./routes/fhir-ui/pages/PatientListPage.js";
@@ -45,11 +45,11 @@ export function App() {
       </header>
       <main className="mx-auto max-w-5xl p-6">
         <Routes>
-          <Route path="/" element={<Navigate to="/fhir-ui/Patient" replace />} />
+          <Route path="/" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
           {/* CQL runner */}
           <Route path="/cql-runner" element={<CqlRunnerPage />} />
           {/* FHIR UI surface */}
-          <Route path="/fhir-ui" element={<Navigate to="/fhir-ui/Patient" replace />} />
+          <Route path="/fhir-ui" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
           <Route path="/fhir-ui/ask" element={<AskPage />} />
           <Route path="/fhir-ui/Patient" element={<PatientListPage />} />
           <Route path="/fhir-ui/Patient/new" element={<PatientCreatePage />} />
@@ -57,10 +57,13 @@ export function App() {
           <Route path="/fhir-ui/:resourceType/:id/edit" element={<ResourceEditPage />} />
           <Route path="/fhir-ui/:resourceType/:id" element={<ResourceDetailPage />} />
           <Route path="/fhir-ui/:resourceType" element={<ResourceIndexPage />} />
-          {/* Backwards-compat redirects from the old flat layout */}
-          <Route path="/ask" element={<Navigate to="/fhir-ui/ask" replace />} />
-          <Route path="/settings" element={<Navigate to="/fhir-ui/settings" replace />} />
-          <Route path="/Patient/new" element={<Navigate to="/fhir-ui/Patient/new" replace />} />
+          {/* Backwards-compat redirects from the old flat layout. These exist for
+              live bookmarks (and HashRouter on GitHub Pages) — in-app navigation
+              targets /fhir-ui/* directly. All redirects preserve the query string
+              and hash so e.g. /Patient?given=Alan keeps the filter. */}
+          <Route path="/ask" element={<RedirectWithQuery to="/fhir-ui/ask" />} />
+          <Route path="/settings" element={<RedirectWithQuery to="/fhir-ui/settings" />} />
+          <Route path="/Patient/new" element={<RedirectWithQuery to="/fhir-ui/Patient/new" />} />
           <Route
             path="/:resourceType/:id/edit"
             element={<RedirectToFhirUi suffix="/edit" includeId />}
@@ -76,7 +79,9 @@ export function App() {
   );
 }
 
-// Forwards old flat URLs like /Patient/123/edit to /fhir-ui/Patient/123/edit.
+// Forwards old flat URLs like /Patient/123/edit to /fhir-ui/Patient/123/edit,
+// keeping the query string + hash so live bookmarks like /Patient?given=Alan
+// don't lose their filters when the redirect fires.
 function RedirectToFhirUi({
   includeId = false,
   suffix = "",
@@ -85,8 +90,13 @@ function RedirectToFhirUi({
   suffix?: string;
 }) {
   const { resourceType, id } = useParams();
-  const target = includeId
+  const path = includeId
     ? `/fhir-ui/${resourceType}/${id}${suffix}`
     : `/fhir-ui/${resourceType}`;
-  return <Navigate to={target} replace />;
+  return <RedirectWithQuery to={path} />;
+}
+
+function RedirectWithQuery({ to }: { to: string }) {
+  const { search, hash } = useLocation();
+  return <Navigate to={`${to}${search}${hash}`} replace />;
 }
