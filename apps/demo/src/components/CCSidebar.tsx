@@ -17,6 +17,7 @@ export function CCSidebar() {
   return (
     <div
       data-testid="fhir-ui-sidebar"
+      className="cc-sidebar"
       style={{
         width: 260,
         borderRight: "1px solid var(--border)",
@@ -57,6 +58,7 @@ export function CCSidebar() {
               {ACTIVE_SERVER_CONFIG.label}
             </div>
             <div
+              data-testid="base-url"
               style={{
                 fontSize: 11,
                 color: "var(--text-muted)",

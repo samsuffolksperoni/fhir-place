@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext.js";
 import { CC_FONT, CC_MONO, ccBtn } from "./ccStyles.js";
 
@@ -21,24 +21,26 @@ function MoonIcon() {
 
 export function CCTopbar() {
   const location = useLocation();
-  const params = useParams<{ resourceType?: string; id?: string }>();
-  const navigate = useNavigate();
   const { theme, toggle } = useTheme();
 
+  // useParams() returns {} when rendered outside <Routes>, so parse from pathname directly.
+  const p = location.pathname;
+  const routeMatch = p.match(/^\/fhir-ui\/([^/]+?)(?:\/([^/]+?)(?:\/(edit))?)?$/);
+  const resourceType = routeMatch?.[1];
+  const id = routeMatch?.[2];
+
   const breadcrumb = (() => {
-    const p = location.pathname;
     if (p === "/fhir-ui/settings") return ["Settings", "Servers"];
     if (p === "/fhir-ui/ask") return ["Ask"];
-    if (params.id) {
+    if (id) {
       const suffix = p.endsWith("/edit") ? ["edit"] : [];
-      return ["FHIR Explorer", params.resourceType ?? "", params.id, ...suffix].filter(Boolean);
+      return ["FHIR Explorer", resourceType ?? "", id, ...suffix].filter(Boolean);
     }
-    if (params.resourceType) return ["FHIR Explorer", params.resourceType];
+    if (resourceType) return ["FHIR Explorer", resourceType];
     return ["FHIR Explorer"];
   })();
 
-  const resourceType = params.resourceType;
-  const showNew = resourceType && !params.id && location.pathname !== "/fhir-ui/settings";
+  const showNew = resourceType && !id && resourceType !== "settings" && resourceType !== "ask";
 
   return (
     <div

@@ -99,3 +99,10 @@ body, .cc-shell * {
 .cc-mono {
   font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
 }
+
+/* ─── Responsive sidebar ────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .cc-sidebar {
+    display: none !important;
+  }
+}

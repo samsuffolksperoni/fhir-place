@@ -5,7 +5,7 @@ import {
   useEffect,
   useReducer,
 } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 export type TabKind = "GET" | "POST" | "PUT" | "DELETE" | "CFG";
 
@@ -209,18 +209,3 @@ export function RouteTabSync() {
   return null;
 }
 
-/** Navigates to a tab's path when the tab is clicked. */
-export function TabNavigator() {
-  const { tabs, activeTabId } = useTabs();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    const active = tabs.find((t) => t.id === activeTabId);
-    if (active && active.path !== location.pathname) {
-      navigate(active.path);
-    }
-  }, [activeTabId, tabs, navigate, location.pathname]);
-
-  return null;
-}

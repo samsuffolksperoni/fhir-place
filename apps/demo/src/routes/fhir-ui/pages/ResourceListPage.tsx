@@ -519,11 +519,11 @@ export function ResourceListPage() {
               background: "var(--surface)",
               border: "1px solid var(--border)",
               borderRadius: 10,
-              overflow: "hidden",
+              overflow: "visible",
               flex: 1,
               display: "flex",
               flexDirection: "column",
-              minHeight: 0,
+              minHeight: 100,
             }}
           >
             <ResourceTable<Resource>

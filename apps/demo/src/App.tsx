@@ -3,7 +3,7 @@ import { CCTopbar } from "./components/CCTopbar.js";
 import { CCSidebar } from "./components/CCSidebar.js";
 import { CCTabs } from "./components/CCTabs.js";
 import { ThemeProvider } from "./context/ThemeContext.js";
-import { RouteTabSync, TabNavigator, TabsProvider } from "./context/TabsContext.js";
+import { RouteTabSync, TabsProvider } from "./context/TabsContext.js";
 import { AskPage } from "./routes/fhir-ui/pages/AskPage.js";
 import { ResourceCreatePage } from "./routes/fhir-ui/pages/ResourceCreatePage.js";
 import { ResourceDetailPage } from "./routes/fhir-ui/pages/ResourceDetailPage.js";
@@ -37,7 +37,6 @@ function Shell() {
     >
       {/* Route syncing (no UI) */}
       <RouteTabSync />
-      <TabNavigator />
 
       {/* Sidebar */}
       <CCSidebar />
