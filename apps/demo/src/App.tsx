@@ -1,4 +1,4 @@
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { PatientCreatePage } from "./pages/PatientCreatePage.js";
 import { PatientListPage } from "./pages/PatientListPage.js";
 import { ResourceDetailPage } from "./pages/ResourceDetailPage.js";
@@ -10,14 +10,34 @@ export function App() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white px-6 py-3">
-        <div className="flex items-baseline justify-between gap-4">
-          <div>
-            <Link to="/" className="text-lg font-semibold text-slate-900">
-              fhir-place
-            </Link>
-            <span className="ml-2 text-sm text-slate-500">
-              spec-driven FHIR viewer
-            </span>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-baseline gap-6">
+            <div>
+              <Link to="/" className="text-lg font-semibold text-slate-900">
+                fhir-place
+              </Link>
+              <span className="ml-2 text-sm text-slate-500">
+                spec-driven FHIR viewer
+              </span>
+            </div>
+            <nav className="flex items-baseline gap-4">
+              <NavLink
+                to="/Patient"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-slate-900" : "text-slate-500 hover:text-slate-700"}`
+                }
+              >
+                Patients
+              </NavLink>
+              <NavLink
+                to="/Goal"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-slate-900" : "text-slate-500 hover:text-slate-700"}`
+                }
+              >
+                Goals
+              </NavLink>
+            </nav>
           </div>
           <div className="text-xs text-slate-500" data-testid="base-url">
             {USE_MOCK ? "mock" : "live"} · {FHIR_BASE_URL}
