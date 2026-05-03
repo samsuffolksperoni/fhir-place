@@ -87,12 +87,14 @@
 3. Click again to reverse sort.
 4. **Expected:** Sort direction indicator flips; rows reorder.
 
-### 2.6 Pagination — next/previous
-1. Ensure the server has more than one page of Patients.
-2. Click "Next page".
-3. **Expected:** The next bundle page loads; URL or pagination state reflects page 2.
-4. Click "Previous page".
-5. **Expected:** The first page re-appears; first-page button/previous button is disabled when on page 1.
+### 2.6 Pagination — "Load more"
+The app uses `useInfiniteSearch` with a "Load more" button; there are no previous/next page buttons.
+1. Ensure the server has more than one page of Patients (use live HAPI or a mock with multiple bundle pages).
+2. Scroll to the bottom of the list and click "Load more".
+3. **Expected:** Additional rows are **appended** to the existing list (existing rows are not replaced or re-ordered).
+4. Continue clicking "Load more" until all results are loaded.
+5. **Expected:** The "Load more" button disappears (or becomes disabled) once no further `Bundle.link[rel=next]` is present.
+6. **Screenshot** the list after appending rows and after the button disappears.
 
 ### 2.7 PatientRowCounts badge
 1. On the Patient list, locate the per-row resource-count badges.
@@ -115,6 +117,12 @@ Repeat 2.1–2.8 for: **Observation**, **Condition**, **MedicationRequest**, **E
 1. Throttle the network to "Slow 3G" in DevTools.
 2. Navigate to `/fhir-ui/Patient`.
 3. **Expected:** A loading spinner or skeleton is shown while the bundle loads; it disappears when data arrives.
+
+### 2.12 Load more — rows append, not replace
+1. Load the Patient list until at least one "Load more" click has been performed.
+2. Note the number of rows before clicking.
+3. Click "Load more".
+4. **Expected:** Row count increases by the page size; the rows that were visible before are still present in their original positions; no duplicate rows appear.
 
 ---
 
@@ -172,6 +180,15 @@ Repeat 2.1–2.8 for: **Observation**, **Condition**, **MedicationRequest**, **E
 1. Navigate to `/fhir-ui/Observation` search.
 2. Use `code` (LOINC token) and `date` together.
 3. **Expected:** Both fields appear; combined query runs without error; results reflect both constraints.
+
+### 3.11 Search request preview URL updates live
+1. On any resource list page, locate the `SearchRequestPreview` (the live FHIR URL shown in the search card).
+2. Type a value into a search param (e.g., `name=Eve`).
+3. **Expected:** The preview URL updates immediately to reflect the new param (e.g., `…/Patient?name=Eve`); it is a valid FHIR URL (no unencoded spaces, correct param names).
+4. Add a second param.
+5. **Expected:** Both params appear in the preview URL with `&` separator.
+6. Clear all fields.
+7. **Expected:** The URL reverts to the base resource URL with no query params.
 
 ---
 
@@ -236,9 +253,10 @@ Navigate to the detail page for each resource type and confirm rendering:
 1. Find a resource with a `modifierExtension`.
 2. **Expected:** It is either displayed with a clear warning (spec: "modifies meaning") or explicitly omitted; the page does not crash.
 
-### 4.10 Version history link
-1. On any resource detail page, look for a "History" link or button.
-2. **Expected:** Navigates to a history view or calls `/_history` on the resource; at least the current version is listed.
+### 4.10 Version history link ⚠️ SKIP
+> **Note:** No `/_history` route exists in `App.tsx`. `FhirClient.history()` is implemented but the demo app has no history page. Skip this test; if a history UI is added in future, remove this note and enable the test.
+>
+> _If you navigate to a history-style URL and see a history view, that is unexpected — screenshot and file a bug noting it was added without documentation._
 
 ---
 
@@ -305,10 +323,13 @@ Navigate to the detail page for each resource type and confirm rendering:
 5. **Expected:** `200 OK` (or `201` if version-aware); detail page shows `EditedFamily`.
 
 ### 6.2 Optimistic concurrency (If-Match)
+> **Context:** `FetchFhirClient` sends `If-Match: W/"<versionId>"` when `meta.versionId` is present. The demo's `useUpdateResource` hook does not currently surface 409/412 as a distinct conflict message — a generic error is expected rather than a conflict-specific one. The key assertion is that the error is **not silent**.
+
 1. Open the same resource in two browser tabs.
-2. In tab 1, edit and save.
-3. In tab 2, edit (stale version) and save.
-4. **Expected:** Tab 2 receives a `409 Conflict` or `412 Precondition Failed`; an error is displayed to the user explaining the conflict — not a silent failure or data overwrite.
+2. In tab 1, edit and save successfully.
+3. In tab 2, edit (now stale version) and attempt to save.
+4. **Expected:** The server returns `409 Conflict` or `412 Precondition Failed`; an error message is displayed to the user in tab 2 — the save must not silently succeed or silently overwrite tab 1's changes.
+5. **Note:** The error message may be generic ("Something went wrong") rather than conflict-specific. If it is generic, note the UX gap in the bug report but set severity to Medium (not Critical), as data integrity is preserved.
 
 ### 6.3 Cancel edit discards changes
 1. Navigate to edit a Patient.
@@ -423,9 +444,15 @@ Navigate to the detail page for each resource type and confirm rendering:
 1. Use the sidebar to navigate between at least 5 different resource types.
 2. **Expected:** Each navigation lands on the correct list page; the sidebar item for the current type is highlighted/active.
 
-### 10.2 Sidebar — search history
-1. Perform several searches across different resource types.
-2. **Expected:** A "Recent searches" (or equivalent) section appears in the sidebar showing the searches; clicking one re-runs it.
+### 10.2 Jump dialog (⌘K / Ctrl+K)
+1. Press `⌘K` (Mac) or `Ctrl+K` (Windows/Linux) from any page.
+2. **Expected:** A command palette / jump dialog opens; focus moves into its search input.
+3. Type a partial resource type name (e.g., "obs").
+4. **Expected:** The list filters to matching resource types (e.g., "Observation"); non-matching types are hidden.
+5. Press ArrowDown to select an item, then Enter.
+6. **Expected:** The dialog closes and the app navigates to the selected resource list page.
+7. Re-open the dialog and press Escape.
+8. **Expected:** The dialog closes; focus returns to the element that was focused before opening; no layout shift.
 
 ### 10.3 Tab system — open multiple tabs
 1. Navigate to a Patient detail page.
@@ -583,9 +610,11 @@ Navigate to the detail page for each resource type and confirm rendering:
 
 ## Section 15 — Goals & Tasks Sample App
 
-### 15.1 Patient list loads
+### 15.1 Patient overview loads
+> **Note:** `PatientOverviewPage` shows a **single hardcoded patient** (`DEMO_PATIENT_ID = "demo-patient"`), not a selectable list.
+
 1. Navigate to the goals-tasks app (separate URL or port).
-2. **Expected:** A list of patients is displayed.
+2. **Expected:** A patient header is displayed showing the demo patient's name, gender, and date of birth. The patient's goal list is rendered below the header. No "select a patient" list is shown.
 
 ### 15.2 Create a Goal
 1. Click "New Goal" for a patient.
@@ -618,7 +647,7 @@ Navigate to the detail page for each resource type and confirm rendering:
 | 7 | Delete Resource | | |
 | 8 | AI / Ask Page | | |
 | 9 | CQL Runner | | |
-| 10 | Navigation & App Shell | | |
+| 10 | Navigation & App Shell (incl. jump dialog) | | |
 | 11 | FHIR Spec Compliance | | |
 | 12 | Error Handling & Resilience | | |
 | 13 | Mobile & Responsive | | |
