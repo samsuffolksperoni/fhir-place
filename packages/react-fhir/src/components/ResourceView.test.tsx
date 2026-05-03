@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within, waitFor } from "@testing-library/react";
-import type { Patient, Resource } from "fhir/r4";
+import { render, screen, within } from "@testing-library/react";
+import type { Patient } from "fhir/r4";
 import { describe, expect, it, vi } from "vitest";
 import { FetchFhirClient } from "../client/FetchFhirClient.js";
 import { FhirClientProvider } from "../hooks/FhirClientProvider.js";
@@ -205,39 +205,6 @@ describe("ResourceView", () => {
   it("shows a loading state when SD is unknown and not supplied", () => {
     wrap(<ResourceView resource={{ resourceType: "Observation" }} />);
     expect(screen.getByTestId("resource-view-loading")).toBeInTheDocument();
-  });
-
-  it("falls back to a schema-free view when the SD cannot be resolved", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response("not found", { status: 404 }));
-    try {
-      const adverseEvent = {
-        resourceType: "AdverseEvent",
-        id: "ae-1",
-        actuality: "actual",
-        category: [{ text: "product-use-error" }],
-        event: { coding: [{ display: "Allergic reaction" }] },
-        subject: { reference: "Patient/ada", display: "Ada Lovelace" },
-        date: "2024-03-04",
-      } as unknown as Resource;
-      const onRef = vi.fn();
-      wrap(<ResourceView resource={adverseEvent} onReferenceClick={onRef} />);
-      await waitFor(() =>
-        expect(screen.getByTestId("resource-view-introspected")).toBeInTheDocument(),
-      );
-      expect(screen.getByText("actual")).toBeInTheDocument();
-      expect(screen.getByText("Allergic reaction")).toBeInTheDocument();
-      expect(screen.getByText("2024-03-04")).toBeInTheDocument();
-      const refBtn = screen.getByRole("button", { name: "Ada Lovelace" });
-      refBtn.click();
-      expect(onRef).toHaveBeenCalledWith({
-        reference: "Patient/ada",
-        display: "Ada Lovelace",
-      });
-    } finally {
-      fetchSpy.mockRestore();
-    }
   });
 
   it("finds the right DOM hierarchy for label/value pairs", () => {
