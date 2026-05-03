@@ -366,7 +366,12 @@ function renderCell<T extends Resource>({
     const concrete = resolveConcreteChoicePath(resource, path);
     if (concrete) {
       resolvedPath = concrete;
-      const variant = findChoiceVariant(sd, `${resourceType}.${concrete}`);
+      // Strip array indices (`component[1]`, `name.0`) before the SD lookup —
+      // StructureDefinition element paths don't carry indices, so leaving them
+      // in causes findChoiceVariant to miss and fall back to the header-time
+      // typeCode (often the wrong choice variant).
+      const cleaned = concrete.replace(/\[\d+\]/g, "").replace(/\.\d+(?=\.|$)/g, "");
+      const variant = findChoiceVariant(sd, `${resourceType}.${cleaned}`);
       if (variant?.typeCode) resolvedTypeCode = variant.typeCode;
     }
   }
