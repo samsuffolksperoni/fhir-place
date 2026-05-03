@@ -111,7 +111,7 @@ export function SortPicker({
         className={`inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm shadow-sm ${
           activeField
             ? "border-blue-300 bg-blue-50 text-blue-700"
-            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--sunken)]"
         }`}
       >
         <span>
@@ -140,12 +140,12 @@ export function SortPicker({
           id={panelId}
           role="group"
           aria-label="Choose sort field"
-          className="absolute left-0 z-10 mt-1 w-72 rounded border border-slate-200 bg-white p-2 shadow-md"
+          className="absolute left-0 z-10 mt-1 w-72 rounded border border-[var(--border)] bg-[var(--surface)] p-2 shadow-md"
         >
           <div
             role="group"
             aria-label="Sort direction"
-            className="mb-2 inline-flex w-full rounded border border-slate-200 text-sm"
+            className="mb-2 inline-flex w-full rounded border border-[var(--border)] text-sm"
           >
             <button
               type="button"
@@ -155,7 +155,7 @@ export function SortPicker({
               className={`flex-1 rounded-l px-2 py-1 ${
                 activeDir === "asc" && activeField
                   ? "bg-blue-600 text-white"
-                  : "bg-white text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+                  : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--sunken)] disabled:text-[var(--text-subtle)]"
               }`}
             >
               Ascending ↑
@@ -165,10 +165,10 @@ export function SortPicker({
               onClick={() => commit(activeField, "desc")}
               aria-pressed={activeDir === "desc"}
               disabled={!activeField}
-              className={`flex-1 rounded-r border-l border-slate-200 px-2 py-1 ${
+              className={`flex-1 rounded-r border-l border-[var(--border)] px-2 py-1 ${
                 activeDir === "desc" && activeField
                   ? "bg-blue-600 text-white"
-                  : "bg-white text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+                  : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--sunken)] disabled:text-[var(--text-subtle)]"
               }`}
             >
               Descending ↓
@@ -188,13 +188,13 @@ export function SortPicker({
                     className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm ${
                       selected
                         ? "bg-blue-600 text-white"
-                        : "text-slate-700 hover:bg-slate-100"
+                        : "text-[var(--text)] hover:bg-[var(--sunken)]"
                     }`}
                   >
                     <span>{labelFor(name)}</span>
                     <span
                       className={`text-[10px] uppercase ${
-                        selected ? "text-blue-100" : "text-slate-400"
+                        selected ? "text-blue-100" : "text-[var(--text-subtle)]"
                       }`}
                     >
                       {p.type}
@@ -212,7 +212,7 @@ export function SortPicker({
                 commit(undefined, "asc");
                 setOpen(false);
               }}
-              className="mt-2 w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+              className="mt-2 w-full rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--sunken)]"
             >
               Clear sort
             </button>

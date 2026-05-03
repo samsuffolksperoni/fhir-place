@@ -134,7 +134,7 @@ export function ResourceTable<T extends Resource = Resource>({
   };
 
   if (resources.length === 0) {
-    return <>{emptyState ?? <p className="text-sm text-slate-500">No results.</p>}</>;
+    return <>{emptyState ?? <p className="text-sm text-[var(--text-muted)]">No results.</p>}</>;
   }
 
   // Tailwind classes that gate each layout. `auto` renders both DOM trees
@@ -148,7 +148,7 @@ export function ResourceTable<T extends Resource = Resource>({
   const cardsVisibility = layout === "auto" ? "block sm:hidden" : "";
 
   return (
-    <div className={className ?? "rounded border border-slate-200 bg-white"} data-testid="resource-table">
+    <div className={className ?? "rounded border border-[var(--border)] bg-[var(--surface)]"} data-testid="resource-table">
       {/* Desktop / opt-in table layout */}
       {renderTable && (
       <div
@@ -156,19 +156,19 @@ export function ResourceTable<T extends Resource = Resource>({
         data-testid="resource-table-table"
       >
         <table className="w-full text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-left">
+          <thead className="border-b border-[var(--border)] bg-[var(--sunken)] text-left">
             <tr>
               {headers.map((h) => (
                 <th
                   key={h.path}
                   scope="col"
-                  className="px-3 py-2 font-medium text-slate-600"
+                  className="px-3 py-2 font-medium text-[var(--text-muted)]"
                 >
                   {onSortChange ? (
                     <button
                       type="button"
                       onClick={() => toggleSort(h.path)}
-                      className="flex items-center gap-1 hover:text-slate-900"
+                      className="flex items-center gap-1 hover:text-[var(--text)]"
                     >
                       {h.label}
                       {sort?.by === h.path && (
@@ -184,11 +184,11 @@ export function ResourceTable<T extends Resource = Resource>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[var(--border)]">
             {resources.map((r) => (
               <tr
                 key={`${r.resourceType}/${r.id}`}
-                className={onRowClick ? "cursor-pointer hover:bg-slate-50" : undefined}
+                className={onRowClick ? "cursor-pointer hover:bg-[var(--sunken)]" : undefined}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
                 onKeyDown={
                   onRowClick
@@ -230,7 +230,7 @@ export function ResourceTable<T extends Resource = Resource>({
           and jsdom doesn't apply CSS). */}
       {renderCards && (
       <ul
-        className={`${cardsVisibility} divide-y divide-slate-200`}
+        className={`${cardsVisibility} divide-y divide-[var(--border)]`}
         data-testid="resource-table-cards"
       >
         {resources.map((r) => (
@@ -238,7 +238,7 @@ export function ResourceTable<T extends Resource = Resource>({
             key={`${r.resourceType}/${r.id}`}
             className={
               onRowClick
-                ? "cursor-pointer p-3 hover:bg-slate-50 focus-within:bg-slate-50"
+                ? "cursor-pointer p-3 hover:bg-[var(--sunken)] focus-within:bg-[var(--sunken)]"
                 : "p-3"
             }
             onClick={onRowClick ? () => onRowClick(r) : undefined}
@@ -258,7 +258,7 @@ export function ResourceTable<T extends Resource = Resource>({
             <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
               {headers.map((h) => (
                 <Fragment key={h.path}>
-                  <dt className="text-xs font-medium text-slate-500">
+                  <dt className="text-xs font-medium text-[var(--text-muted)]">
                     {h.label}
                   </dt>
                   <dd className="break-words">
@@ -322,7 +322,7 @@ function renderCell<T extends Resource>({
 
   const value = getByPath(resource, path);
   if (value === undefined || value === null || value === "") {
-    return <span className="text-slate-400">—</span>;
+    return <span className="text-[var(--text-subtle)]">—</span>;
   }
 
   const ctx: RendererContext = {
@@ -339,7 +339,7 @@ function renderCell<T extends Resource>({
     return <span>{String(value)}</span>;
   }
   return (
-    <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">
+    <code className="rounded bg-[var(--sunken)] px-1 py-0.5 text-xs">
       {JSON.stringify(value).slice(0, 60)}
     </code>
   );

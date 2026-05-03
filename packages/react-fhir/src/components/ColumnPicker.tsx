@@ -152,7 +152,7 @@ export function ColumnPicker({
         aria-haspopup="true"
         aria-expanded={open}
         aria-controls={panelId}
-        className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-700 shadow-sm hover:bg-slate-50"
+        className="inline-flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-sm text-[var(--text)] shadow-sm hover:bg-[var(--sunken)]"
       >
         {buttonLabel}
         <span aria-hidden className="text-[10px]">▾</span>
@@ -164,14 +164,14 @@ export function ColumnPicker({
           role="group"
           aria-label="Choose visible columns"
           onKeyDown={handleListKeyDown}
-          className="absolute right-0 z-10 mt-1 max-h-64 min-w-[12rem] overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg"
+          className="absolute right-0 z-10 mt-1 max-h-64 min-w-[12rem] overflow-y-auto rounded border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
         >
           <ul className="space-y-1">
             {options.map((opt, i) => {
               const checked = current.includes(opt.path);
               return (
                 <li key={opt.path}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-slate-50">
+                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-[var(--sunken)]">
                     <input
                       type="checkbox"
                       ref={(el) => {

@@ -74,7 +74,7 @@ export function ResourceView(props: ResourceViewProps) {
     }
     return (
       <div className={className} data-testid="resource-view-loading">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-[var(--text-muted)]">
           Loading {resource.resourceType} structure…
         </p>
       </div>
@@ -90,16 +90,16 @@ export function ResourceView(props: ResourceViewProps) {
 
   return (
     <section className={className} data-testid="resource-view">
-      <header className="mb-3 flex items-baseline gap-2 border-b border-slate-200 pb-2">
+      <header className="mb-3 flex items-baseline gap-2 border-b border-[var(--border)] pb-2">
         <h2 className="text-lg font-semibold">{resource.resourceType}</h2>
         {resource.id && (
-          <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{resource.id}</code>
+          <code className="rounded bg-[var(--sunken)] px-1 py-0.5 text-xs">{resource.id}</code>
         )}
       </header>
 
       {!hideNarrative && narrative?.div && (
-        <details className="mb-4 rounded border border-slate-200 bg-white p-3" open>
-          <summary className="cursor-pointer text-sm font-medium text-slate-600">
+        <details className="mb-4 rounded border border-[var(--border)] bg-[var(--surface)] p-3" open>
+          <summary className="cursor-pointer text-sm font-medium text-[var(--text-muted)]">
             Narrative
           </summary>
           <Narrative narrative={narrative} className="prose prose-sm mt-2 max-w-none" />
@@ -109,7 +109,7 @@ export function ResourceView(props: ResourceViewProps) {
       <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-[minmax(8rem,1fr)_3fr] sm:gap-y-2">
         {walked.map((w) => (
           <Fragment key={w.key}>
-            <dt className="font-medium text-slate-600 sm:pt-0" title={w.path}>
+            <dt className="font-medium text-[var(--text-muted)] sm:pt-0" title={w.path}>
               {w.label}
             </dt>
             <dd className="-mt-2 sm:mt-0">
@@ -137,7 +137,7 @@ interface ElementValueProps {
 function ElementValue({ walked, sd, renderers, onReferenceClick }: ElementValueProps) {
   const { value, isArray } = walked;
   if (isArray && Array.isArray(value)) {
-    if (value.length === 0) return <span className="text-slate-400">—</span>;
+    if (value.length === 0) return <span className="text-[var(--text-subtle)]">—</span>;
     return (
       <ul className="space-y-1">
         {value.map((item, i) => (
@@ -207,7 +207,7 @@ function RenderByType({
   }
 
   return (
-    <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-xs text-slate-700">
+    <pre className="overflow-x-auto rounded bg-[var(--sunken)] p-2 text-xs text-[var(--text)]">
       {JSON.stringify(value, null, 2)}
     </pre>
   );
@@ -231,16 +231,16 @@ function BackboneView({
   const children = walkObject(sd, parentPath, value);
   if (children.length === 0) {
     return (
-      <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-xs text-slate-700">
+      <pre className="overflow-x-auto rounded bg-[var(--sunken)] p-2 text-xs text-[var(--text)]">
         {JSON.stringify(value, null, 2)}
       </pre>
     );
   }
   return (
-    <dl className="grid grid-cols-1 gap-x-3 gap-y-1 border-l-2 border-slate-200 pl-3 sm:grid-cols-[minmax(6rem,1fr)_3fr]">
+    <dl className="grid grid-cols-1 gap-x-3 gap-y-1 border-l-2 border-[var(--border)] pl-3 sm:grid-cols-[minmax(6rem,1fr)_3fr]">
       {children.map((c) => (
         <Fragment key={c.key}>
-          <dt className="text-xs font-medium text-slate-500" title={c.path}>
+          <dt className="text-xs font-medium text-[var(--text-muted)]" title={c.path}>
             {c.label}
           </dt>
           <dd className="text-sm">
