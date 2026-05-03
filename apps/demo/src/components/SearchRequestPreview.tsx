@@ -37,57 +37,57 @@ export function SearchRequestPreview({
 
   return (
     <details
-      className="rounded border border-slate-200 bg-white text-sm"
+      className="rounded border border-[var(--border)] bg-[var(--surface)] text-sm"
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
       data-testid="request-preview"
     >
-      <summary className="cursor-pointer select-none px-3 py-2 text-slate-600 hover:bg-slate-50">
-        <span className="font-medium text-slate-700">HTTP request</span>
-        <span className="ml-2 text-xs text-slate-400">
+      <summary className="cursor-pointer select-none px-3 py-2 text-[var(--text-muted)] hover:bg-[var(--sunken)]">
+        <span className="font-medium text-[var(--text)]">HTTP request</span>
+        <span className="ml-2 text-xs text-[var(--text-subtle)]">
           GET · {preview.params.length} param
           {preview.params.length === 1 ? "" : "s"}
         </span>
       </summary>
-      <div className="space-y-3 border-t border-slate-200 px-3 py-3">
+      <div className="space-y-3 border-t border-[var(--border)] px-3 py-3">
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
               URL
             </span>
             <button
               type="button"
               onClick={copyUrl}
-              className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50"
+              className="rounded border border-[var(--border)] bg-[var(--sunken)] px-2 py-0.5 text-xs text-[var(--text-muted)] hover:bg-[var(--surface)]"
             >
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
           <code
             data-testid="request-preview-url"
-            className="block break-all rounded bg-slate-50 px-2 py-1.5 font-mono text-xs text-slate-800"
+            className="block break-all rounded bg-[var(--sunken)] px-2 py-1.5 font-mono text-xs text-[var(--text)]"
           >
-            <span className="text-slate-500">GET </span>
+            <span className="text-[var(--text-muted)]">GET </span>
             {preview.url}
           </code>
         </div>
 
         <div>
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
             Query parameters
           </span>
           {preview.params.length === 0 ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[var(--text-muted)]">
               No parameters yet — start typing in the form above.
             </p>
           ) : (
             <table className="w-full table-fixed border-collapse text-xs">
               <thead>
-                <tr className="text-left text-slate-500">
-                  <th className="w-1/3 border-b border-slate-200 py-1 pr-2 font-medium">
+                <tr className="text-left text-[var(--text-muted)]">
+                  <th className="w-1/3 border-b border-[var(--border)] py-1 pr-2 font-medium">
                     Name
                   </th>
-                  <th className="border-b border-slate-200 py-1 font-medium">
+                  <th className="border-b border-[var(--border)] py-1 font-medium">
                     Value
                   </th>
                 </tr>
@@ -95,10 +95,10 @@ export function SearchRequestPreview({
               <tbody className="font-mono">
                 {preview.params.map(([name, value], i) => (
                   <tr key={`${name}-${i}`} className="align-top">
-                    <td className="border-b border-slate-100 py-1 pr-2 text-slate-700">
+                    <td className="border-b border-[var(--border)] py-1 pr-2 text-[var(--text)]">
                       {name}
                     </td>
-                    <td className="break-all border-b border-slate-100 py-1 text-slate-800">
+                    <td className="break-all border-b border-[var(--border)] py-1 text-[var(--text)]">
                       {value}
                     </td>
                   </tr>
@@ -108,7 +108,7 @@ export function SearchRequestPreview({
           )}
         </div>
 
-        <div className="text-[11px] text-slate-400">
+        <div className="text-[11px] text-[var(--text-subtle)]">
           Headers: <span className="font-mono">Accept: application/fhir+json</span>
           {" "}(plus any auth/custom headers configured for the active server)
         </div>
