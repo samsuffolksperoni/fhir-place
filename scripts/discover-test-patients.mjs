@@ -43,14 +43,15 @@ async function fhirGet(url) {
   return res.json();
 }
 
+/** Returns [count, error] — null error means success. */
 async function countResources(base, type, patientId) {
   try {
     const bundle = await fhirGet(
       `${base}/${type}?patient=${patientId}&_summary=count`,
     );
-    return bundle.total ?? 0;
-  } catch {
-    return 0;
+    return [bundle.total ?? 0, null];
+  } catch (err) {
+    return [0, err.message];
   }
 }
 
@@ -68,10 +69,17 @@ async function pool(tasks, concurrency) {
 }
 
 async function fetchPatientIds(base, count) {
-  const bundle = await fhirGet(`${base}/Patient?_count=${count}`);
-  return (bundle.entry ?? [])
-    .map((e) => e.resource?.id)
-    .filter(Boolean);
+  const ids = [];
+  let url = `${base}/Patient?_count=${count}`;
+  while (url && ids.length < count) {
+    const bundle = await fhirGet(url);
+    for (const e of bundle.entry ?? []) {
+      if (e.resource?.id) ids.push(e.resource.id);
+    }
+    const next = (bundle.link ?? []).find((l) => l.relation === "next");
+    url = next ? next.url : null;
+  }
+  return ids.slice(0, count);
 }
 
 async function fetchPatient(base, id) {
@@ -113,20 +121,23 @@ async function scoreServer(server) {
     const id = ids[i];
     process.stdout.write(`  [${i + 1}/${ids.length}] Patient ${id} … `);
 
-    const counts = await pool(
+    const results = await pool(
       COMPARTMENT_TYPES.map((type) => () => countResources(server.url, type, id)),
       CONCURRENCY,
     );
 
-    const byType = Object.fromEntries(
-      COMPARTMENT_TYPES.map((t, j) => [t, counts[j]]),
+    const errors  = results.filter(([, e]) => e !== null).map(([, e]) => e);
+    const byType  = Object.fromEntries(
+      COMPARTMENT_TYPES.map((t, j) => [t, results[j][0]]),
     );
-    const total   = counts.reduce((a, b) => a + b, 0);
-    const breadth = counts.filter((n) => n > 0).length;
+    const total   = results.reduce((a, [n]) => a + n, 0);
+    const breadth = results.filter(([n]) => n > 0).length;
     const score   = total + breadth * 15;
 
-    console.log(`total=${total} breadth=${breadth}/${COMPARTMENT_TYPES.length} score=${score}`);
-    scores.push({ id, byType, total, breadth, score, server: server.name, base: server.url });
+    const errNote = errors.length ? ` ⚠ ${errors.length} query error(s)` : "";
+    console.log(`total=${total} breadth=${breadth}/${COMPARTMENT_TYPES.length} score=${score}${errNote}`);
+    if (errors.length) errors.forEach((e) => console.log(`      ↳ ${e}`));
+    scores.push({ id, byType, total, breadth, score, errors: errors.length, server: server.name, base: server.url });
   }
 
   scores.sort((a, b) => b.score - a.score);
