@@ -2,15 +2,20 @@
 
 Thanks for your interest in `fhir-place`. This is a small project; the contribution bar is "ship something that's tested and honest about what it does."
 
+## Prerequisites
+
+- **Node.js ≥ 20** (check with `node -v`)
+- **pnpm** — install with `npm i -g pnpm` if you don't have it
+
 ## Local setup
 
 ```bash
 pnpm install
 pnpm dev                                               # demo app (MSW mock by default)
-pnpm test                                              # unit + integration tests
+pnpm test                                              # unit tests only (Vitest + MSW + jsdom)
 pnpm -r typecheck
 pnpm --filter @fhir-place/demo e2e                     # Playwright screenshots
-pnpm --filter @fhir-place/react-fhir test:integration  # live-server HAPI integration
+pnpm --filter @fhir-place/react-fhir test:integration  # live-server HAPI integration (separate — not part of pnpm test)
 ```
 
 The demo defaults to an in-browser MSW mock. To point at a real server:

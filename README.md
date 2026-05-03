@@ -1,252 +1,74 @@
 # fhir-place
 
-**`@fhir-place/react-fhir`** — a spec-driven React component library for FHIR.
-Published on npm; consumed by the demo app in this repo.
+This repo is two things:
 
-**Backend-agnostic, spec-driven React for any FHIR REST API.** A React component library for building FHIR resource viewers and editors driven by the FHIR specification itself (`StructureDefinition`, `SearchParameter`, `CapabilityStatement`). Minimal resource-specific code — everything derives from the spec's own metadata, so the library works natively against any FHIR REST API.
+- **[`@fhir-place/react-fhir`](packages/react-fhir/README.md)** — a spec-driven React library for FHIR, published on npm. Backend-agnostic; UI derives from `StructureDefinition`, `SearchParameter`, and `CapabilityStatement` so it works against any FHIR REST API.
+- **[fhir-ui](apps/demo/README.md)** — a FHIR browser and editor built on react-fhir. Browse, search, create, edit, and delete FHIR resources across a tab-based shell with NLP search, CQL runner, dark mode, and a configurable server target.
 
-**Live demo:** <https://samsuffolksperoni.github.io/fhir-place/> — hits the **public HAPI R4 server**. Patient data there is shared and reset periodically; creates / edits you make are visible to everyone (and won't last forever). Local `pnpm dev` uses an in-browser MSW mock by default so you can work offline.
+**Live demo:** <https://samsuffolksperoni.github.io/fhir-place/> — hits the public HAPI R4 server. Patient data is shared and reset periodically.
+
+## Packages
+
+| Path | What it is |
+| --- | --- |
+| [`packages/react-fhir`](packages/react-fhir/README.md) | npm library — typed FHIR client, TanStack Query hooks, StructureDefinition walkers, spec-driven React components |
+| [`apps/demo`](apps/demo/README.md) | fhir-ui — the full browser/editor app built on react-fhir |
+| [`apps/goals-tasks`](apps/goals-tasks/README.md) | minimal sample app showing a Goal + Task workflow built on react-fhir |
 
 ## Status
 
 Early alpha. R4 first. MIT licensed. Safe to depend on for prototypes and side projects; expect breaking changes before 1.0.
 
 - **94 unit tests** (Vitest + MSW + jsdom)
-- **Playwright e2e + screenshots** (patient list, detail, mobile, create / edit / delete, search)
+- **Playwright e2e + screenshots** across patient list, detail, mobile, CRUD, search
 - **Nightly live-HAPI integration suite** covers full CRUD, reference resolution, CapabilityStatement + StructureDefinition walks
 
-## Packages
+CI: typecheck + unit tests + build on every PR. Pages deploy on push to `main`. Integration suite runs nightly.
 
-| Path | What it is |
-| --- | --- |
-| `packages/react-fhir` | the component library (client, hooks, generic renderers, spec-driven view/edit/search) |
-| `apps/demo` | a development/demo app for the library — ships with MSW in-browser mock FHIR so it runs offline |
+## Running locally
 
-## Install (in your app)
-
-```bash
-pnpm add @fhir-place/react-fhir @tanstack/react-query react react-dom
-```
-
-Published on npm as of 0.1.0. Pre-1.0, expect minor-version bumps to include breaking changes — check the changelog before upgrading. Versioning is managed via [changesets](https://github.com/changesets/changesets); see [CONTRIBUTING](CONTRIBUTING.md) for how to ship a PR with a changeset.
-
-## Quick start
-
-```tsx
-import {
-  FetchFhirClient,
-  FhirClientProvider,
-  ResourceView,
-  ResourceEditor,
-  ResourceSearch,
-  useSearch,
-  useResource,
-  useCreateResource,
-} from "@fhir-place/react-fhir";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-const queryClient = new QueryClient();
-const fhir = new FetchFhirClient({
-  baseUrl: "https://hapi.fhir.org/baseR4",
-  // Optional: bearer token, per-request or static
-  // getHeaders: async () => ({ Authorization: `Bearer ${await getToken()}` }),
-});
-
-export function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <FhirClientProvider client={fhir}>
-        <YourPages />
-      </FhirClientProvider>
-    </QueryClientProvider>
-  );
-}
-```
-
-### Read a resource
-
-```tsx
-function PatientDetail({ id }: { id: string }) {
-  const { data: patient } = useResource<Patient>("Patient", id);
-  if (!patient) return null;
-  return <ResourceView resource={patient} />;
-}
-```
-
-### Edit / create
-
-```tsx
-function PatientEditor({ initial }: { initial: Patient }) {
-  const update = useUpdateResource<Patient>();
-  return (
-    <ResourceEditor
-      resource={initial}
-      saving={update.isPending}
-      onSave={(draft) => update.mutateAsync(draft as Patient & { id: string })}
-    />
-  );
-}
-```
-
-### Search
-
-```tsx
-function Patients() {
-  const [params, setParams] = useState<SearchParams>({ _count: 20 });
-  const { data } = useSearch<Patient>("Patient", params);
-  return (
-    <>
-      <ResourceSearch
-        resourceType="Patient"
-        priorityParams={["name", "family", "gender", "birthdate"]}
-        onSubmit={setParams}
-      />
-      <ul>
-        {data?.entry?.map((e) => (
-          <li key={e.resource!.id}>{e.resource!.name?.[0]?.family}</li>
-        ))}
-      </ul>
-    </>
-  );
-}
-```
-
-## What's in the library
-
-### `client/`
-- **`FhirClient` interface** — `read`, `vread`, `history`, `search`, `create`, `update`, `patch` (JSON Patch), `delete`, `readReference` (relative + absolute), generic `request()` escape hatch
-- **`FetchFhirClient`** — the only shipped implementation. Supports `If-Match` / `If-None-Match` / `If-None-Exist`, static + dynamic headers, `AbortSignal`, custom `fetch`
-- **`FhirError`** — carries status, URL, and `OperationOutcome` from the server when available
-
-### `hooks/`
-- **`FhirClientProvider` / `useFhirClient`** — context
-- **`useResource`, `useSearch`, `useCapabilities`, `useStructureDefinition`, `useSearchParameter`, `useValueSet`, `useReadReference`** — TanStack Query wrappers with stable query keys (`fhirQueryKeys`). `useSearchParameter` resolves a `(base, code)` pair to its canonical `SearchParameter` resource so spec-aware code can prefer `expression` over the kebab→camel naming convention.
-- **`useCreateResource`, `useUpdateResource`, `useDeleteResource`** — mutations that invalidate matching read queries on success
-
-### `structure/`
-- **`walkResource` / `walkObject`** — iterate a StructureDefinition snapshot, yield present elements in canonical order, resolve `[x]` choice types
-- **`directChildren`, `findElement`** — querying SDs
-- **`pathGet` / `pathSet` / `pathRemove` / `prune`** — immutable helpers used by the editor
-
-### `components/`
-- **`<ResourceView>`** — spec-driven read-only view. Dispatches by FHIR datatype; falls back to JSON for unknowns. Recurses into BackboneElements. Zero resource-specific code.
-- **`<ResourceEditor>`** — spec-driven form. Inputs for every R4 primitive + HumanName, Address, ContactPoint, Identifier, Reference, Period, Quantity, Coding, CodeableConcept. BackboneElement recursion. Arrays with add/remove; choice-type switching clears the other variant. `onChange` on every keystroke; `onSave` receives a pruned draft.
-- **`<ResourceSearch>`** — form driven by `CapabilityStatement.rest[].resource[].searchParam`. Type-aware placeholders (token, date, reference, number, quantity, uri). Priority params + "show more" toggle.
-- **`<ResourceTable>`** — generic list/table renderer driven by the StructureDefinition; FHIR-datatype-aware cell formatting (HumanName, CodeableConcept, Reference, …) using the same renderer map as `<ResourceView>`. Supports controlled sort, row clicks, custom per-column renderers.
-- **`<ColumnPicker>`** — companion popover to `<ResourceTable>`: toggle column visibility with checkboxes, persist user choice to `localStorage` via `storageKey`. Keyboard-accessible (Esc closes, ArrowUp/Down navigate).
-- **`<Narrative>`** — the *only* place `dangerouslySetInnerHTML` is allowed. DOMPurify with a FHIR-appropriate allowlist: no `<script>`, no `on*`, no `javascript:`, no forms or inputs.
-- **`defaultTypeRenderers` / `defaultTypeInputs`** — the dispatch maps. Every built-in renderer/input is overridable by passing `renderers` / `inputs` props.
-
-## Design principles
-
-- **Spec-driven.** UI derives from StructureDefinition / SearchParameter, not hand-written per resource type.
-- **Server-agnostic.** Plain FHIR REST via a `FhirClient` interface; no vendor SDK lock-in. The demo works against the public HAPI server, a docker-compose HAPI, or (via MSW) no server at all.
-- **Safe by default.** Narrative sanitised with DOMPurify; a lint rule keeps `dangerouslySetInnerHTML` out of every other file.
-- **Escape hatches everywhere.** Pass `renderers` / `inputs` to override any datatype. Use `client.request()` for custom operations. Subclass `FetchFhirClient` for custom auth.
-- **Tree-shakeable, typed.** ESM + `.d.ts`; subpath exports `@fhir-place/react-fhir/client`, `/hooks`, `/structure`, `/components`.
-
-See [`docs/decisions/0004-positioning.md`](docs/decisions/0004-positioning.md) for the wedge and the rationale behind it.
-
-## Comparison with other React-FHIR libraries
-
-Honest, narrow snapshot of where this library sits today. Each row is a real package on npm.
-
-| Library | Backend | UI lock-in | Spec-driven | LLM/MCP story |
-| --- | --- | --- | --- | --- |
-| **`@fhir-place/react-fhir`** | Any FHIR REST | None — Tailwind + unstyled | Yes (StructureDefinition + SearchParameter + CapabilityStatement) | Roadmap (Zod-from-SD, optional MCP package) |
-| `@medplum/react` | Best with Medplum server (some components require Medplum-specific extensions) | Mantine v7 required | Partial | Server-side only |
-| `@bonfhir/react` (+ `@bonfhir/mantine`) | Any | Mantine renderers ship in `@bonfhir/mantine` | Yes (codegen for R4B / R5) | None |
-| `@beda.software/fhir-react` | Any (Aidbox-leaning) | None — hooks only | Hook-level | None |
-| `1uphealth/fhir-react` (unscoped `fhir-react` on npm) | Display-only, no client | Bootstrap | No | None |
-
-Where we lose today: fewer batteries-included components than `@medplum/react`, no Mantine renderer parity with `@bonfhir/mantine`, no SMART App Launch adapter shipped (use `fhirclient` + `FhirClient.getHeaders` for now), and no profile-aware codegen yet. Tracked items below.
-
-## Dev
+Requires **Node.js ≥ 20** and **pnpm** (`npm i -g pnpm`).
 
 ```bash
 pnpm install
-pnpm dev                                          # demo app + in-browser MSW mock FHIR (Vite on :5173)
-pnpm test                                         # unit tests (jsdom + MSW)
-pnpm -r typecheck                                 # all packages
-pnpm --filter @fhir-place/demo e2e                # Playwright incl. screenshots (screenshots/)
-pnpm --filter @fhir-place/react-fhir test:integration    # live-server integration, defaults to https://hapi.fhir.org/baseR4
+pnpm dev          # fhir-ui with in-browser MSW mock FHIR (Vite on :5173)
+pnpm test         # unit tests (Vitest)
+pnpm -r typecheck
+pnpm --filter @fhir-place/demo e2e                       # Playwright e2e + screenshots
+pnpm --filter @fhir-place/react-fhir test:integration    # live-HAPI integration suite
 ```
 
-The demo defaults to MSW in dev. To point it at a real server:
+The app defaults to an in-browser MSW mock so it runs offline. To point at a real server:
 
 ```bash
 # public HAPI
 VITE_USE_MOCK=false VITE_FHIR_BASE_URL=https://hapi.fhir.org/baseR4 pnpm dev
 
-# local docker HAPI (starts a R4 server on :8080 with persistent data)
+# local Docker HAPI (persistent, R4, port 8080)
 docker compose up -d
 VITE_USE_MOCK=false VITE_FHIR_BASE_URL=http://localhost:8080/fhir pnpm dev
 ```
 
-### CI layout
-
-- **`.github/workflows/ci.yml`** — typecheck + unit tests + library/demo build on every PR
-- **`.github/workflows/pages.yml`** — builds the demo (mock mode) and deploys to GitHub Pages on push to `main`
-- **`.github/workflows/integration.yml`** — runs the live-HAPI suite nightly at 05:00 UTC, on push to `main`, and via manual dispatch. PRs skip it so HAPI flakiness can't block unrelated work.
-
-## Building your own FHIR app on this library
-
-The components are a toolbox, not a framework. Typical pattern for a new app:
-
-1. **Wire a `FhirClient`** — point at your server, plug in auth via `headers` or `getHeaders`.
-2. **Hook a Resource list page** — call `useSearch<YourType>(...)` directly and render the results however you want. `<ResourceSearch>` gives you a driven filter form.
-3. **Hook a detail page** — `<ResourceView resource={...} />`.
-4. **Hook create/edit** — `<ResourceEditor resource={...} onSave={...} />`.
-5. **Override per-type UX** where needed — pass `renderers` or `inputs` to swap in app-specific widgets (e.g. a signature pad for `Signature`, a chart for repeated `Observation.valueQuantity`).
-6. **Resource-specific workflow** — put business logic (e.g. Task state transitions, Goal progress calculations) in your own hooks alongside the library's generic hooks.
-
-
 ### Goal/Task deployable starter
 
-If you are shipping a `Goal` + `Task` workflow, this library is already deployable for a read/write baseline:
+[`apps/goals-tasks`](apps/goals-tasks/README.md) is a minimal but deployable sample for a Goal + Task workflow. It shows how to use the library primitives together for a real clinical use case:
 
-- Search and list synthetic patients with `useSearch` + `<ResourceSearch>`.
-- Render goal details with `<ResourceView>` (including narrative + coded fields).
-- Create/update goals and tasks with `<ResourceEditor>` plus `useCreateResource` / `useUpdateResource`.
-- Persist state transitions through your FHIR server (`Task.status`, `Task.intent`, `Goal.lifecycleStatus`) using the generic mutation hooks.
-- Keep your app-specific business rules in local hooks/components while the library handles spec-driven rendering and form plumbing.
+- Search and list a patient's goals with `useSearch` + `<ResourceSearch>`
+- Render goal and task details with `<ResourceView>`
+- Create and update goals and tasks with `<ResourceEditor>` plus `useCreateResource` / `useUpdateResource`
+- Persist state transitions through your FHIR server (`Task.status`, `Goal.lifecycleStatus`) using the generic mutation hooks
 
-For production deployment, pair this with your own auth/session layer, environment-specific FHIR base URL configuration, and server-side policy checks.
+See [`apps/goals-tasks/README.md`](apps/goals-tasks/README.md) for the full breakdown and how to run it.
 
-## Roadmap
+## Documentation
 
-Honest list of what's missing if you're building a real app today.
-
-### Tracked (has an issue)
-
-Comment / upvote if one of these is blocking you — or pick one up; each issue has a concrete API sketch and acceptance criteria.
-
-| # | Item | Why it matters |
-| --- | --- | --- |
-| [#4](https://github.com/samsuffolksperoni/fhir-place/issues/4) | ValueSet resolution + binding-aware code input | Every real `code` field (`Task.status`, `Goal.lifecycleStatus`, `Observation.status`) today falls back to a plain text input. |
-| [#5](https://github.com/samsuffolksperoni/fhir-place/issues/5) | `<ReferencePicker>` search-and-pick widget | Linking a Task to a Goal today means typing `Goal/abc123` into a raw text field. |
-| [#6](https://github.com/samsuffolksperoni/fhir-place/issues/6) | Generic `<ResourceTable>` with column picker | We ship `<ResourceView>` (detail) and `<ResourceSearch>` (filter form) but no list/table component. |
-| [#7](https://github.com/samsuffolksperoni/fhir-place/issues/7) | Pagination via `Bundle.link[rel=next]` in `useSearch` | `useSearch` returns one Bundle; browsing more than `_count` matches needs `useInfiniteSearch`. |
-| [#11](https://github.com/samsuffolksperoni/fhir-place/issues/11) | Auto-populate `<ResourceSearch>` token fields from their ValueSet binding | Search by `gender` should be a dropdown of `male / female / other / unknown`, not a free-text field. Builds on #4. |
-| [#121](https://github.com/samsuffolksperoni/fhir-place/issues/121) | Typed search builder v0 — core API | `client.search('Patient', params)` is loosely typed today; chained search, `_include`, `_revinclude`, and `_has` lose type info. ADR [0004](docs/decisions/0004-positioning.md) commits to the "tRPC-of-FHIR" wedge. |
-| [#122](https://github.com/samsuffolksperoni/fhir-place/issues/122) | Typed search builder — hook + demo example | Wires the builder into `useTypedSearch` and a demo page so the DX win is visible in real React usage. Builds on #121. |
-| [#123](https://github.com/samsuffolksperoni/fhir-place/issues/123) | Profile-aware codegen spike (US Core 7 seed) | `@types/fhir` is broad; `value[x]` collapses to `any` and profile constraints aren't reflected. Spike learns the codegen pipeline shape before committing to a stable API. |
-| [#124](https://github.com/samsuffolksperoni/fhir-place/issues/124) | Experimental Zod schema generation from `StructureDefinition` | LLM tool-use surfaces (Anthropic, OpenAI, Gemini, MCP) want JSON Schema or Zod. Feeds client-side validation and structured-output surfaces. |
-| [#125](https://github.com/samsuffolksperoni/fhir-place/issues/125) | Interop demo matrix (HAPI + Medplum + Aidbox) | "Backend-agnostic" is asserted but only proven against public HAPI today. ADR [0004](docs/decisions/0004-positioning.md) commits to demonstrable proof across backends. |
-| [#127](https://github.com/samsuffolksperoni/fhir-place/issues/127) | Inferno (g)(10) CI badge | Inferno-passing demos against real EHR sandboxes are the highest-trust signal in healthcare OSS. Fits the existing nightly `integration.yml` pattern. |
-| [#128](https://github.com/samsuffolksperoni/fhir-place/issues/128) | Optional `@fhir-place/mcp` package | Wraps an arbitrary FHIR base URL + token as MCP tools. Existing MCP offerings (Aidbox, WSO2, Momentum) are server-bound; this is the client-side, BYO-server angle. |
-
-### Deferred (open an issue if you need it)
-
-These will become issues once a concrete use case surfaces — premature issues rot.
-
-- **Extensions.** `<ResourceEditor>` skips `extension` / `modifierExtension` by default. Many real profiles lean on them.
-- **Profile support.** `useStructureDefinition` fetches base types; taking a profile canonical URL is a small change we haven't made.
-- **SMART on FHIR v2 auth.** Deferred. Bearer-token auth works via `FhirClient.getHeaders`; launch flows need a dedicated adapter (peer-dep on [`fhirclient`](https://github.com/smart-on-fhir/client-js) rather than reimplementing the OAuth dance).
-- **R4B / R5.** R4 only for v1. The `FhirClient` interface will grow a `fhirVersion` discriminator for version-specific code.
-- **Subscriptions / realtime.** Out of scope; poll with TanStack Query's `refetchInterval` for now.
-
-PRs welcome on any tracked item. For a deferred item: open an issue describing your use case and we can prioritise.
+| Doc | What it covers |
+| --- | --- |
+| [`packages/react-fhir/README.md`](packages/react-fhir/README.md) | Install, quick start, full API reference, design principles, comparison with other libraries, roadmap |
+| [`apps/demo/README.md`](apps/demo/README.md) | fhir-ui features, app structure, how it uses react-fhir, how to run |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | PR workflow, testing, changesets, bump conventions |
+| [`docs/decisions/`](docs/decisions/) | Architecture Decision Records |
+| [Open issues](https://github.com/samsuffolksperoni/fhir-place/issues) | Tracked gaps and roadmap items |
 
 ## License
 
