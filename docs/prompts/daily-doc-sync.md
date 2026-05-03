@@ -10,9 +10,14 @@ sections for style.
 ## Your task
 
 You are running a daily documentation freshness check on the `samsuffolksperoni/fhir-place`
-repository. Work on the `main` branch. If you make any changes, commit them
-with the message `docs(auto-sync): <brief description of what changed>` and
-push. If nothing has drifted, make no commit and exit cleanly.
+repository. Work on a short-lived branch named `docs/auto-sync-<YYYY-MM-DD>`. If you make
+any changes, commit them with the message
+`docs(auto-sync): <brief description of what changed>` and push the branch.
+Then open a pull request targeting `main` so CI runs and there is an audit
+trail. If nothing has drifted, make no commit, no branch, and exit cleanly.
+
+Doc-sync changes are markdown-only, so CI is fast. The PR can be merged
+without review if all checks pass — configure branch protection accordingly.
 
 Keep edits surgical — one stale fact at a time. Do not rewrite sections that
 are still accurate.
@@ -145,4 +150,4 @@ Do not fabricate content about the app — only create the stub.
   freshness, not perfection.
 - **If a check is ambiguous**, leave it alone and note it in the commit message
   with a `NOTE:` line so a human can review.
-- **Do not open a pull request.** Commit directly to `main`.
+- **Open a pull request** targeting `main` after pushing the branch. Do not merge it yourself — let CI run and branch protection handle it.

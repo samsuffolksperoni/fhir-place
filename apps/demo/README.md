@@ -25,7 +25,7 @@ fhir-ui is a full FHIR browser and editor built on [`@fhir-place/react-fhir`](..
 ### NLP / Ask AI search
 
 - "Ask AI" input in the search form accepts natural language ("patients born in 1980 named Smith") and translates it to FHIR search parameters via the Anthropic API.
-- Requires an Anthropic API key, set in Settings. The key stays local (localStorage only).
+- Requires an Anthropic API key, set in Settings. The key is stored in `localStorage` only — it is sent to Anthropic when a query runs but is never stored server-side by this app.
 - Standalone Ask page available via the sidebar.
 
 ### CQL runner
@@ -124,7 +124,7 @@ apps/demo/src/
 │   ├── CCSidebar.tsx          # resource type sidebar
 │   ├── CCTopbar.tsx           # server picker, dark mode, settings
 │   ├── CCTabs.tsx             # tab bar
-│   ├── FhirUiLayout.tsx       # (thin layout wrapper, mostly legacy)
+│   ├── FhirUiLayout.tsx       # thin layout wrapper (renders Outlet)
 │   ├── JumpDialog.tsx         # ⌘K jump/search dialog
 │   ├── PatientCompartmentLinks.tsx
 │   ├── PatientRowCounts.tsx   # inline compartment counts on patient list
@@ -183,7 +183,7 @@ Full per-backend setup walkthrough (docker-compose steps, auth config, known cav
 
 ### NLP search (Ask AI)
 
-Open Settings in the app and paste an Anthropic API key. The key is stored in `localStorage` only — it never leaves the browser.
+Open Settings in the app and paste an Anthropic API key. The key is stored in `localStorage` only — it is sent to Anthropic on each query but is never stored server-side by this app.
 
 ### Tests and e2e
 
