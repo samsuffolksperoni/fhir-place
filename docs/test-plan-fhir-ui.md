@@ -3,9 +3,10 @@
 **Scope:** End-to-end browser testing of the fhir-place demo app against a live FHIR R4 server (default: public HAPI — `https://hapi.fhir.org/baseR4`).
 
 **Agent instructions**
+- Before starting, run the existing Playwright suite (`pnpm --filter @fhir-place/demo e2e`). Any failures there are already known bugs — do not re-file them.
 - Navigate the app at its deployed URL or `http://localhost:5173` (dev server).
 - Take a full-page screenshot **before** performing each action and **after** any unexpected result.
-- For every bug found: open a GitHub issue in `samsuffolksperoni/fhir-place` with title, reproduction steps, expected vs. actual behaviour, and the screenshot(s) attached.
+- For every bug found: file a GitHub issue using the `agent-work-item` template per `docs/qa-agent.md`. Include reproduction steps, expected vs. actual behaviour, and screenshots.
 - Mark a test **PASS**, **FAIL**, or **SKIP** (if a hard dependency is missing).
 - When a test requires synthetic data, use the MSW mock server (toggle "Use mock data" in Settings) unless the section says otherwise.
 
@@ -601,45 +602,6 @@ Navigate to the detail page for each resource type and confirm rendering:
 ### 15.4 Edit and complete a Task
 1. Edit the Task to status `completed`.
 2. **Expected:** Task status updates; UI reflects completion (e.g., strikethrough, badge change).
-
----
-
-## Bug Filing Template
-
-When filing a GitHub issue, use the following structure:
-
-```
-Title: [Component] Short description of the bug
-
-**Steps to reproduce**
-1. Navigate to…
-2. Click…
-3. …
-
-**Expected**
-Describe what should happen per the FHIR spec or UX standard.
-
-**Actual**
-Describe what happened instead.
-
-**Severity**
-[ ] Critical (data loss / security / crash)
-[ ] High (core FHIR workflow broken)
-[ ] Medium (degraded experience, workaround exists)
-[ ] Low (cosmetic / minor)
-
-**Environment**
-- App URL:
-- FHIR server:
-- Browser:
-- Viewport:
-
-**Screenshots**
-[attach]
-
-**Console errors**
-```paste```
-```
 
 ---
 
