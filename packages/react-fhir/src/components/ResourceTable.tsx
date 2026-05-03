@@ -66,16 +66,40 @@ export function getByPath(obj: unknown, path: string): unknown {
   for (const segment of path.split(".")) {
     if (cur === null || cur === undefined) return undefined;
     // Support "coding[0]" segments by resolving the index separately.
-    const match = segment.match(/^(\w+)\[(\d+)\]$/);
-    if (match) {
-      cur = (cur as Record<string, unknown>)[match[1]!];
-      if (Array.isArray(cur)) cur = cur[Number(match[2])];
-    } else {
-      cur = (cur as Record<string, unknown>)[segment];
-      if (Array.isArray(cur)) cur = cur[0]; // auto-pick first item for non-indexed segments
+    const indexMatch = segment.match(/^(\w+)\[(\d+)\]$/);
+    if (indexMatch) {
+      cur = (cur as Record<string, unknown>)[indexMatch[1]!];
+      if (Array.isArray(cur)) cur = cur[Number(indexMatch[2])];
+      continue;
     }
+    // Support choice segments like "value[x]" — pick the materialised key
+    // (e.g. valueQuantity, valueCodeableConcept) actually present on the object.
+    if (segment.endsWith("[x]")) {
+      const base = segment.slice(0, -3);
+      const key = resolveChoiceKey(cur, base);
+      cur = key ? (cur as Record<string, unknown>)[key] : undefined;
+      if (Array.isArray(cur)) cur = cur[0];
+      continue;
+    }
+    cur = (cur as Record<string, unknown>)[segment];
+    if (Array.isArray(cur)) cur = cur[0]; // auto-pick first item for non-indexed segments
   }
   return cur;
+}
+
+function resolveChoiceKey(obj: unknown, base: string): string | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  for (const key of Object.keys(obj)) {
+    if (
+      key.length > base.length &&
+      key.startsWith(base) &&
+      key[base.length] === key[base.length]!.toUpperCase() &&
+      key[base.length] !== key[base.length]!.toLowerCase()
+    ) {
+      return key;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -213,6 +237,8 @@ export function ResourceTable<T extends Resource = Resource>({
                         cellRenderers,
                         renderers,
                         onReferenceClick,
+                        sd,
+                        resourceType,
                       })}
                     </td>
                   </Fragment>
@@ -269,6 +295,8 @@ export function ResourceTable<T extends Resource = Resource>({
                       cellRenderers,
                       renderers,
                       onReferenceClick,
+                      sd,
+                      resourceType,
                     })}
                   </dd>
                 </Fragment>
@@ -307,6 +335,8 @@ interface RenderCellParams<T extends Resource> {
   cellRenderers?: Record<string, (r: T) => ReactNode>;
   renderers: TypeRenderers;
   onReferenceClick?: (ref: Reference) => void;
+  sd: StructureDefinition | undefined;
+  resourceType: string;
 }
 
 function renderCell<T extends Resource>({
@@ -316,6 +346,8 @@ function renderCell<T extends Resource>({
   cellRenderers,
   renderers,
   onReferenceClick,
+  sd,
+  resourceType,
 }: RenderCellParams<T>): ReactNode {
   const custom = cellRenderers?.[path];
   if (custom) return custom(resource);
@@ -325,13 +357,27 @@ function renderCell<T extends Resource>({
     return <span className="text-[var(--text-subtle)]">—</span>;
   }
 
+  // For choice paths (e.g. `value[x]`), the concrete variant is per-row, so the
+  // typeCode resolved at header time is just the `[x]` element. Re-resolve
+  // against the materialised key actually present on this resource.
+  let resolvedTypeCode = typeCode;
+  let resolvedPath = path;
+  if (sd && path.includes("[x]")) {
+    const concrete = resolveConcreteChoicePath(resource, path);
+    if (concrete) {
+      resolvedPath = concrete;
+      const variant = findChoiceVariant(sd, `${resourceType}.${concrete}`);
+      if (variant?.typeCode) resolvedTypeCode = variant.typeCode;
+    }
+  }
+
   const ctx: RendererContext = {
-    path,
-    typeCode,
+    path: resolvedPath,
+    typeCode: resolvedTypeCode,
     ...(onReferenceClick ? { onReferenceClick } : {}),
   };
 
-  const renderer = typeCode ? renderers[typeCode] : undefined;
+  const renderer = resolvedTypeCode ? renderers[resolvedTypeCode] : undefined;
   if (renderer) return <>{renderer(value, ctx)}</>;
 
   // Fallback for unknown types or plain primitives.
@@ -343,4 +389,32 @@ function renderCell<T extends Resource>({
       {JSON.stringify(value).slice(0, 60)}
     </code>
   );
+}
+
+/** Walk `path` against `resource`, replacing each `name[x]` segment with the
+ *  materialised key (e.g. `valueCodeableConcept`) actually present. */
+function resolveConcreteChoicePath(resource: unknown, path: string): string | undefined {
+  let cur: unknown = resource;
+  const out: string[] = [];
+  for (const segment of path.split(".")) {
+    if (cur === null || cur === undefined) return undefined;
+    if (segment.endsWith("[x]")) {
+      const base = segment.slice(0, -3);
+      const key = resolveChoiceKey(cur, base);
+      if (!key) return undefined;
+      out.push(key);
+      cur = (cur as Record<string, unknown>)[key];
+    } else {
+      const indexMatch = segment.match(/^(\w+)\[(\d+)\]$/);
+      if (indexMatch) {
+        cur = (cur as Record<string, unknown>)[indexMatch[1]!];
+        if (Array.isArray(cur)) cur = cur[Number(indexMatch[2])];
+      } else {
+        cur = (cur as Record<string, unknown>)[segment];
+        if (Array.isArray(cur)) cur = cur[0];
+      }
+      out.push(segment);
+    }
+  }
+  return out.join(".");
 }

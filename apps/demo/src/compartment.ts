@@ -47,12 +47,12 @@ export const PATIENT_COMPARTMENT: Array<
   {
     resourceType: "Observation",
     title: "Observations",
-    columns: ["status", "code", "effectiveDateTime", "valueQuantity"],
+    columns: ["status", "code", "effectiveDateTime", "value[x]"],
     columnLabels: {
       status: "Status",
       code: "Observation",
       effectiveDateTime: "Observed",
-      valueQuantity: "Value",
+      "value[x]": "Value",
     },
   },
   {

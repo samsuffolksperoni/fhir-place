@@ -195,6 +195,45 @@ describe("ResourceTable", () => {
     expect(within(row).queryByText(/"value":/)).not.toBeInTheDocument();
   });
 
+  it("resolves value[x] per-row to the materialised choice variant", () => {
+    const heartRate: Observation = {
+      resourceType: "Observation",
+      id: "o1",
+      status: "final",
+      code: { text: "Heart rate" },
+      valueQuantity: { value: 72, unit: "beats/minute" },
+    };
+    const smoking: Observation = {
+      resourceType: "Observation",
+      id: "o2",
+      status: "final",
+      code: { text: "Tobacco smoking status NHIS" },
+      valueCodeableConcept: {
+        coding: [
+          { system: "http://snomed.info/sct", code: "266919005", display: "Never smoker" },
+        ],
+        text: "Never smoker",
+      },
+    };
+    render(
+      <ResourceTable<Observation>
+        resources={[heartRate, smoking]}
+        columns={["code.text", "value[x]"]}
+        columnLabels={{ "code.text": "Observation", "value[x]": "Value" }}
+        structureDefinition={ObservationStructureDefinition}
+      />,
+      { wrapper: wrap() },
+    );
+    const rows = screen.getAllByTestId("resource-row");
+    // Quantity variant dispatches to QuantityRenderer.
+    expect(within(rows[0]!).getByText(/72/)).toBeInTheDocument();
+    expect(within(rows[0]!).getByText(/beats\/minute/)).toBeInTheDocument();
+    // CodeableConcept variant dispatches to CodeableConceptRenderer (text "Never smoker"),
+    // not the raw JSON fallback.
+    expect(within(rows[1]!).getByText(/Never smoker/)).toBeInTheDocument();
+    expect(within(rows[1]!).queryByText(/"coding":/)).not.toBeInTheDocument();
+  });
+
   it("renders a card layout on narrow viewports (layout=cards)", () => {
     render(
       <ResourceTable<Patient>
