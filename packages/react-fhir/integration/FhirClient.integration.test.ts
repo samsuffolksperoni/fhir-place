@@ -27,7 +27,7 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
   const cleanup: Array<{ type: string; id: string }> = [];
 
   afterAll(async () => {
-    // Best-effort cleanup; HAPI may have wiped them already.
+    // Best-effort cleanup; the server may have wiped them already.
     await Promise.allSettled(
       cleanup.map(({ type, id }) => client.delete(type, id).catch(() => {})),
     );
@@ -120,7 +120,7 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
       await client.delete("Patient", created.id!);
       cleanup.pop(); // already removed
 
-      // read after delete — HAPI returns 404 or 410; either is acceptable
+      // read after delete — FHIR servers return 404 or 410; either is acceptable
       const err = await client
         .read<Patient>("Patient", created.id!)
         .catch((e) => e);
@@ -260,8 +260,8 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
   test(
     "ValueSet/$expand on administrative-gender returns codes including 'female' (#29)",
     async () => {
-      // useValueSet's first-step lookup. Real HAPI exposes $expand for the
-      // core R4 ValueSets — if this regresses we want to know.
+      // useValueSet's first-step lookup. Public test servers expose $expand
+      // for the core R4 ValueSets — if this regresses we want to know.
       const url = "http://hl7.org/fhir/ValueSet/administrative-gender";
       const vs = await client.request<ValueSet>({
         path: `/ValueSet/$expand?url=${encodeURIComponent(url)}`,
@@ -270,7 +270,7 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
       const codes = codesFromValueSet(vs).map((c) => c.code);
       expect(codes).toContain("female");
       expect(codes).toContain("male");
-      // sanity: codesFromValueSet handled whatever shape HAPI returned
+      // sanity: codesFromValueSet handled whatever shape the server returned
       expect(codes.length).toBeGreaterThanOrEqual(2);
     },
     30_000,
@@ -285,13 +285,13 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
       const url = "http://hl7.org/fhir/ValueSet/goal-status";
       const bundle = await client.search<ValueSet>("ValueSet", { url });
       const vs = bundle.entry?.[0]?.resource;
-      // HAPI might not have this VS at all; tolerate that by skipping the
-      // assertion rather than failing — the fallback chain in useValueSet
+      // The server might not have this VS at all; tolerate that by skipping
+      // the assertion rather than failing — the fallback chain in useValueSet
       // ends at the bundled core copy when the server has neither.
       if (!vs) {
         // eslint-disable-next-line no-console
         console.warn(
-          `[integration] HAPI returned no ValueSet for ${url}; skipping fallback assertions.`,
+          `[integration] server returned no ValueSet for ${url}; skipping fallback assertions.`,
         );
         return;
       }
@@ -328,7 +328,7 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
       const seen = new Set<string>();
       let nextUrl: string | undefined = undefined;
       let pages = 0;
-      const MAX_PAGES = 10; // hard cap on the loop in case HAPI never stops
+      const MAX_PAGES = 10; // hard cap on the loop in case the server never stops
 
       do {
         const bundle: Bundle<Patient> = nextUrl
@@ -345,15 +345,15 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
       } while (nextUrl && pages < MAX_PAGES);
 
       // We should have walked ≥ 3 pages (25 / 10 = 3) and recovered every
-      // tagged Patient. Use intersection rather than equality because HAPI
-      // is shared — other test runs may have used the same _id but never
-      // the same _tag, so this set is exclusive to us.
+      // tagged Patient. Use intersection rather than equality because the
+      // server is shared — other test runs may have used the same _id but
+      // never the same _tag, so this set is exclusive to us.
       expect(pages).toBeGreaterThanOrEqual(3);
       for (const id of expectedIds) {
         expect(seen.has(id), `missing ${id} after pagination`).toBe(true);
       }
     },
-    180_000, // 25 creates + 3 pages on shared HAPI can be slow
+    180_000, // 25 creates + 3 pages on a shared public server can be slow
   );
 
   test(
