@@ -19,8 +19,13 @@ export function CCSidebar() {
         setJumpOpen(true);
       }
     };
+    const onOpenJump = () => setJumpOpen(true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("fhir-place:open-jump", onOpenJump);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("fhir-place:open-jump", onOpenJump);
+    };
   }, []);
 
   const activeType = (() => {

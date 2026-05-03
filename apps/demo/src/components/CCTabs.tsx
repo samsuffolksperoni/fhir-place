@@ -141,7 +141,7 @@ export function CCTabs() {
 
       {/* Add tab */}
       <div
-        onClick={() => navigate("/fhir-ui/Patient")}
+        onClick={() => window.dispatchEvent(new Event("fhir-place:open-jump"))}
         style={{
           display: "flex",
           alignItems: "center",
