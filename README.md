@@ -27,6 +27,8 @@ CI: typecheck + unit tests + build on every PR. Pages deploy on push to `main`. 
 
 ## Running locally
 
+Requires **Node.js ≥ 20** and **pnpm** (`npm i -g pnpm`).
+
 ```bash
 pnpm install
 pnpm dev          # fhir-ui with in-browser MSW mock FHIR (Vite on :5173)

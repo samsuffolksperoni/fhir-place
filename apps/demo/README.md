@@ -163,19 +163,23 @@ pnpm dev           # starts Vite on :5173, MSW mock FHIR active by default
 
 ### Pointing at a real FHIR server
 
+The repo ships `.env` presets for the three tested backends — copy one to get started immediately:
+
 ```bash
-# public HAPI R4
-VITE_USE_MOCK=false VITE_FHIR_BASE_URL=https://hapi.fhir.org/baseR4 pnpm dev
+# Medplum public sandbox (requires a bearer token — see interop-matrix.md)
+cp apps/demo/.env.example.medplum apps/demo/.env.local
 
-# local Docker HAPI (persistent, R4, port 8080)
-docker compose up -d
-VITE_USE_MOCK=false VITE_FHIR_BASE_URL=http://localhost:8080/fhir pnpm dev
+# Aidbox dev license via docker-compose (see interop-matrix.md)
+cp apps/demo/.env.example.aidbox apps/demo/.env.local
 
-# Medplum sandbox (example)
-VITE_USE_MOCK=false VITE_FHIR_BASE_URL=https://api.medplum.com/fhir/R4 pnpm dev
+# Public HAPI (no auth needed)
+echo 'VITE_USE_MOCK=false' > apps/demo/.env.local
+echo 'VITE_FHIR_BASE_URL=https://hapi.fhir.org/baseR4' >> apps/demo/.env.local
 ```
 
-Or use the **Server picker** in the app's top bar to switch servers at runtime without restarting.
+Then `pnpm dev` and the app will pick up the env file automatically. Or use the **Server picker** in the top bar to switch at runtime without restarting.
+
+Full per-backend setup walkthrough (docker-compose steps, auth config, known caveats): [`apps/demo/docs/interop-matrix.md`](docs/interop-matrix.md).
 
 ### NLP search (Ask AI)
 
