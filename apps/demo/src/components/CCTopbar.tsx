@@ -22,6 +22,7 @@ function MoonIcon() {
 export function CCTopbar() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
+  const isSettings = location.pathname === "/fhir-ui/settings";
 
   // useParams() returns {} when rendered outside <Routes>, so parse from pathname directly.
   const p = location.pathname;
@@ -106,6 +107,22 @@ export function CCTopbar() {
           </svg>
           History
         </button>
+        <Link
+          to="/fhir-ui/settings"
+          style={{
+            ...ccBtn("ghost"),
+            color: isSettings ? "var(--accent-text)" : "var(--text-muted)",
+            background: isSettings ? "var(--accent-soft)" : "transparent",
+            textDecoration: "none",
+          }}
+          data-testid="topbar-settings"
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <circle cx="7" cy="7" r="2" />
+            <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.6 2.6l1 1M10.4 10.4l1 1M11.4 2.6l-1 1M3.6 10.4l-1 1" />
+          </svg>
+          Settings
+        </Link>
         {showNew && (
           <Link
             to={`/fhir-ui/${resourceType}/new`}
