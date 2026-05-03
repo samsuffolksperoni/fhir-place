@@ -195,6 +195,89 @@ describe("ResourceTable", () => {
     expect(within(row).queryByText(/"value":/)).not.toBeInTheDocument();
   });
 
+  it("resolves value[x] per-row to the materialised choice variant", () => {
+    const heartRate: Observation = {
+      resourceType: "Observation",
+      id: "o1",
+      status: "final",
+      code: { text: "Heart rate" },
+      valueQuantity: { value: 72, unit: "beats/minute" },
+    };
+    const smoking: Observation = {
+      resourceType: "Observation",
+      id: "o2",
+      status: "final",
+      code: { text: "Tobacco smoking status NHIS" },
+      valueCodeableConcept: {
+        coding: [
+          { system: "http://snomed.info/sct", code: "266919005", display: "Never smoker" },
+        ],
+        text: "Never smoker",
+      },
+    };
+    render(
+      <ResourceTable<Observation>
+        resources={[heartRate, smoking]}
+        columns={["code.text", "value[x]"]}
+        columnLabels={{ "code.text": "Observation", "value[x]": "Value" }}
+        structureDefinition={ObservationStructureDefinition}
+      />,
+      { wrapper: wrap() },
+    );
+    const rows = screen.getAllByTestId("resource-row");
+    // Quantity variant dispatches to QuantityRenderer.
+    expect(within(rows[0]!).getByText(/72/)).toBeInTheDocument();
+    expect(within(rows[0]!).getByText(/beats\/minute/)).toBeInTheDocument();
+    // CodeableConcept variant dispatches to CodeableConceptRenderer (text "Never smoker"),
+    // not the raw JSON fallback.
+    expect(within(rows[1]!).getByText(/Never smoker/)).toBeInTheDocument();
+    expect(within(rows[1]!).queryByText(/"coding":/)).not.toBeInTheDocument();
+  });
+
+  it("strips array indices when resolving choice variants on nested paths", () => {
+    // Indexed-component observation: `component[0].value[x]` has an array
+    // index in the runtime path, but StructureDefinition element paths don't
+    // (`Observation.component.value[x]`). Without stripping the index before
+    // findChoiceVariant, the SD lookup misses and resolvedTypeCode falls back
+    // to the header-time default — which for `value[x]` is the first declared
+    // variant (Quantity). A CodeableConcept variant would then dispatch to
+    // QuantityRenderer and render blank. Use a CodeableConcept value here so
+    // this test would fail without index normalisation.
+    const observation: Observation = {
+      resourceType: "Observation",
+      id: "o1",
+      status: "final",
+      code: { text: "Lab panel" },
+      component: [
+        {
+          code: { text: "Result" },
+          valueCodeableConcept: {
+            coding: [
+              { system: "http://snomed.info/sct", code: "260385009", display: "Negative" },
+            ],
+            text: "Negative",
+          },
+        },
+      ],
+    };
+    render(
+      <ResourceTable<Observation>
+        resources={[observation]}
+        columns={["code.text", "component[0].value[x]"]}
+        columnLabels={{
+          "code.text": "Observation",
+          "component[0].value[x]": "Result",
+        }}
+        structureDefinition={ObservationStructureDefinition}
+      />,
+      { wrapper: wrap() },
+    );
+    const row = screen.getByTestId("resource-row");
+    // CodeableConceptRenderer surfaces "Negative". The Quantity fallback
+    // would render an empty <span> here (no .value/.unit on a CodeableConcept).
+    expect(within(row).getByText(/Negative/)).toBeInTheDocument();
+  });
+
   it("renders a card layout on narrow viewports (layout=cards)", () => {
     render(
       <ResourceTable<Patient>
