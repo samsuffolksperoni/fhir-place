@@ -1,0 +1,79 @@
+{
+  "discoveredAt": "2026-05-03",
+  "server": "https://r4.smarthealthit.org",
+  "note": "Chosen by scripts/discover-test-patients.mjs — scored by resource-type breadth × 15 + total volume across 40-patient sample",
+  "patients": [
+    {
+      "id": "5fd069dc-e337-4062-9722-a732c655c17d",
+      "profile": "chronic-complex",
+      "label": "Coleman Ortiz | male | DOB: 1915-07-03",
+      "score": 698,
+      "totals": {
+        "Condition": 21,
+        "Observation": 414,
+        "MedicationRequest": 11,
+        "Encounter": 45,
+        "Procedure": 29,
+        "Immunization": 10,
+        "AllergyIntolerance": 0,
+        "DiagnosticReport": 39,
+        "CarePlan": 9
+      },
+      "notes": "Highest volume (578 resources). Long life history spanning 110 years. Deep observation and diagnostic report series. Use for compartment rendering, pagination, and lab result display tests."
+    },
+    {
+      "id": "c34852c9-ffba-4bda-890a-eef4bc683e42",
+      "profile": "medication-heavy",
+      "label": "Hallie Hoeger | female | DOB: 1926-06-06",
+      "score": 618,
+      "totals": {
+        "Condition": 13,
+        "Observation": 297,
+        "MedicationRequest": 55,
+        "Encounter": 71,
+        "Procedure": 21,
+        "Immunization": 10,
+        "AllergyIntolerance": 0,
+        "DiagnosticReport": 25,
+        "CarePlan": 6
+      },
+      "notes": "55 MedicationRequests — highest of any candidate. 71 encounters. Good for testing medication list pagination, encounter history, and polypharmacy edge cases."
+    },
+    {
+      "id": "9823384d-2120-478e-9ab3-6375c594347d",
+      "profile": "immunization-rich",
+      "label": "Emilee Ritchie | female | DOB: 1924-12-30",
+      "score": 613,
+      "totals": {
+        "Condition": 13,
+        "Observation": 321,
+        "MedicationRequest": 41,
+        "Encounter": 61,
+        "Procedure": 13,
+        "Immunization": 12,
+        "AllergyIntolerance": 0,
+        "DiagnosticReport": 27,
+        "CarePlan": 5
+      },
+      "notes": "High immunization count (12) alongside dense observations and encounters. Good counterpart to Hallie for female-patient tests across conditions, meds, and immunizations."
+    },
+    {
+      "id": "d4f1aab1-73e6-4d51-98eb-e1556406b2a3",
+      "profile": "full-breadth",
+      "label": "Hobert Murazik | male | DOB: 1963-01-06",
+      "score": 537,
+      "totals": {
+        "Condition": 8,
+        "Observation": 297,
+        "MedicationRequest": 18,
+        "Encounter": 33,
+        "Procedure": 6,
+        "Immunization": 12,
+        "AllergyIntolerance": 1,
+        "DiagnosticReport": 25,
+        "CarePlan": 2
+      },
+      "notes": "Only patient in sample with all 9/9 resource types populated, including AllergyIntolerance. Younger profile (63 at discovery). Critical for testing allergy rendering and full-breadth compartment navigation."
+    }
+  ]
+}
