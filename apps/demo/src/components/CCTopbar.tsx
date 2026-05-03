@@ -41,8 +41,6 @@ export function CCTopbar() {
     return ["FHIR Explorer"];
   })();
 
-  const showNew = resourceType && !id && resourceType !== "settings" && resourceType !== "ask";
-
   return (
     <div
       style={{
@@ -123,15 +121,6 @@ export function CCTopbar() {
           </svg>
           Settings
         </Link>
-        {showNew && (
-          <Link
-            to={`/fhir-ui/${resourceType}/new`}
-            style={ccBtn("primary")}
-            data-testid={`create-${resourceType?.toLowerCase()}`}
-          >
-            + New {resourceType}
-          </Link>
-        )}
       </div>
     </div>
   );

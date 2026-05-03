@@ -298,6 +298,15 @@ export function ResourceListPage() {
               · Patient/<span style={{ color: "var(--accent-text)" }}>{patientId}</span>
             </span>
           )}
+          {showCreate && (
+            <Link
+              to={`/fhir-ui/${resourceType}/new`}
+              style={{ ...ccBtn("primary"), marginLeft: "auto" }}
+              data-testid={`create-${resourceType.toLowerCase()}`}
+            >
+              + New {resourceType}
+            </Link>
+          )}
         </div>
         {config?.title && (
           <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
