@@ -13,6 +13,7 @@ This repo is two things:
 | --- | --- |
 | [`packages/react-fhir`](packages/react-fhir/README.md) | npm library — typed FHIR client, TanStack Query hooks, StructureDefinition walkers, spec-driven React components |
 | [`apps/demo`](apps/demo/README.md) | fhir-ui — the full browser/editor app built on react-fhir |
+| [`apps/goals-tasks`](apps/goals-tasks/README.md) | minimal sample app showing a Goal + Task workflow built on react-fhir |
 
 ## Status
 
