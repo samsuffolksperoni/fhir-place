@@ -1,5 +1,5 @@
 import type { StructureDefinition } from "fhir/r4";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import {
   clearSpecFetcherCache,
   coreStructureDefinition,
@@ -21,7 +21,7 @@ const sd = (type: string): StructureDefinition => ({
 });
 
 describe("coreStructureDefinition (runtime spec fetcher)", () => {
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(() => {
     clearSpecFetcherCache();
