@@ -21,6 +21,8 @@ apps/workbench/eval-report.json
 # react-fhir cached spec artifacts
 packages/react-fhir/scripts/cache/r4-spec/*.zip
 packages/react-fhir/scripts/cache/r4-spec/expansions.json
+packages/react-fhir/scripts/cache/r4-spec/profiles-resources.json
+packages/react-fhir/scripts/cache/r4-spec/profiles-types.json
 
 # fhir-r4 spec sync cache (zip + extracted bundle); the generated per-type
 # JSON files under apps/demo/public/fhir-r4/ ARE committed.
