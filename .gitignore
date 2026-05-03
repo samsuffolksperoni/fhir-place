@@ -21,3 +21,6 @@ apps/workbench/eval-report.json
 # react-fhir cached spec artifacts
 packages/react-fhir/scripts/cache/r4-spec/*.zip
 packages/react-fhir/scripts/cache/r4-spec/expansions.json
+
+# Claude editor metadata
+.claude/
