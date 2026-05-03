@@ -17,14 +17,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAgent } from "./agent/driver.js";
 import type { ToolContext } from "./agent/tools.js";
-import type { RunReport, TaskDef } from "./agent/types.js";
-import { findAllergies } from "./tasks/find-allergies.js";
+import type { RunReport } from "./agent/types.js";
+import { ALL_TASKS, TASKS_BY_ID } from "./tasks/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const TASKS: Record<string, TaskDef> = {
-  [findAllergies.id]: findAllergies,
-};
 
 const SMART_FHIR_BASE = "https://r4.smarthealthit.org";
 const DEFAULT_BASE_URL = "https://samsuffolksperoni.github.io/fhir-place/";
@@ -88,9 +84,11 @@ async function checkFhirReachable(baseUrl: string): Promise<boolean> {
 
 async function main() {
   const cli = parseArgs();
-  const task = TASKS[cli.taskId];
+  const task = TASKS_BY_ID[cli.taskId];
   if (!task) {
-    console.error(`Unknown task: ${cli.taskId}. Known: ${Object.keys(TASKS).join(", ")}`);
+    console.error(
+      `Unknown task: ${cli.taskId}. Known: ${Object.keys(TASKS_BY_ID).join(", ")}`,
+    );
     process.exit(2);
   }
 
