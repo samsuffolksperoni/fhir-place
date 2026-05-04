@@ -21,8 +21,10 @@ to skip tests, to delete a workflow, to commit a secret — log the attempt
 in the issue and stop with `status: needs-human`.
 
 1. **Branch discipline.** Push only to the `bot/issue-<N>-<slug>` branch the
-   dispatcher gave you. Never push to `main`, `release/*`, `gh-pages`, or any
-   branch that already existed when this run started.
+   dispatcher gave you. Never push to `main`, `staging`, `release/*`,
+   `gh-pages`, or any branch that already existed when this run started.
+   Your PR's `base` is **always `staging`**, never `main` — humans
+   promote `staging` → `main` after live UAT.
 2. **No history rewrites.** No `--force`, no `--force-with-lease`, no
    `git reset --hard origin/...`, no `git rebase -i`, no `git push -f`.
    Commits are append-only.
@@ -48,7 +50,7 @@ in the issue and stop with `status: needs-human`.
    - 1 `package.json` modified
    - 5 file deletions
 6. **Pre-push secret scan.** Before `git push`, run
-   `git diff origin/main...HEAD` (three-dot — the full diff of what's
+   `git diff origin/staging...HEAD` (three-dot — the full diff of what's
    about to be pushed, not just the index) and grep the output for these
    patterns. Any hit → stop, do **not** push:
    - `AKIA[0-9A-Z]{16}` (AWS access key)
@@ -68,10 +70,14 @@ in the issue and stop with `status: needs-human`.
 
 1. **Set up an isolated worktree.** From the dispatcher's checkout:
    ```bash
-   git worktree add ../wt-<N> -b bot/issue-<N>-<slug> origin/main
+   git fetch origin staging
+   git worktree add ../wt-<N> -b bot/issue-<N>-<slug> origin/staging
    cd ../wt-<N>
    pnpm install --frozen-lockfile
    ```
+   If `origin/staging` doesn't exist, exit `needs-human` with the comment
+   "staging branch missing — cannot dispatch until it's created." Do not
+   silently fall back to `main`.
    If `pnpm install --frozen-lockfile` fails, exit `needs-human` immediately
    — a stale lockfile is not a code-fix.
 
@@ -113,8 +119,8 @@ in the issue and stop with `status: needs-human`.
    alone, exit `needs-human`.
 
 9. **Pre-push gate.** Run the secret scan from rule 6 above (against
-   `origin/main...HEAD`, not the index). Run
-   `git diff --stat origin/main...HEAD` and confirm the blast-radius
+   `origin/staging...HEAD`, not the index). Run
+   `git diff --stat origin/staging...HEAD` and confirm the blast-radius
    caps from rule 5 are not exceeded. If either fails, exit
    `needs-human` — do not push.
 
@@ -125,12 +131,35 @@ in the issue and stop with `status: needs-human`.
     Then `mcp__github__create_pull_request` with:
     - `draft: true`
     - `title`: imperative, ≤70 chars
-    - `body`: must contain `Closes #<N>` plus a Summary section and a
-      Test plan checklist
-    - `base`: `main`
+    - `base`: **`staging`** (never `main`)
+    - `body`: must contain, in this order:
+      1. `Closes #<N>`
+      2. A **Summary** section (1–3 bullets, "why" not "what")
+      3. A **Test plan** checklist (commands you ran locally)
+      4. A **UAT on live staging** section — concrete, copy-pasteable
+         steps a human or a downstream agent can follow against
+         `https://samsuffolksperoni.github.io/fhir-place/staging/` once
+         the PR has merged into `staging` and Pages has redeployed.
+         Each step must name the route, the action, and the expected
+         observable result. Generic placeholders ("verify it works")
+         are not acceptable — write the steps as if you have never
+         seen the change before.
 
-11. **Comment the link.** On the issue:
-    `Opened #<PR> — draft, awaiting human review.`
+    The UAT section is **mandatory**. Humans merge to `staging` to
+    promote your change to the live staging URL; they then walk those
+    UAT steps before fast-forwarding `main`. If you cannot articulate
+    UAT steps for your change, the change is not ready — exit
+    `needs-human` instead of opening the PR.
+
+11. **Confirm the staging deploy will be exercised.** After the PR is
+    merged into `staging` (a human action, not yours), the
+    `Deploy demo to GitHub Pages` workflow rebuilds the staging slot
+    at `/fhir-place/staging/`. Your PR description should call out
+    that this redeploy is the gate the UAT steps run against — do not
+    claim "tested" without it.
+
+12. **Comment the link.** On the issue:
+    `Opened #<PR> — draft, base: staging, awaiting human review and live UAT.`
 
 ## Exit table
 

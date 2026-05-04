@@ -47,14 +47,28 @@ VITE_USE_MOCK=false VITE_FHIR_BASE_URL=http://localhost:8080/fhir pnpm dev
 A long-lived `staging` branch deploys alongside `main` so we can confirm
 several PRs work together before they hit production.
 
-- `main` is published at `/fhir-place/` (and goals-tasks at `/fhir-place/goals/`).
-- `staging` is published at `/fhir-place/staging/` (and `/fhir-place/staging/goals/`).
+- `main` is published at <https://samsuffolksperoni.github.io/fhir-place/>
+  (goals-tasks at `/fhir-place/goals/`).
+- `staging` is published at <https://samsuffolksperoni.github.io/fhir-place/staging/>
+  (goals-tasks at `/fhir-place/staging/goals/`).
 
-Flow: merge a PR into `staging` to preview it on the staging URL. When the
-combined state on staging looks right, fast-forward `main` to `staging` (or
-open a `staging -> main` PR). Pushes to either branch trigger
-`.github/workflows/pages.yml`, which always rebuilds **both** so the artifact
-is complete.
+**Flow:**
+
+1. Open every PR — human or agent — with `base: staging`. `staging` has no
+   branch protection so a human can merge as soon as CI is green and the
+   review is done.
+2. The Pages workflow rebuilds both branches on every push; wait for the
+   staging build to be green before declaring a change ready for UAT.
+3. Walk the PR's **UAT on live staging** steps against the live
+   `/fhir-place/staging/` URL. If anything is off, fix on a follow-up PR
+   (still targeting `staging`).
+4. When the combined state on staging looks right, fast-forward `main` to
+   `staging` (or open a `staging -> main` PR). That promotes everything
+   that's been UAT'd, together, to production.
+
+**Agents always target `staging`.** See `.claude/agents/engineer.md` and
+`AGENTS.md`. Every agent-authored PR must include a UAT section with
+concrete copy-pasteable steps for the live staging URL.
 
 ## Bump conventions
 
