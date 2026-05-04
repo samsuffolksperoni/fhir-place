@@ -40,5 +40,6 @@ packages/react-fhir/src/structure/core/sd/*.generated.ts
 # JSON files under apps/demo/public/fhir-r4/ ARE committed.
 apps/demo/scripts/cache/
 
-# Claude editor metadata
-.claude/
+# Claude editor metadata (ignore everything except shared subagent definitions)
+.claude/*
+!.claude/agents/
