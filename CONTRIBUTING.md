@@ -89,6 +89,8 @@ GitHub Issues are the canonical backlog (see `docs/decisions/0001-use-github-iss
 
 **Renaming `apps/demo/`:** the directory and package will move to `apps/fhir-explorer/` (`@fhir-place/fhir-explorer`). Until that lands, code paths still say `demo`; the label and conversational name is `fhir-explorer`.
 
+**Automation:** the canonical label set is managed by `scripts/sync-labels.mjs` and re-applied on every push to `main` via `.github/workflows/sync-labels.yml`. A daily cron (`.github/workflows/daily-pm-triage.yml`) runs the prompt at `docs/prompts/daily-pm-triage.md` to label new issues, strip bracket prefixes, dedup bot-filed bugs, close finished epics, and post a rolling daily report.
+
 ## Questions?
 
 Open an issue. We're pre-1.0, so preferences and defaults are still moving.
