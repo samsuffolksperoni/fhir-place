@@ -33,6 +33,7 @@ permissions:
   contents: write       # push bot/* branches only — main is protected
   issues: write         # claim labels, comment on issues
   pull-requests: write  # open and comment on draft PRs (NOT merge — branch protection enforces)
+  id-token: write       # required by claude-code-action@v1 (matches daily-pm-triage)
 
 concurrency:
   group: hourly-engineer-dispatch
@@ -64,24 +65,20 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt_file: docs/prompts/hourly-engineer-dispatch.md
-          # The dispatcher orchestrates only; the engineer subagent does
-          # all editing. Both prompts share the same hard rules
-          # (defense in depth).
-          allowed_tools: |
-            Bash
-            Read
-            Edit
-            Write
-            Grep
-            Glob
-            mcp__github__list_issues
-            mcp__github__issue_read
-            mcp__github__issue_write
-            mcp__github__add_issue_comment
-            mcp__github__list_pull_requests
-            mcp__github__pull_request_read
-            mcp__github__create_pull_request
-            mcp__github__get_file_contents
+          # Mirror the daily-pm-triage pattern: tell Claude to read the
+          # prompt file itself rather than slurping it into a workflow
+          # input. The dispatcher orchestrates only; the engineer subagent
+          # does all editing under its own hard rules (defense in depth).
+          prompt: |
+            Read the file at docs/prompts/hourly-engineer-dispatch.md and
+            execute the instructions in it. Do not modify the prompt file
+            itself. The MCP github tools are already configured and the
+            engineer subagent at .claude/agents/engineer.md is available
+            for dispatch.
+          # 3 tickets × full TDD loop (typecheck/test/e2e iterations) per
+          # subagent invocation needs more turns than the PM routine. Cap
+          # at 300 — the workflow timeout-minutes is the real wall-clock
+          # bound; this just prevents pathological loops from racing it.
+          claude_args: "--max-turns 300"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
