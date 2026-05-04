@@ -9,14 +9,16 @@
  *
  * Source: `scripts/cache/r4-spec/profiles-resources.json` — extracted from
  * the published FHIR R4 `definitions.json.zip`. Auto-downloaded on first
- * run; the cache zip is gitignored. This is the same shared cache that
+ * run if not already cached; the zip is gitignored but profiles-resources.json
+ * can be committed to avoid the download. This is the same shared cache that
  * `sync-bundled-valuesets.ts` populates, so the two scripts download once
  * and reuse the bundle.
  *
  * Run: `pnpm --filter @fhir-place/react-fhir sync:sds`
  *
- * Per-type modules are gitignored; the published package's `prebuild` step
- * re-runs this so the bundled `loaders` map ships populated.
+ * The per-type modules are committed when present. The build does NOT run
+ * this script automatically — the committed files are the source of truth,
+ * and the empty-loaders stub (index.generated.ts) is the fallback.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -48,24 +50,16 @@ const SOURCE_PATH = join(CACHE_DIR, "profiles-resources.json");
 const SOURCE_URL = "https://hl7.org/fhir/R4/definitions.json.zip";
 const OUTPUT_DIR = join(HERE, "..", "src", "structure", "core", "sd");
 
-function ensureSpecData(): boolean {
-  if (existsSync(SOURCE_PATH)) return true;
+function ensureSpecData(): void {
+  if (existsSync(SOURCE_PATH)) return;
   mkdirSync(CACHE_DIR, { recursive: true });
   if (!existsSync(ZIP_PATH)) {
     console.log(`[sync:sds] Downloading ${SOURCE_URL} ...`);
-    try {
-      const buf = execFileSync("curl", ["-fsSL", SOURCE_URL], {
-        encoding: "buffer",
-        maxBuffer: 100 * 1024 * 1024,
-      });
-      writeFileSync(ZIP_PATH, buf);
-    } catch (err) {
-      console.warn(
-        `[sync:sds] Download failed (${err instanceof Error ? err.message : String(err)}). ` +
-          `Skipping generation; the committed stub index.generated.ts will be used.`,
-      );
-      return false;
-    }
+    const buf = execFileSync("curl", ["-fsSL", SOURCE_URL], {
+      encoding: "buffer",
+      maxBuffer: 100 * 1024 * 1024,
+    });
+    writeFileSync(ZIP_PATH, buf);
   }
   console.log("[sync:sds] Extracting profiles-resources.json ...");
   execFileSync(
@@ -73,7 +67,6 @@ function ensureSpecData(): boolean {
     ["-o", "-j", ZIP_PATH, "profiles-resources.json", "-d", CACHE_DIR],
     { stdio: "inherit" },
   );
-  return true;
 }
 
 function isCoreResourceSd(sd: StructureDefinition): boolean {
@@ -127,7 +120,7 @@ function clearOutputDir(): void {
 }
 
 function main(): void {
-  if (!ensureSpecData()) return;
+  ensureSpecData();
   mkdirSync(OUTPUT_DIR, { recursive: true });
   clearOutputDir();
 
