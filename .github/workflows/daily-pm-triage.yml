@@ -3,9 +3,8 @@
 #
 # Setup required (one-time):
 #   1. Add ANTHROPIC_API_KEY to repo secrets (Settings → Secrets → Actions).
-#   2. Merge this workflow.
-#   3. Manually trigger once via Actions → "Daily PM triage" → "Run workflow"
-#      to confirm permissions are right and the report issue gets created.
+#   2. Trigger via Actions → "Daily PM triage" → "Run workflow" to confirm
+#      the rolling report issue gets created.
 
 name: Daily PM triage
 
@@ -20,6 +19,7 @@ permissions:
   issues: write
   contents: read
   pull-requests: read
+  id-token: write
 
 concurrency:
   group: daily-pm-triage
@@ -37,16 +37,14 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # The action's built-in MCP setup gives Claude the GitHub MCP tools
-          # using GITHUB_TOKEN. The prompt explicitly tells the agent not to
-          # touch files or open PRs — this is GitHub-state-only.
-          prompt_file: docs/prompts/daily-pm-triage.md
-          allowed_tools: |
-            mcp__github__list_issues
-            mcp__github__issue_read
-            mcp__github__issue_write
-            mcp__github__add_issue_comment
-            mcp__github__list_pull_requests
-            mcp__github__pull_request_read
+          # The action's GitHub MCP setup gives Claude tools that use GITHUB_TOKEN.
+          # We tell Claude to read+execute the prompt file rather than slurping
+          # it into a workflow input — keeps the prompt in version control as a
+          # readable markdown file.
+          prompt: |
+            Read the file at docs/prompts/daily-pm-triage.md and execute the
+            instructions in it. Do not modify the file. Do not open a branch
+            or PR. The MCP github tools are already configured.
+          claude_args: "--max-turns 80"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
