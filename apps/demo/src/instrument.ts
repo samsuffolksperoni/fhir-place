@@ -33,6 +33,8 @@ if (dsn) {
     tracePropagationTargets: parseTraceTargets(
       import.meta.env.VITE_SENTRY_TRACE_TARGETS,
     ),
+    // Enables Sentry.logger.* (structured log → trace correlation in Sentry).
+    enableLogs: true,
   });
 }
 
