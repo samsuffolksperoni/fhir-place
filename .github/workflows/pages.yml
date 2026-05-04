@@ -88,7 +88,10 @@ jobs:
           mkdir -p main-src/apps/demo/dist/goals
           cp -R main-src/apps/goals-tasks/dist/. main-src/apps/demo/dist/goals/
 
-      - name: SPA 404 fallback (main)
+      - name: Per-subapp 404 fallback (main)
+        # The per-subapp 404.html is a defensive copy — GitHub Pages only
+        # serves the root /404.html, never a per-directory one. The real
+        # cross-subapp routing lives in the root 404.html written below.
         run: cp main-src/apps/demo/dist/index.html main-src/apps/demo/dist/404.html
 
       # ---------- staging ----------
@@ -124,8 +127,9 @@ jobs:
           mkdir -p staging-src/apps/demo/dist/goals
           cp -R staging-src/apps/goals-tasks/dist/. staging-src/apps/demo/dist/goals/
 
-      - name: SPA 404 fallback (staging)
+      - name: Per-subapp 404 fallback (staging)
         if: steps.staging.outputs.exists == 'true'
+        # Defensive copy; see comment on the main step.
         run: cp staging-src/apps/demo/dist/index.html staging-src/apps/demo/dist/404.html
 
       # ---------- combine ----------
@@ -137,6 +141,51 @@ jobs:
             mkdir -p out/staging
             cp -R staging-src/apps/demo/dist/. out/staging/
           fi
+
+      - name: Write cross-subapp router as the root 404.html
+        # GitHub Pages serves /404.html (and only /404.html) for every
+        # unmatched path. With multiple sub-apps under one Pages site
+        # (/fhir-place/, /fhir-place/goals/, /fhir-place/staging/,
+        # /fhir-place/staging/goals/), we need the root 404 to detect which
+        # sub-app the URL belongs to and inline that sub-app's index.html so
+        # its SPA router takes over without losing the URL bar.
+        run: |
+          cat > out/404.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>fhir-place</title>
+            <script>
+              (function () {
+                var path = location.pathname;
+                var base;
+                if (path.indexOf('/fhir-place/staging/goals/') === 0) {
+                  base = '/fhir-place/staging/goals/';
+                } else if (path.indexOf('/fhir-place/staging/') === 0) {
+                  base = '/fhir-place/staging/';
+                } else if (path.indexOf('/fhir-place/goals/') === 0) {
+                  base = '/fhir-place/goals/';
+                } else {
+                  base = '/fhir-place/';
+                }
+                fetch(base + 'index.html', { cache: 'no-store' })
+                  .then(function (r) { return r.text(); })
+                  .then(function (html) {
+                    document.open();
+                    document.write(html);
+                    document.close();
+                  })
+                  .catch(function () {
+                    document.body.textContent = 'fhir-place — page not found.';
+                  });
+              })();
+            </script>
+          </head>
+          <body>Loading…</body>
+          </html>
+          HTML
 
       - uses: actions/upload-pages-artifact@v3
         with:

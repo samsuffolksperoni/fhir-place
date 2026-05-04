@@ -91,6 +91,37 @@ in the issue and stop with `status: needs-human`.
    abstractions"). Don't refactor adjacent code, don't rename things, don't
    add comments that explain WHAT — only WHY when non-obvious.
 
+   **Capture screenshots for any user-visible change.** This includes
+   demo-app changes **and** library changes in `packages/react-fhir/**`
+   (which are user-visible via the demo). Procedure:
+
+   1. Start the dev server (`pnpm --filter @fhir-place/demo dev`).
+   2. Use the existing Playwright dependency to capture the affected
+      view at desktop (1280x800) and, when the layout is responsive,
+      also at mobile (375x812). Example:
+      ```bash
+      pnpm --filter @fhir-place/demo exec playwright screenshot \
+        --viewport-size=1280,800 \
+        http://127.0.0.1:5173/<route> \
+        screenshots/pr-<branch-slug>/<step>-desktop.png
+      ```
+   3. For state changes (CRUD, before/after, error states), capture
+      both the before and after frames.
+   4. Commit the PNGs in the same commit as the code, under
+      `screenshots/pr-<branch-slug>/`.
+   5. Reference them inline in the PR body using the raw URL pattern:
+      `![desktop](https://raw.githubusercontent.com/samsuffolksperoni/fhir-place/bot/issue-<N>-<slug>/screenshots/pr-<slug>/<file>.png)`
+
+   This is **separate from** rule 7 (no `playwright test --update-snapshots`).
+   The snapshot ban is about overwriting the e2e visual baselines that
+   require human review. PR-attached screenshots are illustrative and live
+   under `screenshots/pr-*/` — they never overwrite an e2e baseline.
+
+   If the change has **no** user-visible effect (pure infra, CI, build
+   tooling, internal refactor of unexported code), state that explicitly
+   in the PR body's screenshots section: "N/A — no user-visible change."
+   Do not skip the section silently.
+
 4. **Run the contract** in this exact order. Each retry must change
    something — no blind reruns of a failing command.
 
