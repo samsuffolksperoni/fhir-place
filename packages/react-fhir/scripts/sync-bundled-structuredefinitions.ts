@@ -101,11 +101,15 @@ function clearOutputDir(): void {
 
 function main(): void {
   if (!existsSync(SOURCE_PATH)) {
-    console.error(
-      `Missing source bundle: ${SOURCE_PATH}\n` +
-        `Place the FHIR R4(B) "profiles-resources.json" file there and re-run.`,
+    // On a fresh clone / CI the FHIR spec bundle isn't checked in; the empty
+    // `index.generated.ts` stub committed alongside this script is what `tsc`
+    // resolves so the package still builds. Skip silently so `pnpm dev` (which
+    // runs this through `predev`) doesn't fail there.
+    console.warn(
+      `[sync:sds] Skipping — source bundle not found at ${SOURCE_PATH}.\n` +
+        `[sync:sds] Drop the FHIR R4(B) "profiles-resources.json" there to populate per-type SDs.`,
     );
-    process.exit(1);
+    return;
   }
   mkdirSync(OUTPUT_DIR, { recursive: true });
   clearOutputDir();

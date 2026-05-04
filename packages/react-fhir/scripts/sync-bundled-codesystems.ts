@@ -75,11 +75,14 @@ function flattenConcepts(
 
 function main(): void {
   if (!existsSync(SOURCE_PATH)) {
-    console.error(
-      `Missing source bundle: ${SOURCE_PATH}\n` +
-        `Place the FHIR R4(B) "valuesets.json" file there and re-run.`,
+    // On CI / fresh clones the FHIR spec bundle isn't committed; the
+    // already-committed `codesystems.generated.ts` is what gets shipped.
+    // Skip silently so `pnpm dev` (which calls this through `predev`) works.
+    console.warn(
+      `[sync:csys] Skipping — source bundle not found at ${SOURCE_PATH}.\n` +
+        `[sync:csys] Drop the FHIR R4(B) "valuesets.json" there to refresh CodeSystem definitions.`,
     );
-    process.exit(1);
+    return;
   }
   const bundle = JSON.parse(readFileSync(SOURCE_PATH, "utf8")) as Bundle;
   const entries: Entry[] = [];

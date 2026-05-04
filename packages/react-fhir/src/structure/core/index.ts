@@ -9,6 +9,7 @@ export {
   lookupCoreDefinition,
   lookupCoreConcept,
 } from "./valuesets.js";
+export { bundledTypes } from "./sd/index.generated.js";
 export {
   type SpecFetcher,
   createBundledSpecFetcher,
