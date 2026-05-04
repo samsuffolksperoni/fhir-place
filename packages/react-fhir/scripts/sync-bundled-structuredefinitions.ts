@@ -48,16 +48,24 @@ const SOURCE_PATH = join(CACHE_DIR, "profiles-resources.json");
 const SOURCE_URL = "https://hl7.org/fhir/R4/definitions.json.zip";
 const OUTPUT_DIR = join(HERE, "..", "src", "structure", "core", "sd");
 
-function ensureSpecData(): void {
-  if (existsSync(SOURCE_PATH)) return;
+function ensureSpecData(): boolean {
+  if (existsSync(SOURCE_PATH)) return true;
   mkdirSync(CACHE_DIR, { recursive: true });
   if (!existsSync(ZIP_PATH)) {
     console.log(`[sync:sds] Downloading ${SOURCE_URL} ...`);
-    const buf = execFileSync("curl", ["-fsSL", SOURCE_URL], {
-      encoding: "buffer",
-      maxBuffer: 100 * 1024 * 1024,
-    });
-    writeFileSync(ZIP_PATH, buf);
+    try {
+      const buf = execFileSync("curl", ["-fsSL", SOURCE_URL], {
+        encoding: "buffer",
+        maxBuffer: 100 * 1024 * 1024,
+      });
+      writeFileSync(ZIP_PATH, buf);
+    } catch (err) {
+      console.warn(
+        `[sync:sds] Download failed (${err instanceof Error ? err.message : String(err)}). ` +
+          `Skipping generation; the committed stub index.generated.ts will be used.`,
+      );
+      return false;
+    }
   }
   console.log("[sync:sds] Extracting profiles-resources.json ...");
   execFileSync(
@@ -65,6 +73,7 @@ function ensureSpecData(): void {
     ["-o", "-j", ZIP_PATH, "profiles-resources.json", "-d", CACHE_DIR],
     { stdio: "inherit" },
   );
+  return true;
 }
 
 function isCoreResourceSd(sd: StructureDefinition): boolean {
@@ -118,7 +127,7 @@ function clearOutputDir(): void {
 }
 
 function main(): void {
-  ensureSpecData();
+  if (!ensureSpecData()) return;
   mkdirSync(OUTPUT_DIR, { recursive: true });
   clearOutputDir();
 
