@@ -1,0 +1,68 @@
+{
+  "name": "@fhir-place/mcp",
+  "version": "0.1.0",
+  "description": "MCP server that exposes any FHIR REST API as tool-callable operations for Claude Desktop, Cursor, and other MCP clients.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samsuffolksperoni/fhir-place.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/samsuffolksperoni/fhir-place#readme",
+  "bugs": "https://github.com/samsuffolksperoni/fhir-place/issues",
+  "keywords": [
+    "fhir",
+    "fhir-r4",
+    "mcp",
+    "model-context-protocol",
+    "llm",
+    "healthcare",
+    "hl7"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "@fhir-place/mcp": "./bin/mcp.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@fhir-place/react-fhir": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/fhir": "^0.0.41",
+    "@vitest/coverage-v8": "^2.1.9",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
