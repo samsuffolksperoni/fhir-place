@@ -5,6 +5,7 @@ import { CCSidebar } from "./components/CCSidebar.js";
 import { CCTabs } from "./components/CCTabs.js";
 import { ThemeProvider } from "./context/ThemeContext.js";
 import { RouteTabSync, TabsProvider } from "./context/TabsContext.js";
+import { PinnedProvider } from "./state/pinned.js";
 import { AskPage } from "./routes/fhir-ui/pages/AskPage.js";
 import { FailureGalleryPage } from "./routes/fhir-ui/pages/FailureGalleryPage.js";
 import { ResourceCreatePage } from "./routes/fhir-ui/pages/ResourceCreatePage.js";
@@ -22,7 +23,9 @@ export function App() {
     <Sentry.ErrorBoundary fallback={ErrorFallback}>
       <ThemeProvider>
         <TabsProvider>
-          <Shell />
+          <PinnedProvider>
+            <Shell />
+          </PinnedProvider>
         </TabsProvider>
       </ThemeProvider>
     </Sentry.ErrorBoundary>
