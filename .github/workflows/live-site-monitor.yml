@@ -111,7 +111,7 @@ jobs:
             }
 
             for (const g of grouped.values()) {
-              const issueTitle = `[demo] ${g.title}`;
+              const issueTitle = g.title;
               const body = [
                 `**Failed in run:** ${runUrl}`,
                 `**Affected projects:** ${g.projects.join(', ')}`,
@@ -149,7 +149,7 @@ jobs:
                   repo: context.repo.repo,
                   title: issueTitle,
                   body,
-                  labels: ['bug', 'live-monitor'],
+                  labels: ['type: bug', 'area: fhir-explorer', 'origin: bot-filed'],
                 });
               }
             }
