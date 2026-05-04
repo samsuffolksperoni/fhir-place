@@ -48,6 +48,7 @@ export function CCSidebar() {
   const isSettings = location.pathname === "/fhir-ui/settings";
   const isAsk = location.pathname === "/fhir-ui/ask";
   const isCql = location.pathname === "/cql-runner";
+  const isGallery = location.pathname === "/fhir-ui/failure-gallery";
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -421,6 +422,29 @@ export function CCSidebar() {
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3.5 4.5L1 7l2.5 2.5M10.5 4.5L13 7l-2.5 2.5M8 2l-2 10" />
+          </svg>
+        </button>
+        {/* Failure Gallery */}
+        <button
+          onClick={() => navigate("/fhir-ui/failure-gallery")}
+          title="Safety Failure Gallery"
+          data-testid="failure-gallery-nav"
+          style={{
+            background: isGallery ? "var(--accent-soft)" : "transparent",
+            border: "none",
+            borderRadius: 6,
+            padding: "4px 5px",
+            cursor: "pointer",
+            color: isGallery ? "var(--accent-text)" : "var(--text-muted)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 1L7 4M7 10L7 13M1 7L4 7M10 7L13 7M3 3L5 5M9 9L11 11M11 3L9 5M5 9L3 11" />
+            <circle cx="7" cy="7" r="2" />
           </svg>
         </button>
         {/* Settings */}

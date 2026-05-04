@@ -5,6 +5,7 @@ import { CCTabs } from "./components/CCTabs.js";
 import { ThemeProvider } from "./context/ThemeContext.js";
 import { RouteTabSync, TabsProvider } from "./context/TabsContext.js";
 import { AskPage } from "./routes/fhir-ui/pages/AskPage.js";
+import { FailureGalleryPage } from "./routes/fhir-ui/pages/FailureGalleryPage.js";
 import { ResourceCreatePage } from "./routes/fhir-ui/pages/ResourceCreatePage.js";
 import { ResourceDetailPage } from "./routes/fhir-ui/pages/ResourceDetailPage.js";
 import { ResourceEditPage } from "./routes/fhir-ui/pages/ResourceEditPage.js";
@@ -54,6 +55,7 @@ function Shell() {
             <Route path="/cql-runner" element={<CqlRunnerPage />} />
             <Route path="/fhir-ui" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
             <Route path="/fhir-ui/ask" element={<AskPage />} />
+            <Route path="/fhir-ui/failure-gallery" element={<FailureGalleryPage />} />
             <Route path="/fhir-ui/settings" element={<SettingsPage />} />
             <Route path="/fhir-ui/types" element={<ResourceTypePickerPage />} />
             <Route path="/fhir-ui/:resourceType/new" element={<ResourceCreatePage />} />
