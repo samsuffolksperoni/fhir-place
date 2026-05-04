@@ -15,6 +15,7 @@ import { ResourceListPage } from "./routes/fhir-ui/pages/ResourceListPage.js";
 import { ResourceTypePickerPage } from "./routes/fhir-ui/pages/ResourceTypePickerPage.js";
 import { SettingsPage } from "./routes/fhir-ui/pages/SettingsPage.js";
 import { CqlRunnerPage } from "./routes/cql-runner/CqlRunnerPage.js";
+import { TypedSearchPage } from "./routes/fhir-ui/pages/TypedSearchPage.js";
 
 const SentryRoutes = Sentry.withSentryReactRouterV7Routing(Routes);
 
@@ -102,6 +103,7 @@ function Shell() {
             <Route path="/cql-runner" element={<CqlRunnerPage />} />
             <Route path="/fhir-ui" element={<RedirectWithQuery to="/fhir-ui/Patient" />} />
             <Route path="/fhir-ui/ask" element={<AskPage />} />
+            <Route path="/fhir-ui/typed-search" element={<TypedSearchPage />} />
             <Route path="/fhir-ui/failure-gallery" element={<FailureGalleryPage />} />
             <Route path="/fhir-ui/settings" element={<SettingsPage />} />
             <Route path="/fhir-ui/types" element={<ResourceTypePickerPage />} />

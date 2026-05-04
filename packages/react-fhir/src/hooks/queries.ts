@@ -16,6 +16,7 @@ import type {
   ValueSet,
 } from "fhir/r4";
 import type { FhirClient, SearchParams } from "../client/types.js";
+import type { SearchBuilder, SearchableResource } from "../client/searchBuilder.js";
 import { coreValueSet, lookupCoreConcept } from "../structure/core/valuesets.js";
 import { resolveStructureDefinition } from "../structure/resolve.js";
 import { useFhirClient, useOptionalTerminologyClient, useTerminologyClient } from "./FhirClientProvider.js";
@@ -84,6 +85,59 @@ export function useSearch<T extends Resource = Resource>(
   return useQuery({
     queryKey: fhirQueryKeys.search(client.baseUrl, type, params),
     queryFn: ({ signal }) => client.search<T>(type, params, { signal }),
+    ...options,
+  });
+}
+
+/**
+ * Typed variant of {@link useSearch}. Accepts a {@link SearchBuilder} instance
+ * instead of a raw params record.
+ *
+ * Returns the same TanStack Query result shape as `useSearch`. The cache key
+ * is derived via {@link fhirQueryKeys.search} using the builder's resource type
+ * and serialised params, so a `useUpdateResource` / `useCreateResource` mutation
+ * on the same resource type invalidates this query just like a plain `useSearch`.
+ *
+ * @example
+ * ```tsx
+ * const { data } = useTypedSearch(
+ *   searchBuilder('Patient')
+ *     .where('name', 'Smith')
+ *     .include('Patient:general-practitioner')
+ * );
+ * ```
+ */
+export function useTypedSearch<T extends Resource = Resource>(
+  builder: SearchBuilder<SearchableResource>,
+  options?: ReadQueryOpts<Bundle<T>>,
+) {
+  const client = useFhirClient();
+  // Serialise the builder once so both the query key and the fetch use the
+  // same string. `build()` returns "{ResourceType}?{qs}" or just
+  // "{ResourceType}" when no params are set.
+  const built = builder.build();
+  // Split at the first "?" to reconstruct a stable SearchParams-shaped object
+  // for the cache key. Entries with repeated keys are collapsed into arrays so
+  // invalidation works even when _include appears multiple times.
+  const [resourceType, qs = ""] = built.split("?") as [string, string | undefined];
+  const cacheParams: SearchParams = {};
+  for (const [k, v] of new URLSearchParams(qs)) {
+    const existing = cacheParams[k];
+    if (existing === undefined) {
+      cacheParams[k] = v;
+    } else if (Array.isArray(existing)) {
+      existing.push(v);
+    } else {
+      cacheParams[k] = [existing as string, v];
+    }
+  }
+  return useQuery<Bundle<T>, Error, Bundle<T>, readonly unknown[]>({
+    queryKey: fhirQueryKeys.search(client.baseUrl, resourceType, cacheParams),
+    queryFn: ({ signal }) =>
+      client.request<Bundle<T>>({
+        path: `/${built}`,
+        signal,
+      }),
     ...options,
   });
 }

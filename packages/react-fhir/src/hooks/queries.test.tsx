@@ -12,6 +12,7 @@ import {
   setCoreStructureDefinitionFetcher,
 } from "../structure/core/index.js";
 import { FhirClientProvider } from "./FhirClientProvider.js";
+import { searchBuilder } from "../client/searchBuilder.js";
 import {
   fhirQueryKeys,
   nextPageUrl,
@@ -26,6 +27,7 @@ import {
   useSearch,
   useSearchParameter,
   useStructureDefinition,
+  useTypedSearch,
   useUpdateResource,
   useValueSet,
   useValueSetExpansion,
@@ -124,6 +126,112 @@ describe("query hooks", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(captured!.get("name")).toBe("adams");
     expect(captured!.get("_count")).toBe("5");
+  });
+
+  describe("useTypedSearch", () => {
+    it("issues a request to the URL built by the search builder", async () => {
+      let captured: URLSearchParams | null = null;
+      server.use(
+        http.get(`${BASE}/Patient`, ({ request }) => {
+          captured = new URL(request.url).searchParams;
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            total: 1,
+            entry: [{ resource: { resourceType: "Patient", id: "p1" } }],
+          });
+        }),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () =>
+          useTypedSearch<Patient>(
+            searchBuilder("Patient").where("name", "Smith").include("Patient:general-practitioner"),
+          ),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(captured!.get("name")).toBe("Smith");
+      expect(captured!.get("_include")).toBe("Patient:general-practitioner");
+      expect(result.current.data?.resourceType).toBe("Bundle");
+    });
+
+    it("returns the same shape as useSearch for an equivalent query", async () => {
+      const bundle = {
+        resourceType: "Bundle",
+        type: "searchset",
+        total: 1,
+        entry: [{ resource: { resourceType: "Patient", id: "x1", gender: "female" } }],
+      };
+      server.use(
+        http.get(`${BASE}/Patient`, () => HttpResponse.json(bundle)),
+      );
+      const { wrapper } = mkWrapper();
+
+      const { result: typed } = renderHook(
+        () => useTypedSearch<Patient>(searchBuilder("Patient").where("family", "Jones")),
+        { wrapper },
+      );
+      const { result: plain } = renderHook(
+        () => useSearch<Patient>("Patient", { family: "Jones" }),
+        { wrapper },
+      );
+
+      await waitFor(() => expect(typed.current.isSuccess).toBe(true));
+      await waitFor(() => expect(plain.current.isSuccess).toBe(true));
+
+      // Both hooks expose the same result shape fields
+      expect(Object.keys(typed.current)).toEqual(
+        expect.arrayContaining(["data", "isSuccess", "isLoading", "isError", "error"]),
+      );
+      expect(typed.current.data?.entry?.[0]?.resource?.id).toBe("x1");
+      expect(plain.current.data?.entry?.[0]?.resource?.id).toBe("x1");
+    });
+
+    it("shares the fhirQueryKeys.search cache key so useUpdateResource invalidates it", async () => {
+      let searchCalls = 0;
+      server.use(
+        http.get(`${BASE}/Patient`, () => {
+          searchCalls += 1;
+          return HttpResponse.json({
+            resourceType: "Bundle",
+            type: "searchset",
+            total: 1,
+            entry: [{ resource: { resourceType: "Patient", id: "p2" } }],
+          });
+        }),
+        http.put(`${BASE}/Patient/p2`, async ({ request }) => {
+          const body = (await request.json()) as Patient;
+          return HttpResponse.json({ ...body, meta: { versionId: "2" } });
+        }),
+      );
+      const { wrapper, qc, client } = mkWrapper();
+
+      const { result: searchResult } = renderHook(
+        () => useTypedSearch<Patient>(searchBuilder("Patient").where("name", "Smith")),
+        { wrapper },
+      );
+      await waitFor(() => expect(searchResult.current.isSuccess).toBe(true));
+      expect(searchCalls).toBe(1);
+
+      // Confirm the cache key uses fhirQueryKeys.search with the resource type
+      const cacheKeys = qc.getQueryCache().getAll().map((q) => q.queryKey);
+      const searchKey = cacheKeys.find(
+        (k) => Array.isArray(k) && k[1] === client.baseUrl && k[2] === "Patient" && k[3] === "search",
+      );
+      expect(searchKey).toBeDefined();
+
+      // Mutating a Patient should invalidate all Patient-scoped queries
+      const { result: mutateResult } = renderHook(
+        () => useUpdateResource<Patient>(),
+        { wrapper },
+      );
+      await act(async () => {
+        await mutateResult.current.mutateAsync({ resourceType: "Patient", id: "p2", gender: "male" });
+      });
+      // After invalidation, re-subscribe should trigger a new fetch
+      await waitFor(() => expect(searchCalls).toBeGreaterThan(1));
+    });
   });
 
   it("useStructureDefinition reads the definition resource", async () => {
