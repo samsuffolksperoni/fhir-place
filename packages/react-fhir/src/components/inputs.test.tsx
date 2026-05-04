@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { FetchFhirClient } from "../client/FetchFhirClient.js";
 import { FhirClientProvider } from "../hooks/FhirClientProvider.js";
 import { defaultTypeInputs } from "./inputs/index.js";
+import { DEFAULT_REFERENCE_TARGETS } from "./inputs/Reference.js";
 
 const BASE = "https://fhir.example.test/fhir";
 const server = setupServer();
@@ -632,5 +633,77 @@ describe("CodingInput async combobox (large/partial ValueSets)", () => {
     await waitFor(() => expect(screen.getByText("System")).toBeInTheDocument());
     expect(screen.getByText("Code")).toBeInTheDocument();
     expect(screen.getByText("Display")).toBeInTheDocument();
+  });
+});
+
+const ReferenceInputComponent = defaultTypeInputs.Reference!;
+
+describe("ReferenceInput", () => {
+  it("uses the search picker (not the fallback) when targetProfile is advertised", () => {
+    const element: ElementDefinition = {
+      path: "Observation.subject",
+      type: [
+        {
+          code: "Reference",
+          targetProfile: [
+            "http://hl7.org/fhir/StructureDefinition/Patient",
+            "http://hl7.org/fhir/StructureDefinition/Group",
+          ],
+        },
+      ],
+    };
+    render(
+      <ReferenceInputComponent
+        value={undefined}
+        onChange={() => {}}
+        context={{ path: "Observation.subject", typeCode: "Reference", element }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    expect(screen.getByTestId("reference-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("reference-picker-fallback")).not.toBeInTheDocument();
+    // The type switcher shows exactly the advertised targets.
+    expect(screen.getByRole("option", { name: "Patient" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Group" })).toBeInTheDocument();
+  });
+
+  it("uses the search picker with DEFAULT_REFERENCE_TARGETS when no targetProfile is advertised", () => {
+    // Mirrors the Observation.subject / Observation.encounter shape in bundled
+    // core SDs: type[{code:'Reference'}] with no targetProfile entries.
+    const element: ElementDefinition = {
+      path: "Observation.subject",
+      type: [{ code: "Reference" }],
+    };
+    render(
+      <ReferenceInputComponent
+        value={undefined}
+        onChange={() => {}}
+        context={{ path: "Observation.subject", typeCode: "Reference", element }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    expect(screen.getByTestId("reference-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("reference-picker-fallback")).not.toBeInTheDocument();
+    // All DEFAULT_REFERENCE_TARGETS appear as selectable options.
+    for (const t of DEFAULT_REFERENCE_TARGETS) {
+      expect(screen.getByRole("option", { name: t })).toBeInTheDocument();
+    }
+  });
+
+  it("uses the search picker when the element type array is absent entirely", () => {
+    // Edge case: ElementDefinition has no type array at all.
+    const element: ElementDefinition = {
+      path: "Fake.ref",
+    };
+    render(
+      <ReferenceInputComponent
+        value={undefined}
+        onChange={() => {}}
+        context={{ path: "Fake.ref", typeCode: "Reference", element }}
+      />,
+      { wrapper: mkWrapper() },
+    );
+    expect(screen.getByTestId("reference-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("reference-picker-fallback")).not.toBeInTheDocument();
   });
 });
