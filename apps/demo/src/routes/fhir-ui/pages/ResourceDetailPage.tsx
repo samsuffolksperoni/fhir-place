@@ -4,6 +4,7 @@ import {
   ResourceView,
   useDeleteResource,
   useResource,
+  useResourceCapabilities,
   useStructureDefinition,
 } from "@fhir-place/react-fhir";
 import type { Reference, Resource } from "fhir/r4";
@@ -44,6 +45,7 @@ export function ResourceDetailPage() {
   const notFound =
     error instanceof FhirError && (error.status === 404 || error.status === 410);
   const del = useDeleteResource();
+  const { canUpdate, canDelete } = useResourceCapabilities(resourceType);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [rightPane, setRightPane] = useState<"formatted" | "json" | "refs">("formatted");
 
@@ -108,25 +110,29 @@ export function ResourceDetailPage() {
               buttonLabel="Fields"
             />
           )}
-          <Link
-            to={`/fhir-ui/${resourceType}/${id}/edit`}
-            style={ccBtn("secondary")}
-            data-testid="edit-resource"
-          >
-            Edit
-          </Link>
-          <button
-            onClick={() => setConfirmingDelete(true)}
-            style={ccBtn("danger")}
-            data-testid="delete-resource"
-          >
-            Delete
-          </button>
+          {canUpdate && (
+            <Link
+              to={`/fhir-ui/${resourceType}/${id}/edit`}
+              style={ccBtn("secondary")}
+              data-testid="edit-resource"
+            >
+              Edit
+            </Link>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              style={ccBtn("danger")}
+              data-testid="delete-resource"
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
       {/* Delete confirm */}
-      {confirmingDelete && (
+      {canDelete && confirmingDelete && (
         <div
           data-testid="delete-confirm"
           style={{

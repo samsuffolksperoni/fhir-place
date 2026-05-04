@@ -5,6 +5,7 @@ import {
   SortPicker,
   useFhirClient,
   useInfiniteSearch,
+  useResourceCapabilities,
   useStructureDefinition,
 } from "@fhir-place/react-fhir";
 import type { Reference, Resource } from "fhir/r4";
@@ -114,6 +115,7 @@ export function ResourceListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const client = useFhirClient();
+  const { canCreate } = useResourceCapabilities(resourceType);
 
   const onReferenceClick = (ref: Reference) => {
     const r = ref.reference;
@@ -253,7 +255,7 @@ export function ResourceListPage() {
 
   const heading = patientId ? resourceType : config?.title ?? resourceType;
   const singular = config?.singular ?? resourceType.toLowerCase();
-  const showCreate = !patientId && Boolean(config);
+  const showCreate = !patientId && canCreate;
   const priorityParams = config?.priorityParams;
 
   const totalStr = (() => {
@@ -323,7 +325,7 @@ export function ResourceListPage() {
               style={{ ...ccBtn("primary"), marginLeft: "auto" }}
               data-testid={`create-${resourceType.toLowerCase()}`}
             >
-              + New {resourceType}
+              + New {singular}
             </Link>
           )}
         </div>

@@ -9,6 +9,7 @@ import {
 import type {
   Bundle,
   CapabilityStatement,
+  CapabilityStatementRestResource,
   Reference,
   Resource,
   SearchParameter,
@@ -59,6 +60,48 @@ export function useCapabilities(options?: ReadQueryOpts<CapabilityStatement>) {
     staleTime: 5 * 60_000,
     ...options,
   });
+}
+
+export interface ResourceCapabilities {
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canSearch: boolean;
+}
+
+const emptyCapabilities: ResourceCapabilities = {
+  canCreate: false,
+  canUpdate: false,
+  canDelete: false,
+  canSearch: false,
+};
+
+function findCapabilityResource(
+  cap: CapabilityStatement | undefined,
+  resourceType: string | undefined,
+): CapabilityStatementRestResource | undefined {
+  if (!resourceType) return undefined;
+  for (const rest of cap?.rest ?? []) {
+    const hit = rest.resource?.find((resource) => resource.type === resourceType);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+export function useResourceCapabilities(
+  resourceType: string | undefined,
+): ResourceCapabilities {
+  const { data: cap } = useCapabilities({ enabled: Boolean(resourceType) });
+  const resource = findCapabilityResource(cap, resourceType);
+  if (!resource) return emptyCapabilities;
+
+  const interactions = new Set(resource.interaction?.map((i) => i.code) ?? []);
+  return {
+    canCreate: interactions.has("create"),
+    canUpdate: interactions.has("update"),
+    canDelete: interactions.has("delete"),
+    canSearch: interactions.has("search-type"),
+  };
 }
 
 export function useResource<T extends Resource = Resource>(

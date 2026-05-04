@@ -36,6 +36,14 @@ const okJson = (data: any, init?: ResponseInit) =>
     },
   });
 
+const patientInteractions = [
+  { code: "read" },
+  { code: "search-type" },
+  { code: "create" },
+  { code: "update" },
+  { code: "delete" },
+];
+
 export const handlers = [
   http.get(`*${BASE}/metadata`, () =>
     okJson({
@@ -51,13 +59,7 @@ export const handlers = [
           resource: [
             {
               type: "Patient",
-              interaction: [
-                { code: "read" },
-                { code: "search-type" },
-                { code: "create" },
-                { code: "update" },
-                { code: "delete" },
-              ],
+              interaction: patientInteractions,
               searchParam: [
                 { name: "_id", type: "token", documentation: "Logical id" },
                 { name: "name", type: "string", documentation: "Any of the names" },

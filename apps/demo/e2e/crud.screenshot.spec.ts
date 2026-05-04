@@ -89,4 +89,18 @@ test.describe("CRUD flows", () => {
     await expect(page).toHaveURL(/\/Patient$/);
     await expect(page.getByText("Margaret Hamilton-Apollo")).toHaveCount(0);
   });
+
+  test("read-only CapabilityStatement resources hide write buttons", async ({ page }) => {
+    await page.goto("/Patient");
+    await expect(page.getByTestId("create-patient")).toBeVisible();
+
+    await page.goto("/AllergyIntolerance");
+    await expect(page.getByRole("heading", { name: /allergies & intolerances/i })).toBeVisible();
+    await expect(page.getByTestId("create-allergyintolerance")).toHaveCount(0);
+
+    await page.goto("/AllergyIntolerance/ai-pen-ada");
+    await expect(page.getByTestId("resource-view")).toBeVisible();
+    await expect(page.getByTestId("edit-resource")).toHaveCount(0);
+    await expect(page.getByTestId("delete-resource")).toHaveCount(0);
+  });
 });

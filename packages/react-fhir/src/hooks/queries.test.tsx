@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { Patient } from "fhir/r4";
+import type { CapabilityStatement, Patient } from "fhir/r4";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -22,6 +22,7 @@ import {
   useInfiniteSearch,
   useReadReferences,
   useResource,
+  useResourceCapabilities,
   useResources,
   useSearch,
   useSearchParameter,
@@ -79,6 +80,63 @@ describe("query hooks", () => {
     const { result } = renderHook(() => useCapabilities(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.resourceType).toBe("CapabilityStatement");
+  });
+
+  it("useResourceCapabilities maps resource interactions from /metadata", async () => {
+    const cap: CapabilityStatement = {
+      resourceType: "CapabilityStatement",
+      status: "active",
+      date: "2024-01-01",
+      kind: "instance",
+      fhirVersion: "4.0.1",
+      format: ["json"],
+      rest: [
+        {
+          mode: "server",
+          resource: [
+            {
+              type: "Patient",
+              interaction: [
+                { code: "read" },
+                { code: "search-type" },
+                { code: "create" },
+                { code: "update" },
+                { code: "delete" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const { wrapper, qc, client } = mkWrapper();
+    qc.setQueryData(fhirQueryKeys.capabilities(client.baseUrl), cap);
+    const { result } = renderHook(() => useResourceCapabilities("Patient"), { wrapper });
+
+    expect(result.current).toEqual({
+      canCreate: true,
+      canUpdate: true,
+      canDelete: true,
+      canSearch: true,
+    });
+  });
+
+  it("useResourceCapabilities defaults unknown resources to no write access", () => {
+    const { wrapper, qc, client } = mkWrapper();
+    qc.setQueryData(fhirQueryKeys.capabilities(client.baseUrl), {
+      resourceType: "CapabilityStatement",
+      status: "active",
+      rest: [{ mode: "server", resource: [{ type: "Patient" }] }],
+    });
+    const { result } = renderHook(() => useResourceCapabilities("Observation"), {
+      wrapper,
+    });
+
+    expect(result.current).toEqual({
+      canCreate: false,
+      canUpdate: false,
+      canDelete: false,
+      canSearch: false,
+    });
   });
 
   it("useResource is disabled when id is undefined", () => {
