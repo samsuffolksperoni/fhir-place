@@ -47,6 +47,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The prompt uses `git merge-base --is-ancestor <pr-head>
+          # origin/staging` to decide whether each open PR is live on
+          # /staging/. fetch-depth: 0 gives us the full history both
+          # branches need; staging is then refreshed in a separate step.
+          fetch-depth: 0
+
+      - name: Fetch staging branch
+        run: git fetch origin staging --quiet || echo "::warning::staging branch not found — all PRs will be reported as not-on-staging"
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -64,7 +73,7 @@ jobs:
         # Cheap up-front check. The prompt also checks but failing here
         # surfaces network-side outages in the workflow log directly.
         run: |
-          if ! curl -fsS https://samsuffolksperoni.github.io/fhir-place/ > /dev/null; then
+          if ! curl -fsS https://samsuffolksperoni.github.io/fhir-place/staging/ > /dev/null; then
             echo "::warning::Staging unreachable from runner — Claude will note this and exit cleanly."
           fi
 
@@ -82,9 +91,12 @@ jobs:
             not open a branch or PR. The MCP github tools are already
             configured. Playwright chromium is installed; use it from a
             temporary Node script in /tmp. The staging site is at
-            https://samsuffolksperoni.github.io/fhir-place/#/fhir-ui/
-            and is reachable over the public network — there is no
-            local dev server in this workflow.
+            https://samsuffolksperoni.github.io/fhir-place/staging/#/fhir-ui/
+            (served from the `staging` branch by pages.yml) and is
+            reachable over the public network — there is no local dev
+            server in this workflow. The `staging` branch has already
+            been fetched, so `git merge-base --is-ancestor <pr-head-sha>
+            origin/staging` is the on-staging precondition check.
           # Up to 8 PRs × walk + dedupe + PM time. The workflow's
           # timeout-minutes is the real wall-clock bound; this prevents
           # pathological loops from racing it.

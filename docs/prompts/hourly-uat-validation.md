@@ -42,11 +42,18 @@ See also:
   - At most **200** GitHub API calls. Finish the current PR if close to
     the cap and skip the rest.
 - Staging URL is fixed:
-  `https://samsuffolksperoni.github.io/fhir-place/#/fhir-ui/`. Every
-  Playwright navigation must be a sub-route of this base. Treat staging
-  as shared infrastructure: do not write data unless a PR's UAT
-  explicitly requires a CRUD assertion, and if you do, use a clearly-fake
-  name like `UAT Bot <ISO timestamp>`.
+  `https://samsuffolksperoni.github.io/fhir-place/staging/#/fhir-ui/`,
+  served from the `staging` branch by `pages.yml`. Every Playwright
+  navigation must be a sub-route of this base. Treat staging as shared
+  infrastructure: do not write data unless a PR's UAT explicitly
+  requires a CRUD assertion, and if you do, use a clearly-fake name
+  like `UAT Bot <ISO timestamp>`.
+- UAT is a **pre-merge gate**: the engineer merges a PR's branch into
+  `staging` so its changes deploy to `/staging/`, this routine validates
+  on the live staging build, and only then is the PR merged into `main`.
+  This routine never validates against `/` (main) — that's already
+  shipped, too late to influence the merge decision. The nightly
+  `live-site-monitor.yml` covers post-deploy regression on main.
 
 ---
 
@@ -67,39 +74,64 @@ See also:
 ## Step 1 — confirm staging is alive
 
 ```
-curl -fsS https://samsuffolksperoni.github.io/fhir-place/ | head -c 200
+curl -fsS https://samsuffolksperoni.github.io/fhir-place/staging/ | head -c 200
 ```
 
 If this fails, write a one-line note to stdout, update the tracking
-issue per Step 5 with `Staging unreachable`, and exit. Do not file an
+issue per Step 6 with `Staging unreachable`, and exit. Do not file an
 issue against the routine itself.
+
+Then fetch the latest `staging` branch so the on-staging precondition in
+Step 2 can be answered locally:
+
+```
+git fetch origin staging --quiet
+```
 
 ## Step 2 — assemble the PR queue
 
-Use `mcp__github__list_pull_requests` to fetch:
+Use `mcp__github__list_pull_requests` to fetch all **open**, **non-draft**
+PRs (`state: open`, `draft: false`). Recently-merged PRs are out of
+scope — UAT is a pre-merge gate, and post-merge regression on `main` is
+already covered by `live-site-monitor.yml`.
 
-- All **open** PRs that are **not draft** (`state: open`, `draft: false`).
-- All PRs **merged in the last 24 hours** (`state: closed`,
-  `merged_at >= now − 24h`).
+Drop any PR labelled `status: agent-paused`.
 
-Drop any PR whose head branch starts with `bot/` AND whose author is
-`github-actions[bot]` AND that has had no human commits — those are bot
-draft PRs the engineer routine handles. Drop any PR labelled
-`status: agent-paused`.
+For each remaining candidate, decide whether its changes are live on
+`/staging/` by checking whether its head SHA is reachable from the
+`staging` branch tip:
 
-Dedupe: for each candidate PR, search its existing comments for one whose
-body starts with the marker `<!-- uat-validation:run -->`. If the most
-recent such comment is newer than 50 minutes, skip the PR — it was just
-validated. (At hourly cadence this prevents re-validating a PR that
-hasn't changed since the last run.) An exception: if the PR has new
-commits since that marker comment, validate again.
+```
+git merge-base --is-ancestor <pr-head-sha> origin/staging
+```
 
-Sort the survivors:
+- **Exit code 0** → PR head is on staging. Eligible for full validation.
+- **Exit code 1** → PR head is not on staging. Skip with a one-line
+  marker comment (see below) so the human knows the engineer still has
+  to merge the branch into `staging` before UAT can run. Do **not**
+  count this PR against the 8-PR cap.
 
-1. Open PRs first (they need feedback before merge), merged PRs second.
-2. Within each group, oldest `updated_at` first.
+Dedupe (applies to both eligible and not-on-staging PRs): search the
+PR's existing comments for one whose body starts with the marker
+`<!-- uat-validation:run -->`. If the most recent such comment is newer
+than 50 minutes **and** its `sha=<head-sha>` matches the current head
+SHA, skip the PR silently — nothing has changed since the last run.
 
-Take up to 8 from the top of this sorted queue.
+For each not-on-staging PR that is **not** silently deduped, post:
+
+```
+<!-- uat-validation:run sha=<head-sha> at=<ISO> reason=not-on-staging -->
+
+UAT validation — <YYYY-MM-DD HH:MM UTC>
+
+PR head `<head-sha-short>` is not yet on the `staging` branch. Engineer
+needs to merge `<head-branch>` into `staging` so its changes deploy to
+`/staging/`; this routine will then validate the UAT items on the next
+hourly run. Run: <workflow run URL>
+```
+
+Sort the on-staging survivors by oldest `updated_at` first and take
+up to 8 from the top of the sorted queue.
 
 ## Step 3 — for each PR, run the QA agent
 
@@ -133,13 +165,10 @@ Spawn the `qa-engineer` subagent with the PR context. Pass it:
 - The PR number, title, body, and changed-file list.
 - The staging base URL.
 - The list of UAT items to verify, restated.
-- Instruction: walk each UAT item against staging, capturing console
-  errors, page errors, and 4xx/5xx network responses. For **merged**
-  PRs, the change should be visible on staging — verify behaviour
-  end-to-end. For **open** PRs, staging does not yet reflect the
-  change; verify that (a) the routes the PR will affect still work
-  today and (b) the UAT items as written are testable on a staging
-  walk after merge.
+- Instruction: the PR's head is on the `staging` branch and its changes
+  are live at `/staging/`. Walk each UAT item against staging end-to-end,
+  capturing console errors, page errors, and 4xx/5xx network responses
+  (ignore expected 404s like `/Patient/NONEXISTENT`).
 - Instruction: while walking, if it spots bugs that are **not** in the
   scope of this PR (the changed-files list does not touch them), record
   them for filing in Step 4. Do not file them inside the PR comment.
@@ -162,7 +191,7 @@ API). The comment must start with the marker so future runs can dedupe:
 
 ## UAT validation — <YYYY-MM-DD HH:MM UTC>
 
-Checked against staging: https://samsuffolksperoni.github.io/fhir-place/#/fhir-ui/
+Checked against staging: https://samsuffolksperoni.github.io/fhir-place/staging/#/fhir-ui/
 Run: <workflow run URL>
 
 ### PR description
@@ -191,9 +220,11 @@ console-error excerpt if any>
 
 ---
 
-_This comment was posted by `.github/workflows/hourly-uat-validation.yml`.
-It is informational — it is not a formal review and does not block merge.
-The next hourly run will skip this PR unless it has new commits._
+_This comment was posted by `.github/workflows/hourly-uat-validation.yml`
+as a pre-merge UAT signal. It is informational — it is not a formal
+review and does not block merge. A human reviewer should still confirm
+before merging this PR into `main`. The next hourly run will skip this
+PR unless it has new commits._
 ```
 
 Rules for the checklist:
@@ -246,7 +277,7 @@ bug observations from Step 3c. For each one (cap 5):
      ```
      **Route:** <hash route>
      **Run:** <workflow run URL>
-     **Staging:** https://samsuffolksperoni.github.io/fhir-place/#/fhir-ui/
+     **Staging:** https://samsuffolksperoni.github.io/fhir-place/staging/#/fhir-ui/
      **Spotted while validating:** PR #<n> (out of scope of that PR)
      **Viewport:** 1280×800
 
@@ -315,7 +346,8 @@ _Last run: YYYY-MM-DD HH:MM UTC. Pause: add `status: agent-paused` to this issue
 
 - PRs validated: #pA, #pB, #pC
 - PRs skipped (recent run, no new commits): N
-- Open PRs missing a UAT section: #pD
+- PRs not yet on staging (engineer to merge into `staging`): #pD
+- Open PRs missing a UAT section: #pE
 - Out-of-scope bugs filed: #X, #Y
 - PM improvement ideas filed: #Z
 - Subagent failures: 0
@@ -351,11 +383,13 @@ If today produced zero changes, still update the timestamp.
 - Marker comments (`<!-- uat-validation:run -->`) are how dedupe works.
   Do not change the marker format without coordinating a one-time
   migration of existing PR comments.
-- If staging deploys lag main (gh-pages takes a few minutes after merge),
-  a recently-merged PR may not yet be live. Detect this by walking the
-  PR's expected route and seeing the old behaviour: in that case,
-  comment `Staging not yet caught up to this merge — will re-validate
-  next run.` and move on. Do not fail.
+- If `pages.yml` lags the merge into `staging` (gh-pages takes a few
+  minutes after each push to `staging`), the PR's head SHA may be
+  on the `staging` branch but the `/staging/` URL may still serve the
+  previous build. Detect this by walking the PR's expected route and
+  seeing the old behaviour: in that case, comment `Staging not yet
+  caught up to the latest merge into the staging branch — will
+  re-validate next run.` and move on. Do not fail.
 - If you find yourself wanting to fix something in this prompt, in the
   subagent definitions, or in `.github/workflows/`, **stop**. Open a
   regular human-authored PR. Self-modifying agents are out of scope.
