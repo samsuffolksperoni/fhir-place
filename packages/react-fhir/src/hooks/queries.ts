@@ -547,6 +547,38 @@ export function useReadReferences<T extends Resource = Resource>(
   });
 }
 
+/**
+ * Derives which interactions the server advertises for a given resource type
+ * from the cached CapabilityStatement.
+ *
+ * Safe-default behaviour: while the CapabilityStatement is still loading, or
+ * when the type is absent from the capability list, every flag returns `false`
+ * so the UI hides write buttons rather than showing ones that would 405.
+ */
+export function useResourceCapabilities(resourceType: string) {
+  const { data: cs, isLoading } = useCapabilities();
+
+  if (isLoading || !cs || !resourceType) {
+    return { canCreate: false, canUpdate: false, canDelete: false, canSearch: false };
+  }
+
+  const restResource = cs.rest
+    ?.flatMap((r) => r.resource ?? [])
+    .find((r) => r.type === resourceType);
+
+  if (!restResource) {
+    return { canCreate: false, canUpdate: false, canDelete: false, canSearch: false };
+  }
+
+  const codes = new Set(restResource.interaction?.map((i) => i.code) ?? []);
+  return {
+    canCreate: codes.has("create"),
+    canUpdate: codes.has("update"),
+    canDelete: codes.has("delete"),
+    canSearch: codes.has("search-type"),
+  };
+}
+
 /** Invalidates cached reads for a specific resource (e.g. after a mutation). */
 const invalidateResource = (qc: ReturnType<typeof useQueryClient>, client: FhirClient, type: string, id?: string) => {
   if (id) {

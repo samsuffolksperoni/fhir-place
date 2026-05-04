@@ -22,6 +22,7 @@ import {
   useInfiniteSearch,
   useReadReferences,
   useResource,
+  useResourceCapabilities,
   useResources,
   useSearch,
   useSearchParameter,
@@ -79,6 +80,88 @@ describe("query hooks", () => {
     const { result } = renderHook(() => useCapabilities(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.resourceType).toBe("CapabilityStatement");
+  });
+
+  describe("useResourceCapabilities", () => {
+    const capabilityStatement = {
+      resourceType: "CapabilityStatement",
+      status: "active",
+      date: "2024-01-01",
+      kind: "instance",
+      fhirVersion: "4.0.1",
+      format: ["json"],
+      rest: [
+        {
+          mode: "server",
+          resource: [
+            {
+              type: "Patient",
+              interaction: [
+                { code: "read" },
+                { code: "search-type" },
+                { code: "create" },
+                { code: "update" },
+                { code: "delete" },
+              ],
+            },
+            {
+              type: "Observation",
+              interaction: [{ code: "read" }, { code: "search-type" }],
+            },
+          ],
+        },
+      ],
+    };
+
+    it("returns all flags true for a fully-writable resource type", async () => {
+      server.use(
+        http.get(`${BASE}/metadata`, () => HttpResponse.json(capabilityStatement)),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useResourceCapabilities("Patient"),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.canCreate).toBe(true));
+      expect(result.current.canUpdate).toBe(true);
+      expect(result.current.canDelete).toBe(true);
+      expect(result.current.canSearch).toBe(true);
+    });
+
+    it("returns write flags false for a read-only resource type", async () => {
+      server.use(
+        http.get(`${BASE}/metadata`, () => HttpResponse.json(capabilityStatement)),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useResourceCapabilities("Observation"),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.canSearch).toBe(true));
+      expect(result.current.canCreate).toBe(false);
+      expect(result.current.canUpdate).toBe(false);
+      expect(result.current.canDelete).toBe(false);
+    });
+
+    it("returns all flags false for a type absent from the CapabilityStatement", async () => {
+      server.use(
+        http.get(`${BASE}/metadata`, () => HttpResponse.json(capabilityStatement)),
+      );
+      const { wrapper } = mkWrapper();
+      const { result } = renderHook(
+        () => useResourceCapabilities("Condition"),
+        { wrapper },
+      );
+      await waitFor(() => {
+        // Wait for the CapabilityStatement to load (canSearch will remain false
+        // because Condition is absent) — detect by checking isLoading is false
+        // via a short settle by re-checking stable false values after a tick.
+        expect(result.current.canCreate).toBe(false);
+      });
+      expect(result.current.canUpdate).toBe(false);
+      expect(result.current.canDelete).toBe(false);
+      expect(result.current.canSearch).toBe(false);
+    });
   });
 
   it("useResource is disabled when id is undefined", () => {

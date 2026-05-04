@@ -72,6 +72,8 @@ export const handlers = [
               ],
             },
             {
+              // Observation is intentionally read-only in the mock so the
+              // capability-gate e2e test can assert that write buttons are absent.
               type: "Observation",
               interaction: [{ code: "read" }, { code: "search-type" }],
               searchParam: [
@@ -83,18 +85,23 @@ export const handlers = [
                 { name: "date", type: "date" },
               ],
             },
-            {
-              type: "AllergyIntolerance",
-              interaction: [{ code: "read" }, { code: "search-type" }],
-              searchParam: [
-                {
-                  name: "patient",
-                  type: "reference",
-                  documentation: "Who the sensitivity is for",
-                },
-                { name: "code", type: "token" },
+            // Compartment types — the mock handlers support full CRUD for these,
+            // so the CapabilityStatement advertises all five interactions.
+            ...["Condition", "MedicationRequest", "AllergyIntolerance", "Procedure", "Encounter", "Immunization"].map((type) => ({
+              type,
+              interaction: [
+                { code: "read" },
+                { code: "search-type" },
+                { code: "create" },
+                { code: "update" },
+                { code: "delete" },
               ],
-            },
+              searchParam: [
+                { name: "_id", type: "token" },
+                { name: "patient", type: "reference" },
+                { name: "subject", type: "reference" },
+              ],
+            })),
           ],
         },
       ],
@@ -201,8 +208,25 @@ export const handlers = [
   http.get(`*${BASE}/Observation`, ({ request }) => {
     const url = new URL(request.url);
     const subject = url.searchParams.get("subject") ?? url.searchParams.get("patient");
-    const id = subject?.replace(/^Patient\//, "") ?? "";
+    // When no patient filter is provided, return all fixtures so the Observation
+    // list page has rows to click into (needed by capability-gate e2e test).
+    const id = subject?.replace(/^Patient\//, "") ?? "ada";
     return okJson(searchBundle(observationsFor(id)));
+  }),
+
+  http.get(`*${BASE}/Observation/:id`, ({ params }) => {
+    const all = observationsFor("ada");
+    const hit = all.find((o) => o.id === String(params.id));
+    if (hit) return okJson(hit);
+    return okJson(
+      {
+        resourceType: "OperationOutcome",
+        issue: [
+          { severity: "error", code: "not-found", diagnostics: `Observation/${params.id} not found` },
+        ],
+      },
+      { status: 404 },
+    );
   }),
 
   // Compartment search + instance-read handlers. Searches scope by
