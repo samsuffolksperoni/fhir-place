@@ -68,6 +68,7 @@ See [`apps/goals-tasks/README.md`](apps/goals-tasks/README.md) for the full brea
 | --- | --- |
 | [`packages/react-fhir/README.md`](packages/react-fhir/README.md) | Install, quick start, full API reference, design principles, comparison with other libraries, roadmap |
 | [`apps/demo/README.md`](apps/demo/README.md) | fhir-ui features, app structure, how it uses react-fhir, how to run |
+| [`docs/deployment.md`](docs/deployment.md) | Deploy your own instance — GitHub Pages, Vercel, Netlify, static hosts |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | PR workflow, testing, changesets, bump conventions |
 | [`docs/decisions/`](docs/decisions/) | Architecture Decision Records |
 | [Open issues](https://github.com/danielsperoniteam/fhir-place/issues) | Tracked gaps and roadmap items |
