@@ -13,7 +13,7 @@ test.describe("CodedValue popover", () => {
     page,
   }) => {
     await page.goto("/AllergyIntolerance/ai-pen-ada");
-    const view = page.getByTestId("resource-view");
+    const view = page.getByTestId("hinted-detail");
     await expect(view).toBeVisible();
 
     // The chip wrapper carries `data-testid="coded-value"`. Multiple chips
@@ -50,7 +50,7 @@ test.describe("CodedValue popover", () => {
 
   test("popover closes on mouseleave", async ({ page }) => {
     await page.goto("/AllergyIntolerance/ai-pen-ada");
-    const view = page.getByTestId("resource-view");
+    const view = page.getByTestId("hinted-detail");
     await expect(view).toBeVisible();
 
     const chip = view
