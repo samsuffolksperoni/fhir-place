@@ -6,6 +6,7 @@ import {
   getLayoutHint,
   useDeleteResource,
   useResource,
+  useResourceCapabilities,
   useStructureDefinition,
 } from "@fhir-place/react-fhir";
 import type { Reference, Resource } from "fhir/r4";
@@ -65,6 +66,10 @@ export function ResourceDetailPage() {
   const del = useDeleteResource();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [rightPane, setRightPane] = useState<"formatted" | "json" | "refs">("formatted");
+  // Default-hide write actions until the CapabilityStatement confirms the
+  // server advertises them, so a read-only server doesn't dangle 405-bound
+  // buttons in the toolbar.
+  const { canUpdate, canDelete } = useResourceCapabilities(resourceType);
 
   const isPatient = resourceType === "Patient";
   // Tier 1 reference implementation: AllergyIntolerance renders via
@@ -133,20 +138,24 @@ export function ResourceDetailPage() {
               buttonLabel="Fields"
             />
           )}
-          <Link
-            to={`/fhir-ui/${resourceType}/${id}/edit`}
-            style={ccBtn("secondary")}
-            data-testid="edit-resource"
-          >
-            Edit
-          </Link>
-          <button
-            onClick={() => setConfirmingDelete(true)}
-            style={ccBtn("danger")}
-            data-testid="delete-resource"
-          >
-            Delete
-          </button>
+          {canUpdate && (
+            <Link
+              to={`/fhir-ui/${resourceType}/${id}/edit`}
+              style={ccBtn("secondary")}
+              data-testid="edit-resource"
+            >
+              Edit
+            </Link>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              style={ccBtn("danger")}
+              data-testid="delete-resource"
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
