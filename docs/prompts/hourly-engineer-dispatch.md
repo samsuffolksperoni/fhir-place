@@ -93,7 +93,7 @@ For each of the up-to-3 ready issues, **sequentially** (not in parallel):
    "Picked up by hourly-engineer-dispatch. Branch: `bot/issue-<N>-<slug>`,
    PR base: `main`. The agent will open a draft PR, promote the branch
    into `staging` for live UAT against
-   `https://samsuffolksperoni.github.io/fhir-place/staging/`, or post a
+   `https://danielsperoniteam.github.io/fhir-place/staging/`, or post a
    `status: needs-human` comment if it cannot complete the work."
 
 3. **Dispatch:** invoke the `engineer` subagent with worktree isolation,

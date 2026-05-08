@@ -29,7 +29,7 @@
 - Commit the PNGs under `screenshots/pr-<branch-slug>/` in the same PR.
 - Reference each one inline using the raw URL pattern so it renders in the
   PR description:
-  `![desktop](https://raw.githubusercontent.com/samsuffolksperoni/fhir-place/<branch>/screenshots/pr-<slug>/<file>.png)`
+  `![desktop](https://raw.githubusercontent.com/danielsperoniteam/fhir-place/<branch>/screenshots/pr-<slug>/<file>.png)`
 - Include before/after frames for state changes. Mobile (375x812) is
   required when the change touches a responsive layout.
 - This is **separate** from the e2e snapshot baselines under
@@ -66,7 +66,7 @@ When asked to do a QA pass on the demo app:
   and note on the PR that staging promotion needs a human.
 - Every PR body must include a **UAT on live staging** section with
   concrete steps a human or downstream agent can run against
-  `https://samsuffolksperoni.github.io/fhir-place/staging/` once your
+  `https://danielsperoniteam.github.io/fhir-place/staging/` once your
   staging push lands and Pages redeploys. If you cannot articulate
   those steps, the change is not ready.
 - The Pages workflow rebuilds both branches on every push; staging's

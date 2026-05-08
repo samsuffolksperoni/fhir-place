@@ -122,7 +122,7 @@ in the issue and stop with `status: needs-human`.
    4. Commit the PNGs in the same commit as the code, under
       `screenshots/pr-<branch-slug>/`.
    5. Reference them inline in the PR body using the raw URL pattern:
-      `![desktop](https://raw.githubusercontent.com/samsuffolksperoni/fhir-place/bot/issue-<N>-<slug>/screenshots/pr-<slug>/<file>.png)`
+      `![desktop](https://raw.githubusercontent.com/danielsperoniteam/fhir-place/bot/issue-<N>-<slug>/screenshots/pr-<slug>/<file>.png)`
 
    This is **separate from** rule 7 (no `playwright test --update-snapshots`).
    The snapshot ban is about overwriting the e2e visual baselines that
@@ -182,7 +182,7 @@ in the issue and stop with `status: needs-human`.
       3. A **Test plan** checklist (commands you ran locally)
       4. A **UAT on live staging** section — concrete, copy-pasteable
          steps a human or a downstream agent can follow against
-         `https://samsuffolksperoni.github.io/fhir-place/staging/`
+         `https://danielsperoniteam.github.io/fhir-place/staging/`
          after step 11 promotes your branch into staging and Pages
          finishes its redeploy. Each step must name the route, the
          action, and the expected observable result. Generic
@@ -221,7 +221,7 @@ in the issue and stop with `status: needs-human`.
 
 12. **Comment the link.** On the issue:
     `Opened #<PR> — draft, base: main. Promoted to staging; UAT can run
-    against https://samsuffolksperoni.github.io/fhir-place/staging/
+    against https://danielsperoniteam.github.io/fhir-place/staging/
     once the Pages workflow finishes.`
     If the staging promotion failed in step 11, swap the second sentence
     for `Staging promotion blocked by conflicts — see PR comment.`
