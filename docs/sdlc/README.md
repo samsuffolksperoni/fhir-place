@@ -29,6 +29,7 @@ rolling tracking issue so the audit trail is in GitHub itself.
 | [`loops.md`](./loops.md) | The five recurring loops + two event-driven workflows, their cadence, and their concurrency model. |
 | [`lifecycle.md`](./lifecycle.md) | End-to-end journey of one ticket: issue → triage → branch → PR → staging UAT → merge → deploy → live monitor. |
 | [`safety.md`](./safety.md) | Hard rules, blast-radius caps, dedupe markers, the kill switch, and the deny-list. |
+| [`gaps.md`](./gaps.md) | What isn't yet wired up — single-issue gaps and bigger themes (agentic users, feature flags), each annotated with a proposed `human-review-needed: low/medium/high` level. |
 
 ## The first principles, distilled
 
