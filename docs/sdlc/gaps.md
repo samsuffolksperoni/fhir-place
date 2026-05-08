@@ -22,30 +22,97 @@ feature flags — it's broken out as a "Theme" with sub-pieces.
 ## Proposed label: `human-review-needed: low | medium | high`
 
 A new label vocabulary axis. Lives alongside `type: / area: / priority: /
-status: / origin:`. Owned by the human who triages, not by PM-triage's
-heuristics.
+status: / origin:`.
 
-| Level | Meaning | Effect on engineer dispatch |
+**Universality rule: every agent-filed issue must set this label
+explicitly at filing time.** Not "default to no label and let PM-triage
+backfill" — every filer decides the level themselves, because they have
+the most context about what they just observed. PM-triage backfills
+only as a safety net for issues that arrive missing the label (human-
+filed issues that didn't think about it).
+
+| Level | Meaning | Effect on engineer dispatch | Effect on assignment |
+| --- | --- | --- | --- |
+| `low` | Agent can take it end-to-end. Human reviewer just merges. | Picked normally by the "ready" queue. | None. |
+| `medium` | Agent can draft a PR; human must review the **approach** (architecture, abstraction choice), not just the diff. | Picked normally; reviewer expected to push back harder. | None. |
+| `high` | A human needs to think about this **before** the agent goes near it. Often: persona design, patient-safety review, architectural choice with downstream cost. | **Excluded** from the ready queue (`-label:"human-review-needed: high"`). Becomes ready only when the human has thought it through and either downgrades the label or writes acceptance criteria specific enough that the agent can execute mechanically. | **Auto-assign the maintainer** (`assignees: ["danielsperoniteam"]`) at filing time so the issue lands directly in their tray instead of in the backlog. |
+
+### How each filer chooses the level
+
+The filer (the agent that creates the issue) applies a small decision
+table before filing:
+
+- **Default `low`** for deterministic test failures, single-route bugs
+  with a clear repro, dedupe-of-existing close calls, and any bug whose
+  fix is one file in a non-deny-listed path.
+- **Escalate to `medium`** when: reproduction is ambiguous; multiple
+  files likely affected; the fix involves a choice of abstraction or a
+  visible API change; the bug crosses package boundaries
+  (`packages/react-fhir/**` ↔ `apps/demo/**`).
+- **Escalate to `high`** when **any** of:
+  - Patient-safety pattern: wrong-patient/drug/dose/route/time, broken
+    allergy/problem-list rendering, missing audit trail, silent data
+    loss.
+  - Credential / secret pattern: anything that smells like a leaked
+    token, key, or PHI fragment.
+  - Architecture-significant: auth, encryption, data flow between
+    components, schema migration, FHIR profile choice.
+  - Touches a deny-listed path the engineer agent can't edit
+    (`.github/workflows/**`, `.claude/`, `docs/prompts/`,
+    `scripts/sync-labels.mjs`, `pnpm-lock.yaml` mass-rewrites,
+    `packages/react-fhir/**` without a changeset).
+  - Theme-level work — the bigger pieces in the "Themes" section
+    below (agentic users, feature flags) are `high` by definition.
+
+### Assignment ≠ claim
+
+The hourly engineer-dispatch prompt currently says: *"Never assign
+issues — the bot has no GitHub user identity. Use the
+`status: in-progress` label as the atomic claim."*
+
+That rule is about the bot using assignment as a **claim lock**.
+Assigning the **maintainer** (a human, for routing) is a different
+action and not in conflict. The doc-update for this label should
+explicitly call out the distinction so a future prompt-author doesn't
+accidentally remove the auto-assign rule when reading the existing one.
+
+### Filing surfaces that need updating
+
+To make the label universal at filing time, these three places change:
+
+| File | Today | Change |
 | --- | --- | --- |
-| `low` | Agent can take it end-to-end. Human reviewer just merges. | Picked normally by the "ready" queue. |
-| `medium` | Agent can draft a PR; human must review the **approach** (architecture, abstraction choice), not just the diff. | Picked normally; reviewer expected to push back harder. |
-| `high` | A human needs to think about this **before** the agent goes near it. Often: persona design, safety review, architectural choice with downstream cost. | **Excluded** from the engineer-dispatch ready queue (`-label:"human-review-needed: high"`). Becomes ready only when the human has thought it through and either downgrades the label or writes acceptance criteria specific enough that the agent can execute mechanically. |
+| `.github/workflows/live-site-monitor.yml` line 154 | `labels: ['type: bug', 'area: fhir-explorer', 'priority: high', 'origin: bot-filed']` | Add `'human-review-needed: low'` for normal Playwright failures; the existing `github-script` adds `'human-review-needed: high'` and `assignees: ['danielsperoniteam']` if the failed test's title matches the patient-safety regex (med/dose/allergy/problem). |
+| `docs/prompts/daily-qa-pass.md` Step 4 — Labels | `type: bug, area: fhir-explorer, origin: bot-filed, priority: …` | Append `human-review-needed: <level>`, applying the decision table above. For `high`, also pass `assignees: ['danielsperoniteam']` to `mcp__github__issue_write`. |
+| `docs/prompts/hourly-uat-validation.md` Step 4 (out-of-scope bugs) and Step 5 (PM improvement ideas) | same shape | same change as above. PM ideas default `low`. |
 
-Adoption notes:
+PM triage gets the safety-net rule:
 
-- Adding this is a two-step change in the SDLC: (a) the human-authored
-  PR that updates `scripts/sync-labels.mjs` and `CONTRIBUTING.md` to add
-  the vocabulary; (b) the human-authored PR that updates
-  `docs/prompts/hourly-engineer-dispatch.md` Step 3 ("compute the ready
-  queue") to exclude `human-review-needed: high`.
-- Default is **no label**, which the dispatcher should treat as `low`
-  (i.e. picked normally). That keeps the existing backlog working
-  without a mass re-labelling pass.
-- PM triage gets a corresponding rule: if an agent files a bug whose
-  signature matches "patient safety," "credential," "data flow," or
-  "schema migration," set `human-review-needed: high` automatically.
-  This is the only path on which PM triage applies the label; humans
-  apply it everywhere else.
+| File | Change |
+| --- | --- |
+| `docs/prompts/daily-pm-triage.md` Check 1 | If an issue is missing `human-review-needed:`, infer it: bot-filed default `low`, signature-match (the same patient-safety / credential / schema-migration regex used by the filers) sets `high` and adds the maintainer as assignee. Human-filed issues without the label stay unset and surface in the report. |
+
+### Adoption order
+
+This is multiple PRs, all human-authored (agents can't edit their own
+prompts or the label sync script). Suggested order:
+
+1. **PR A** — `scripts/sync-labels.mjs` + `CONTRIBUTING.md` add the
+   three label values. No behaviour change yet; just makes the labels
+   exist.
+2. **PR B** — update the three filing surfaces above so every new
+   bot-filed issue carries a level. Existing issues stay unlabelled.
+3. **PR C** — update `hourly-engineer-dispatch.md` Step 3 to exclude
+   `human-review-needed: high` from the ready queue. This is the gate
+   that gives the label teeth.
+4. **PR D** — update `daily-pm-triage.md` Check 1 to backfill missing
+   levels.
+5. (Optional, later) Bulk-label the existing backlog. PM-triage's
+   backfill rule will catch most of it; the rest can be hand-set.
+
+PR A through D are all small. Doing them in order means the system
+doesn't get into a half-state where the label exists but isn't gating
+anything, or is gating without filers populating it.
 
 ---
 
