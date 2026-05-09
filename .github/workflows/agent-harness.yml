@@ -14,6 +14,26 @@ on:
         required: false
         default: random
         type: string
+      max_steps:
+        description: "Max tool-use steps per task."
+        required: false
+        default: "25"
+        type: string
+      wallclock_ms:
+        description: "Wallclock ceiling per task, in milliseconds."
+        required: false
+        default: "90000"
+        type: string
+      cost_ceiling_usd:
+        description: "Estimated cost ceiling per task, in USD."
+        required: false
+        default: "0.25"
+        type: string
+      model:
+        description: "Anthropic model id."
+        required: false
+        default: claude-sonnet-4-6
+        type: string
 
 permissions:
   contents: read
@@ -43,7 +63,13 @@ jobs:
         id: agent
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: pnpm --filter @fhir-place/demo agent:run --task=${{ inputs.task }}
+        run: |
+          pnpm --filter @fhir-place/demo agent:run \
+            --task=${{ inputs.task }} \
+            --model=${{ inputs.model }} \
+            --max-steps=${{ inputs.max_steps }} \
+            --wallclock-ms=${{ inputs.wallclock_ms }} \
+            --cost-ceiling=${{ inputs.cost_ceiling_usd }}
         continue-on-error: true
 
       - name: Upload run results
