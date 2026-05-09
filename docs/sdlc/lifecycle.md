@@ -64,15 +64,21 @@ the cadence; this doc is the path through the loops.
        pages.yml rebuilds /staging/ on Pages
                │
                ▼
+       promote-staging.yml opens (or updates) a
+       staging → main PR with aggregated UAT steps
+       from all included PRs, assigned to @danielsperoni
+               │
+               ▼
        Hourly UAT validation (:15) walks the PR's
        "UAT on live staging" checklist against
        https://danielsperoniteam.github.io/fhir-place/staging/
                │
                ▼
-       UAT comment posted on PR (informational, not a review)
+       UAT comment posted on promotion PR (informational)
                │
                ▼
-       Human promotes staging → main (fast-forward / merge)
+       Human independently validates UAT steps on staging,
+       approves the promotion PR, and merges
                │
                ▼
        pages.yml rebuilds /
@@ -200,16 +206,37 @@ attempt at resolving them; otherwise the PR author rebases by hand.
 
 ### 7. Merge into `staging`
 
-A human merges. Two things happen:
+A human merges. Three things happen:
 
 - `pages.yml` rebuilds the `/staging/` slot of the Pages artifact and
   redeploys.
+- `promote-staging.yml` opens (or updates) a single long-lived
+  `staging → main` promotion PR. The PR body aggregates UAT steps from
+  all PRs merged into staging since the last promotion. It is assigned
+  to `@danielsperoni`. Any PRs with `status: needs-human` are flagged
+  at the top of the body for explicit human review.
 - The PR's head SHA is now reachable from `origin/staging`, which means
   the next **hourly UAT validation** run will walk it.
 
 Note: the engineer-dispatch loop's PR is still **open** at this point.
 "Merge into staging" is not "merge into main" — it's a deploy step that
 makes the change visible on the live `/staging/` URL for UAT.
+
+### 7b. Promotion PR
+
+[`promote-staging.yml`](../../.github/workflows/promote-staging.yml)
+
+The promotion PR serves as the formal UAT gate for production. Its body
+contains:
+
+- Commit/PR counts ahead of main
+- Aggregated UAT steps from each included PR
+- Flagged items needing human review (with `@danielsperoni` mention)
+- List of included PRs and issues that will be closed
+
+The PR is a single long-lived instance — each push to staging updates
+its body rather than creating a new PR. When merged, a new one opens
+on the next staging push.
 
 ### 8. UAT validation against the live staging build
 
@@ -230,12 +257,13 @@ not block merge by itself. A human still has to confirm.
 
 ### 9. Promotion: `staging` → `main`
 
-A human promotes `staging` to `main` (fast-forward or merge). At that
-point:
+A human approves and merges the promotion PR. At that point:
 
 - `pages.yml` rebuilds `/`.
-- The PR is closed by GitHub via its `Closes #<N>` trailer.
-- The original issue is closed automatically.
+- Issues listed in the `Closes #<N>` trailers are closed automatically.
+- The promotion PR is closed.
+- The next push to staging (from a subsequent merge) will open a fresh
+  promotion PR.
 
 ### 10. Post-deploy regression check
 
@@ -256,10 +284,14 @@ points:
    (label the loop's tracking issue `status: agent-paused`).
 2. **Reviewing and marking PRs ready, then merging into `staging`.**
    The agent never does this.
-3. **Promoting `staging` to `main`.** Always a human action.
+3. **Approving and merging the promotion PR** (`staging` → `main`).
+   The PR is created automatically, but an independent human must
+   validate UAT steps on the deployed staging environment and approve.
+   Always assigned to `@danielsperoni`.
 4. **Modifying the SDLC itself** — prompts, agent definitions,
    workflows, `CODEOWNERS`. Self-modification is out of scope for every
    agent in the system.
 
 Everything else — triage, branch creation, code, tests, screenshots,
-draft PR, UAT walk, bug-filing — is automated.
+draft PR, UAT walk, bug-filing, and promotion PR creation — is
+automated.

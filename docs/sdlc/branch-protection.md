@@ -1,0 +1,75 @@
+# Branch protection
+
+Both `main` and `staging` are protected by GitHub repository rulesets.
+The settings mirror each other — the same quality gate applies to both
+branches so that code hitting staging has already passed CI.
+
+## Why a merge queue on staging
+
+Without a merge queue, approving two PRs in quick succession leads to
+the second one going stale (its CI ran against the old base). A human
+would have to come back, click "Update branch", wait for CI again, then
+merge. The merge queue eliminates this: approve multiple PRs, they queue
+up, GitHub rebases each against the latest staging head, runs CI, and
+merges sequentially — no human round-trips.
+
+## Ruleset: Protect staging
+
+| Rule | Setting | Rationale |
+|------|---------|-----------|
+| Deletion | blocked | Prevent accidental branch deletion |
+| Force push | blocked | Preserve history for audit trail |
+| Require PR | 1 approval, dismiss stale reviews on push | Human code review gate |
+| Required status checks | `test`, `e2e` (strict) | CI must pass against latest base |
+| Merge queue | squash, all-green, 5 max entries, 5 min wait | Batch without conflicts |
+
+**Merge method:** squash — keeps staging history clean and one commit per
+feature for easy UAT tracing.
+
+**Strict status checks:** PRs must be up-to-date with staging before
+merge. The merge queue handles this automatically.
+
+## Ruleset: Protect main
+
+| Rule | Setting | Rationale |
+|------|---------|-----------|
+| Deletion | blocked | Never delete main |
+| Force push | blocked | History is sacred |
+| Required status checks | `test`, `e2e` (strict) | Same CI gate as staging |
+| Merge queue | squash, all-green, 5 max entries, 5 min wait | Batch promotions cleanly |
+
+**Note:** Main's ruleset (ID `15901122`) was created 2026-05-03 and is
+currently `enforcement: disabled`. Enable it when ready to enforce the
+merge queue on promotion PRs.
+
+## Bypass actors
+
+**Staging:** The admin repository role (which includes GitHub Actions
+workflows running with `contents: write`) is configured as a bypass
+actor. This allows the `promote-staging.yml` workflow to push
+conflict-resolution commits directly to `staging` without opening a
+separate PR. Human contributors still go through the PR + merge queue
+flow.
+
+**Main:** No bypass actors. All changes must go through a PR.
+
+## Interaction with the promote-staging workflow
+
+The `promote-staging.yml` workflow creates/updates a PR targeting main.
+When the merge queue is active on main, approving and merging that PR
+enters it into the queue — CI runs one final time against main's head
+before the actual merge lands.
+
+If the promotion PR has conflicts:
+1. The workflow attempts automatic resolution via Claude
+2. If resolution fails, it labels the PR `status: needs-human`, posts
+   an escalation comment, and requests review from `@danielsperoni`
+3. The `/resolve-conflicts` command remains available for manual retries
+
+## How to modify these rules
+
+Rulesets are managed via the GitHub API or the repo Settings > Rules UI:
+- Staging: `gh api repos/danielsperoniteam/fhir-place/rulesets/16171731`
+- Main: `gh api repos/danielsperoniteam/fhir-place/rulesets/15901122`
+
+Changes to branch protection are SDLC changes and require human review.
