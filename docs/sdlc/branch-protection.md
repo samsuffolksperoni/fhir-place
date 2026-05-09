@@ -53,6 +53,22 @@ flow.
 
 **Main:** No bypass actors. All changes must go through a PR.
 
+## Skipping staging (fast-track to main)
+
+For non-user-visible changes (docs, CI workflows, markdown-only) you
+can merge directly to `main` by opening a PR with `base: main`. When
+this happens, `sync-staging.yml` fires on the push to `main` and
+automatically merges main back into staging so it stays current.
+
+Fast-track is appropriate when:
+- All changes are `*.md`, `.github/workflows/`, or other non-deployed files
+- The change doesn't need UAT validation on the staging URL
+- You're confident the change won't conflict with in-flight staging work
+
+If the reverse-sync encounters conflicts, it escalates to
+`@danielsperoni` via a comment on the open promotion PR (or a new issue
+if none exists).
+
 ## Interaction with the promote-staging workflow
 
 The `promote-staging.yml` workflow creates/updates a PR targeting main.

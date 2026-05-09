@@ -1,0 +1,102 @@
+# Keeps staging up-to-date with main after direct-to-main merges.
+#
+# When someone merges a PR directly into main (skipping staging — e.g.,
+# docs-only or CI-only changes), this workflow fast-forwards or merges
+# main into staging so staging never falls behind.
+#
+# Uses the admin bypass on the staging ruleset to push directly.
+# Does NOT trigger if the push to main came from the promotion PR
+# (detected by commit message) to avoid infinite loops.
+
+name: Sync staging with main
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write  # push to staging via admin bypass
+
+concurrency:
+  group: sync-staging
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Skip if this push came from the promotion PR merge (avoid loops)
+    if: "!contains(github.event.head_commit.message, 'promote staging to main')"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check if staging needs sync
+        id: check
+        run: |
+          git fetch origin staging
+          # Check if main has commits not on staging
+          BEHIND=$(git rev-list --count origin/staging..origin/main)
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+
+      - name: Merge main into staging
+        if: steps.check.outputs.behind != '0'
+        id: merge
+        continue-on-error: true
+        run: |
+          git checkout staging
+          git merge origin/main --no-edit
+          git push origin staging
+
+      - name: Escalate if merge failed
+        if: steps.check.outputs.behind != '0' && steps.merge.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Find open promotion PR to comment on, or create an issue
+            const { data: openPRs } = await github.rest.pulls.list({
+              owner, repo, state: 'open', head: `${owner}:staging`, base: 'main'
+            });
+
+            const body = [
+              '## ⚠️ Staging sync failed',
+              '',
+              'A direct-to-main merge could not be automatically synced to staging ',
+              'due to merge conflicts.',
+              '',
+              '**Action needed:** @danielsperoni please merge main into staging manually:',
+              '```bash',
+              'git checkout staging && git merge origin/main',
+              '```',
+              '',
+              '_Failed at ' + new Date().toISOString() + '_'
+            ].join('\n');
+
+            if (openPRs.length > 0) {
+              await github.rest.issues.createComment({
+                owner, repo,
+                issue_number: openPRs[0].number,
+                body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner, repo,
+                title: 'Staging sync failed — manual merge needed',
+                body,
+                labels: ['status: needs-human', 'area: infra'],
+                assignees: ['danielsperoni']
+              });
+            }
