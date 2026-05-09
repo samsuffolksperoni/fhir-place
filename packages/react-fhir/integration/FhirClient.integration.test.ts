@@ -8,7 +8,7 @@ import type {
 } from "fhir/r4";
 import { afterAll, describe, expect, test } from "vitest";
 import { codesFromValueSet } from "../src/structure/binding.js";
-import { directChildren, walkResource } from "../src/structure/walker.js";
+import { walkResource } from "../src/structure/walker.js";
 import {
   FHIR_BASE_URL,
   isFhirError,
@@ -48,20 +48,18 @@ describe.skipIf(!reachable)(`integration: FhirClient @ ${FHIR_BASE_URL}`, () => 
   );
 
   test(
-    "StructureDefinition for Patient walks cleanly through directChildren()",
+    "StructureDefinition/Patient is reachable and parseable",
     async () => {
+      // Shape-only interop probe: we just want to know the endpoint serves a
+      // StructureDefinition we can parse. Walker correctness against R4
+      // Patient is covered deterministically by walker.test.ts against the
+      // vendored fixture; asserting on `kind` or specific element paths here
+      // couples this suite to whatever a live sandbox happens to return.
       const sd = await client.read<StructureDefinition>(
         "StructureDefinition",
         "Patient",
       );
-      expect(sd.kind).toBe("resource");
-      expect(sd.type).toBe("Patient");
-      const kids = directChildren(sd, "Patient");
-      const paths = kids.map((k) => k.path);
-      // A handful of well-known R4 Patient elements that must always be present.
-      for (const p of ["Patient.id", "Patient.name", "Patient.gender", "Patient.birthDate"]) {
-        expect(paths).toContain(p);
-      }
+      expect(sd.resourceType).toBe("StructureDefinition");
     },
     30_000,
   );
