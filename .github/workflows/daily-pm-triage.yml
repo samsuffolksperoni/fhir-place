@@ -1,0 +1,50 @@
+# Runs the PM triage prompt daily on the open-issue backlog.
+# See docs/prompts/daily-pm-triage.md for what the agent does.
+#
+# Setup required (one-time):
+#   1. Add ANTHROPIC_API_KEY to repo secrets (Settings → Secrets → Actions).
+#   2. Trigger via Actions → "Daily PM triage" → "Run workflow" to confirm
+#      the rolling report issue gets created.
+
+name: Daily PM triage
+
+on:
+  schedule:
+    # 07:00 UTC daily — runs after live-site-monitor (06:30 UTC) so any
+    # bot-filed issues from this morning are included in today's pass.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+  pull-requests: read
+  id-token: write
+
+concurrency:
+  group: daily-pm-triage
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Claude Code with the daily-pm-triage prompt
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The action's GitHub MCP setup gives Claude tools that use GITHUB_TOKEN.
+          # We tell Claude to read+execute the prompt file rather than slurping
+          # it into a workflow input — keeps the prompt in version control as a
+          # readable markdown file.
+          prompt: |
+            Read the file at docs/prompts/daily-pm-triage.md and execute the
+            instructions in it. Do not modify the file. Do not open a branch
+            or PR. The MCP github tools are already configured.
+          claude_args: "--max-turns 80"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

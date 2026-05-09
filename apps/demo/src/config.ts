@@ -1,5 +1,7 @@
 export const USE_MOCK =
-  import.meta.env.VITE_USE_MOCK === "true" || import.meta.env.DEV;
+  import.meta.env.VITE_USE_MOCK === "false"
+    ? false
+    : import.meta.env.VITE_USE_MOCK === "true" || import.meta.env.DEV;
 
 /** Vite's BASE_URL — "/" locally, "/fhir-place/" on GitHub Pages. */
 const BASE = import.meta.env.BASE_URL;
@@ -26,16 +28,16 @@ export interface ServerConfig {
  */
 export const BUILTIN_SERVERS: ReadonlyArray<ServerConfig> = [
   {
-    id: "builtin-hapi",
-    label: "HAPI Public Test Server",
-    baseUrl: "https://hapi.fhir.org/baseR4",
+    id: "builtin-smart",
+    label: "SMART Health IT (R4)",
+    baseUrl: "https://r4.smarthealthit.org",
     authMode: "none",
     builtin: true,
   },
   {
-    id: "builtin-smart",
-    label: "SMART Health IT (R4)",
-    baseUrl: "https://r4.smarthealthit.org",
+    id: "builtin-hapi",
+    label: "HAPI Public Test Server",
+    baseUrl: "https://hapi.fhir.org/baseR4",
     authMode: "none",
     builtin: true,
   },
@@ -171,9 +173,9 @@ export const saveActiveServerId = (id: string): void => {
 };
 
 const FALLBACK_SERVER: ServerConfig = {
-  id: "builtin-hapi",
-  label: "HAPI Public Test Server",
-  baseUrl: "https://hapi.fhir.org/baseR4",
+  id: "builtin-smart",
+  label: "SMART Health IT (R4)",
+  baseUrl: "https://r4.smarthealthit.org",
   authMode: "none",
   builtin: true,
 };

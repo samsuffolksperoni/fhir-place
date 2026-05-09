@@ -1,9 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { fhirQueryKeys, useFhirClient, type SearchParams } from "@fhir-place/react-fhir";
+import { useQueries } from "@tanstack/react-query";
+import type { Bundle, Resource } from "fhir/r4";
 import { ACTIVE_SERVER_CONFIG, loadActiveServerId, loadServers, saveActiveServerId } from "../config.js";
 import { TOP_RESOURCE_TYPES } from "../resourceListConfig.js";
+import { usePinned } from "../state/pinned.js";
 import { JumpDialog } from "./JumpDialog.js";
 import { CC_MONO } from "./ccStyles.js";
+
+const COUNT_PARAMS: SearchParams = { _summary: "count", _count: 0 };
+
+const formatCount = (n: number | undefined): string => {
+  if (n === undefined) return "";
+  return n.toLocaleString();
+};
 
 export function CCSidebar() {
   const location = useLocation();
@@ -11,6 +22,7 @@ export function CCSidebar() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const [jumpOpen, setJumpOpen] = useState(false);
+  const { pins, removePin, renamePin } = usePinned();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -38,6 +50,7 @@ export function CCSidebar() {
   const isSettings = location.pathname === "/fhir-ui/settings";
   const isAsk = location.pathname === "/fhir-ui/ask";
   const isCql = location.pathname === "/cql-runner";
+  const isGallery = location.pathname === "/fhir-ui/failure-gallery";
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -52,6 +65,31 @@ export function CCSidebar() {
 
   const servers = loadServers();
   const activeServerId = loadActiveServerId() ?? ACTIVE_SERVER_CONFIG.id;
+
+  const client = useFhirClient();
+  const countQueries = useQueries({
+    queries: TOP_RESOURCE_TYPES.map((rt) => ({
+      queryKey: fhirQueryKeys.search(client.baseUrl, rt, COUNT_PARAMS),
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        client.search<Resource>(rt, COUNT_PARAMS, { signal }),
+      staleTime: 60_000,
+    })),
+  });
+
+  const counts = useMemo(() => {
+    const out: Partial<Record<(typeof TOP_RESOURCE_TYPES)[number], number>> = {};
+    TOP_RESOURCE_TYPES.forEach((rt, i) => {
+      const total = (countQueries[i]?.data as Bundle | undefined)?.total;
+      if (typeof total === "number") out[rt] = total;
+    });
+    return out;
+  }, [countQueries]);
+
+  const allResourcesTotal = useMemo(
+    () => Object.values(counts).reduce((sum: number, n) => sum + (n ?? 0), 0),
+    [counts],
+  );
+  const allResourcesLoading = countQueries.some((q) => q.isLoading);
 
   const switchServer = (id: string) => {
     saveActiveServerId(id);
@@ -239,8 +277,10 @@ export function CCSidebar() {
 
       <JumpDialog open={jumpOpen} onClose={() => setJumpOpen(false)} />
 
+      {/* Resources + Pinned scroll region */}
+      <div style={{ overflowY: "auto", flex: 1 }} data-testid="sidebar-scroll">
       {/* Resources */}
-      <div style={{ padding: "12px 8px", overflowY: "auto", flex: 1 }}>
+      <div style={{ padding: "12px 8px 4px" }}>
         <div
           style={{
             fontSize: 10,
@@ -252,6 +292,25 @@ export function CCSidebar() {
           }}
         >
           Resources
+        </div>
+        <div
+          data-testid="sidebar-link-all"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "5px 10px",
+            borderRadius: 6,
+            color: "var(--text)",
+            marginBottom: 1,
+          }}
+        >
+          <span style={{ fontSize: 13, flex: 1, minWidth: 0 }}>All resources</span>
+          <SidebarCount
+            value={allResourcesLoading && allResourcesTotal === 0 ? undefined : allResourcesTotal}
+            isActive={false}
+            testId="sidebar-count-all"
+          />
         </div>
         {TOP_RESOURCE_TYPES.map((rt) => {
           const isActive = rt === activeType;
@@ -286,9 +345,102 @@ export function CCSidebar() {
               >
                 {rt}
               </span>
+              <SidebarCount
+                value={counts[rt]}
+                isActive={isActive}
+                testId={`sidebar-count-${rt}`}
+              />
             </div>
           );
         })}
+      </div>
+
+      {/* Pinned */}
+      <div
+        data-testid="sidebar-pinned-section"
+        style={{ padding: "8px 8px 12px", borderTop: "1px solid var(--border)", marginTop: 8 }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "var(--text-subtle)",
+            letterSpacing: 0.6,
+            textTransform: "uppercase",
+            padding: "6px 10px 8px",
+          }}
+        >
+          Pinned
+        </div>
+        {pins.length === 0 ? (
+          <div
+            data-testid="pinned-empty-state"
+            style={{
+              margin: "2px 6px",
+              padding: "10px 12px",
+              border: "1px dashed var(--border-strong, var(--border))",
+              borderRadius: 6,
+              fontSize: 11,
+              color: "var(--text-subtle)",
+              lineHeight: 1.4,
+            }}
+          >
+            Click the pin icon in the topbar to save a query or resource here.
+          </div>
+        ) : (
+          pins.map((pin) => {
+            const isActive = pin.path === `${location.pathname}${location.search}`;
+            return (
+              <div
+                key={pin.id}
+                data-testid={`pinned-row-${pin.id}`}
+                onClick={() => navigate(pin.path)}
+                onContextMenu={(e) => handlePinContext(e, pin, renamePin, removePin)}
+                title="Right-click to rename or remove"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "5px 10px",
+                  borderRadius: 6,
+                  background: isActive ? "var(--accent-soft)" : "transparent",
+                  color: isActive ? "var(--accent-text)" : "var(--text)",
+                  cursor: "pointer",
+                  marginBottom: 1,
+                  transition: "background 80ms ease",
+                }}
+              >
+                <BookmarkIcon active={isActive} />
+                <span
+                  data-testid={`pinned-label-${pin.id}`}
+                  style={{
+                    fontSize: 13,
+                    fontWeight: isActive ? 600 : 400,
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {pin.label}
+                </span>
+                <span
+                  data-testid={`pinned-kind-${pin.id}`}
+                  style={{
+                    fontSize: 11,
+                    fontFamily: CC_MONO,
+                    color: isActive ? "var(--accent-text)" : "var(--text-muted)",
+                    flexShrink: 0,
+                  }}
+                >
+                  {pin.kind}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
       </div>
 
       {/* Footer */}
@@ -364,6 +516,29 @@ export function CCSidebar() {
             <path d="M3.5 4.5L1 7l2.5 2.5M10.5 4.5L13 7l-2.5 2.5M8 2l-2 10" />
           </svg>
         </button>
+        {/* Failure Gallery */}
+        <button
+          onClick={() => navigate("/fhir-ui/failure-gallery")}
+          title="Safety Failure Gallery"
+          data-testid="failure-gallery-nav"
+          style={{
+            background: isGallery ? "var(--accent-soft)" : "transparent",
+            border: "none",
+            borderRadius: 6,
+            padding: "4px 5px",
+            cursor: "pointer",
+            color: isGallery ? "var(--accent-text)" : "var(--text-muted)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 1L7 4M7 10L7 13M1 7L4 7M10 7L13 7M3 3L5 5M9 9L11 11M11 3L9 5M5 9L3 11" />
+            <circle cx="7" cy="7" r="2" />
+          </svg>
+        </button>
         {/* Settings */}
         <button
           onClick={() => navigate("/fhir-ui/settings")}
@@ -389,5 +564,71 @@ export function CCSidebar() {
         </button>
       </div>
     </div>
+  );
+}
+
+function BookmarkIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 14 14"
+      fill={active ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+    >
+      <path d="M3.5 1.5h7v9.25L7 8.5 3.5 10.75z" />
+    </svg>
+  );
+}
+
+/**
+ * v1 right-click handler. Native confirm/prompt keep this off the critical
+ * path while we wait for the design system's menu primitive (#TBD).
+ */
+function handlePinContext(
+  e: React.MouseEvent,
+  pin: { id: string; label: string },
+  rename: (id: string, label: string) => void,
+  remove: (id: string) => void,
+) {
+  e.preventDefault();
+  const action = window.prompt(
+    `Type "rename" to rename "${pin.label}" or "remove" to delete it.`,
+    "rename",
+  );
+  if (!action) return;
+  if (action.toLowerCase() === "remove") {
+    if (window.confirm(`Remove pin "${pin.label}"?`)) remove(pin.id);
+    return;
+  }
+  if (action.toLowerCase() === "rename") {
+    const next = window.prompt("Rename pin", pin.label);
+    if (next !== null) rename(pin.id, next);
+  }
+}
+
+interface SidebarCountProps {
+  value: number | undefined;
+  isActive: boolean;
+  testId: string;
+}
+
+function SidebarCount({ value, isActive, testId }: SidebarCountProps) {
+  return (
+    <span
+      data-testid={testId}
+      style={{
+        fontSize: 11,
+        fontFamily: CC_MONO,
+        color: isActive ? "var(--accent-text)" : "var(--text-subtle)",
+        fontVariantNumeric: "tabular-nums",
+        flexShrink: 0,
+      }}
+    >
+      {formatCount(value)}
+    </span>
   );
 }

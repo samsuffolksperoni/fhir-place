@@ -2,7 +2,7 @@ import { FetchFhirClient } from "../src/client/FetchFhirClient.js";
 import { FhirError } from "../src/client/types.js";
 
 export const FHIR_BASE_URL =
-  process.env.FHIR_BASE_URL ?? "https://hapi.fhir.org/baseR4";
+  process.env.FHIR_BASE_URL ?? "https://r4.smarthealthit.org";
 
 /** Identifier system we use for every test resource, so we can find and clean up. */
 export const TEST_IDENTIFIER_SYSTEM = "https://fhir-place.dev/test";
@@ -14,7 +14,7 @@ export const makeClient = () =>
  * Probes the target server with a short-timeout metadata call. When
  * `SKIP_IF_UNREACHABLE` is truthy and the probe fails, we return false so the
  * suite can `describe.skip` itself and avoid polluting CI with flakes caused
- * by HAPI being temporarily down.
+ * by the live server being temporarily down.
  */
 export async function serverReachable(): Promise<boolean> {
   if (process.env.SKIP_IF_UNREACHABLE === "0") return true;

@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { bindingFor, codesFromValueSet } from "../binding.js";
 import { findElement } from "../walker.js";
-import { AllergyIntoleranceStructureDefinition } from "./AllergyIntolerance.js";
-import { EncounterStructureDefinition } from "./Encounter.js";
-import { ImmunizationStructureDefinition } from "./Immunization.js";
-import { MedicationRequestStructureDefinition } from "./MedicationRequest.js";
-import { PatientStructureDefinition } from "./Patient.js";
-import { ProcedureStructureDefinition } from "./Procedure.js";
+import { AllergyIntoleranceStructureDefinition } from "../../../test/fixtures/StructureDefinition-AllergyIntolerance.js";
+import { EncounterStructureDefinition } from "../../../test/fixtures/StructureDefinition-Encounter.js";
+import { ImmunizationStructureDefinition } from "../../../test/fixtures/StructureDefinition-Immunization.js";
+import { MedicationRequestStructureDefinition } from "../../../test/fixtures/StructureDefinition-MedicationRequest.js";
+import { PatientStructureDefinition } from "../../../test/fixtures/StructureDefinition-Patient.js";
+import { ProcedureStructureDefinition } from "../../../test/fixtures/StructureDefinition-Procedure.js";
 import { bundledValueSetUrls, coreValueSet, coreValueSets } from "./valuesets.js";
+import { generatedCoreValueSets } from "./valuesets.generated.js";
 
 describe("bundled core ValueSets", () => {
   it("returns undefined for an unknown canonical URL", () => {
@@ -49,6 +50,21 @@ describe("bundled core ValueSets", () => {
     for (const url of coreValueSets.keys()) {
       expect(bundledValueSetUrls).toContain(url);
     }
+  });
+
+  it("administrative-gender hand-curated codes are byte-equivalent to the generated counterpart", () => {
+    // Acceptance criterion: at least one hand-curated entry must match the
+    // generated map exactly so we know the sync script produces correct output.
+    // If a future regen produces different codes/displays, that means spec drift
+    // which should be reviewed and the hand-curated entry updated or marked as
+    // an intentional override.
+    const url = "http://hl7.org/fhir/ValueSet/administrative-gender";
+    const handCurated = codesFromValueSet(coreValueSets.get(url));
+    const generated = codesFromValueSet(generatedCoreValueSets.get(url));
+    expect(generated.length).toBeGreaterThan(0);
+    expect(handCurated.map((c) => ({ system: c.system, code: c.code, display: c.display }))).toEqual(
+      generated.map((c) => ({ system: c.system, code: c.code, display: c.display })),
+    );
   });
 
   it("every bundled ValueSet produces at least one code", () => {

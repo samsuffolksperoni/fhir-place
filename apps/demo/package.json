@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "pnpm --filter @fhir-place/react-fhir sync:sds && pnpm --filter @fhir-place/react-fhir sync:csys && pnpm --filter @fhir-place/react-fhir build",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
@@ -14,14 +15,16 @@
     "e2e:screenshot": "playwright test --project=screenshots",
     "e2e:live": "playwright test --config=playwright.live.config.ts",
     "agent:run": "tsx e2e-agent/runner.ts",
-    "agent:typecheck": "tsc --noEmit -p e2e-agent/tsconfig.json"
+    "agent:typecheck": "tsc --noEmit -p e2e-agent/tsconfig.json",
+    "sync:fhir-spec": "node --experimental-strip-types scripts/sync-fhir-r4-sds.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
     "@fhir-place/react-fhir": "workspace:*",
+    "@sentry/react": "^10.51.0",
     "@tanstack/react-query": "^5.62.0",
-    "cql-execution": "^3.3.0",
     "cql-exec-fhir": "^2.1.6",
+    "cql-execution": "^3.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.0.0"
@@ -31,6 +34,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
+    "@sentry/vite-plugin": "^5.2.1",
     "@types/fhir": "^0.0.41",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",

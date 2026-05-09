@@ -17,13 +17,14 @@ import type {
   Resource,
 } from "fhir/r4";
 import type { ReactNode } from "react";
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import {
   formatAddress,
   formatHumanName,
   formatReferenceLabel,
 } from "../structure/format.js";
 import { useReadReference } from "../hooks/queries.js";
+import { CodedValue } from "./codedValue/index.js";
 
 /** Context passed to every renderer. */
 export interface RendererContext {
@@ -33,6 +34,12 @@ export interface RendererContext {
   typeCode: string | undefined;
   /** Callback to resolve a Reference into a link. Defaults to plain text. */
   onReferenceClick?: (ref: Reference) => void;
+  /**
+   * Optional opt-in tone for `Coding` / `CodeableConcept` values rendered
+   * inside this context. Callers (e.g. a per-resource override map) attach
+   * this explicitly — the default renderers never derive tone from values.
+   */
+  tone?: "success" | "warn" | "danger";
 }
 
 export type FhirTypeRenderer = (
@@ -137,26 +144,27 @@ const ContactPointRenderer: FhirTypeRenderer = (value) => {
   );
 };
 
+const KNOWN_CODE_SYSTEM_LABELS: Record<string, string> = {
+  "http://snomed.info/sct": "SNOMED",
+  "http://loinc.org": "LOINC",
+  "http://hl7.org/fhir/sid/icd-10": "ICD-10",
+  "http://hl7.org/fhir/sid/icd-10-cm": "ICD-10-CM",
+  "http://hl7.org/fhir/sid/icd-9-cm": "ICD-9-CM",
+  "http://www.cms.gov/Medicare/Coding/ICD10": "ICD-10-PCS",
+  "http://www.ama-assn.org/go/cpt": "CPT",
+  "http://www.nlm.nih.gov/research/umls/rxnorm": "RxNorm",
+  "http://hl7.org/fhir/sid/ndc": "NDC",
+  "http://hl7.org/fhir/sid/cvx": "CVX",
+  "http://unitsofmeasure.org": "UCUM",
+};
+
 /**
  * Short, human-friendly label for a FHIR code-system URI.
  * Falls back to the last path segment of the URL when unknown.
  */
 export function codeSystemLabel(system: string | undefined): string {
   if (!system) return "";
-  const known: Record<string, string> = {
-    "http://snomed.info/sct": "SNOMED",
-    "http://loinc.org": "LOINC",
-    "http://hl7.org/fhir/sid/icd-10": "ICD-10",
-    "http://hl7.org/fhir/sid/icd-10-cm": "ICD-10-CM",
-    "http://hl7.org/fhir/sid/icd-9-cm": "ICD-9-CM",
-    "http://www.cms.gov/Medicare/Coding/ICD10": "ICD-10-PCS",
-    "http://www.ama-assn.org/go/cpt": "CPT",
-    "http://www.nlm.nih.gov/research/umls/rxnorm": "RxNorm",
-    "http://hl7.org/fhir/sid/ndc": "NDC",
-    "http://hl7.org/fhir/sid/cvx": "CVX",
-    "http://unitsofmeasure.org": "UCUM",
-  };
-  if (known[system]) return known[system]!;
+  if (KNOWN_CODE_SYSTEM_LABELS[system]) return KNOWN_CODE_SYSTEM_LABELS[system]!;
   // Heuristic: last non-empty segment capitalised.
   return system.split(/[#/]/).filter(Boolean).pop() ?? system;
 }
@@ -225,92 +233,17 @@ export function preferredCoding(
   return cc.coding[0];
 }
 
-function CodeChip({ coding }: { coding: Coding }) {
-  const sys = codeSystemLabel(coding.system);
-  return (
-    <code
-      className="rounded bg-slate-100 px-1 py-0.5 text-xs"
-      title={coding.system ? `${coding.system}#${coding.code}` : coding.code}
-    >
-      {sys ? `${sys} ` : ""}
-      {coding.code}
-    </code>
-  );
-}
-
-function ExtraCodings({ codings }: { codings: readonly Coding[] }) {
-  const [open, setOpen] = useState(false);
-  if (codings.length === 0) return null;
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="ml-1 text-xs text-slate-500 underline"
-        aria-expanded={open}
-        aria-label={
-          open ? "Hide other codings" : `Show ${codings.length} other coding${codings.length === 1 ? "" : "s"}`
-        }
-      >
-        {open ? "hide" : `+${codings.length} more`}
-      </button>
-      {open && (
-        <span className="ml-1 inline-flex flex-wrap gap-1">
-          {codings.map((c, i) => (
-            <CodeChip key={`${c.system ?? ""}#${c.code ?? ""}#${i}`} coding={c} />
-          ))}
-        </span>
-      )}
-    </>
-  );
-}
-
-const CodingRenderer: FhirTypeRenderer = (value) => {
+const CodingRenderer: FhirTypeRenderer = (value, ctx) => {
   const c = value as Coding;
-  if (c.display) {
-    return (
-      <span>
-        {c.display} <CodeChip coding={c} />
-      </span>
-    );
-  }
-  return <CodeChip coding={c} />;
+  return <CodedValue value={c} tone={ctx.tone} />;
 };
 
 const CodeableConceptRenderer: FhirTypeRenderer = (value, ctx) => {
   const cc = value as CodeableConcept;
-  const all = cc.coding ?? [];
-  const chosen = preferredCoding(cc, ctx.path);
-  const extras = chosen ? all.filter((c) => c !== chosen) : all.slice();
-
-  if (cc.text) {
-    const codingSummary = all
-      .map((c) => [codeSystemLabel(c.system), c.code].filter(Boolean).join(" "))
-      .filter(Boolean)
-      .join(", ");
-    return (
-      <span title={codingSummary}>
-        {cc.text}
-        {chosen?.code && (
-          <>
-            {" "}
-            <CodeChip coding={chosen} />
-          </>
-        )}
-        <ExtraCodings codings={extras} />
-      </span>
-    );
+  if (!cc.text && !cc.coding?.length) {
+    return <span className="text-slate-400">—</span>;
   }
-  if (chosen) {
-    return (
-      <span>
-        {chosen.display ? <>{chosen.display} </> : null}
-        <CodeChip coding={chosen} />
-        <ExtraCodings codings={extras} />
-      </span>
-    );
-  }
-  return <span className="text-slate-400">—</span>;
+  return <CodedValue value={cc} tone={ctx.tone} />;
 };
 
 const QuantityRenderer: FhirTypeRenderer = (value) => {
