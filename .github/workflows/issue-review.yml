@@ -17,7 +17,7 @@ on:
   issues:
     types: [opened]
   # Manual re-run for a specific issue, e.g. when the workflow is first
-  # enabled or when a previously-skipped issue should be reviewed.
+  # enabled or when an earlier run failed and should be retried.
   workflow_dispatch:
     inputs:
       issue_number:
@@ -38,15 +38,6 @@ concurrency:
 
 jobs:
   review:
-    # Skip bot-filed issues (CI failures from on-failure-issue.yml etc.)
-    # and any user that GitHub flags as a Bot. Still runs on
-    # workflow_dispatch so a human can force a review.
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.issue.user.type != 'Bot' &&
-        !contains(github.event.issue.labels.*.name, 'origin: bot-filed')
-      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

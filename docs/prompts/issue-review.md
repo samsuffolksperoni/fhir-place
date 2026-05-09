@@ -24,10 +24,10 @@ or PR. Do not change labels — the daily PM triage owns labeling.
 - **Read-only on the repository.** No `Edit`, no `Write`, no commits, no
   branches, no pushes. The orchestrator runs without those tools; brief
   the subagents the same way.
-- **Skip bot-filed issues.** If the issue carries the `origin: bot-filed`
-  label, or the issue author's GitHub `type` is `Bot`, do nothing and
-  exit cleanly. Those already have a well-known shape (see
-  `.github/workflows/on-failure-issue.yml`) and don't need a review.
+- **Review every opened issue.** Bot-filed and human-filed alike — the
+  PM and engineer perspectives are useful on CI-failure tickets too
+  (which file affected, rough effort, whether it's likely flake vs.
+  real bug).
 - **Skip if a review already exists.** Before doing any work, list the
   comments on the issue and look for either of the HTML markers
   `<!-- issue-review:pm -->` or `<!-- issue-review:engineer -->`. If
@@ -44,9 +44,8 @@ or PR. Do not change labels — the daily PM triage owns labeling.
 ### Steps
 
 1. **Fetch the issue** via `mcp__github__issue_read` for `#<N>`: pull
-   `title`, `body`, `labels`, `user.login`, `user.type`. Bail out per
-   the bot-filed and duplicate-comment rules above before spending any
-   subagent budget.
+   `title`, `body`, `labels`, `user.login`. Bail out per the
+   duplicate-comment rule above before spending any subagent budget.
 
 2. **Dispatch the two reviewers in parallel** (one message, two `Agent`
    tool calls). Pass each subagent the issue title, body, labels, and
