@@ -30,7 +30,10 @@ test.describe("fhir-place demo", () => {
     page,
   }) => {
     await page.goto("/Patient");
-    await page.getByRole("link", { name: /ada lovelace/i }).click();
+    await page
+      .getByTestId("resource-row")
+      .filter({ hasText: /ada lovelace/i })
+      .click();
 
     await expect(page).toHaveURL(/\/Patient\/ada/);
     const view = page.getByTestId("resource-view");
