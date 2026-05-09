@@ -35,23 +35,25 @@ merge. The merge queue handles this automatically.
 |------|---------|-----------|
 | Deletion | blocked | Never delete main |
 | Force push | blocked | History is sacred |
+| Require PR | 1 approval, code owner review, dismiss stale | Only a code owner can approve |
 | Required status checks | `test`, `e2e` (strict) | Same CI gate as staging |
 | Merge queue | squash, all-green, 5 max entries, 5 min wait | Batch promotions cleanly |
 
-**Note:** Main's ruleset (ID `15901122`) was created 2026-05-03 and is
-currently `enforcement: disabled`. Enable it when ready to enforce the
-merge queue on promotion PRs.
+**Enforcement:** active (enabled 2026-05-09).
 
 ## Bypass actors
 
 **Staging:** The admin repository role (which includes GitHub Actions
 workflows running with `contents: write`) is configured as a bypass
-actor. This allows the `promote-staging.yml` workflow to push
-conflict-resolution commits directly to `staging` without opening a
-separate PR. Human contributors still go through the PR + merge queue
-flow.
+actor. This allows the `promote-staging.yml` and `sync-staging.yml`
+workflows to push directly to `staging` without opening a separate PR.
+Human contributors still go through the PR + merge queue flow.
 
-**Main:** No bypass actors. All changes must go through a PR.
+**Main:** Only `@danielsperoni` (user ID `7095019`) is a bypass actor.
+This means only Daniel can merge PRs to main — whether that's a
+promotion PR from staging or a fast-track direct-to-main PR. Code owner
+review (via CODEOWNERS) is also required, ensuring Daniel must approve
+before merging.
 
 ## Skipping staging (fast-track to main)
 
