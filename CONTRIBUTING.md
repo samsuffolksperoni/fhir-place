@@ -43,6 +43,8 @@ VITE_USE_MOCK=false VITE_FHIR_BASE_URL=http://localhost:8080/fhir pnpm dev
    Pick the bump (`patch` / `minor` / `major`) and describe the change in human terms. Commit the generated `.changeset/*.md` alongside your code.
 4. Open the PR. CI runs typecheck + tests + build. The release workflow automatically opens / updates a "Version Packages" PR that bumps versions + CHANGELOG when your PR lands; merging that second PR triggers a fresh npm publish.
 
+> **Note:** `release.yml` is currently disabled (renamed to `release.yml.disabled`) until npm publishing is set up. The flow described above and the warning below apply once it's re-enabled — pending changesets accumulate in `.changeset/*.md` in the meantime and are not lost. To re-enable: flip the org-level "Allow GitHub Actions to create and approve pull requests" setting, populate the `NPM_TOKEN` repo secret, and rename the workflow back.
+
 > **Do not manually create a "chore: release" PR.** The `changesets/action` manages that PR itself (pushing to `changeset-release/main` and opening a bot-owned PR). A human-authored PR targeting `main` from any other branch with the same title causes the action to fail when it tries to update the conflicting PR. If the Release workflow shows a red check on `main` and the only step that failed is the `changesets/action`, look for an open PR titled "chore: release" that was not created by `github-actions[bot]` — closing it unblocks the workflow.
 
 ## Staging deploys
