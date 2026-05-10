@@ -102,3 +102,33 @@ Key settings in `playwright.config.ts`:
 - Screenshots project: viewport fixed at 1280×800
 - Screenshot output directory: `../../screenshots/`
 - No retries in local runs; CI uses 1 retry
+
+### Backend selection — why we pin `VITE_USE_MOCK=true`
+
+`playwright.config.ts` launches the dev server with `VITE_USE_MOCK=true pnpm dev`,
+not bare `pnpm dev`. Reasoning:
+
+The demo's `apps/demo/src/config.ts` resolves the active FHIR server in two
+branches: when `USE_MOCK` is true the active server is hard-coded to the
+in-browser MSW worker; when it is false the resolver falls through to
+`localStorage` and then to the first built-in. After #338 the first built-in
+became SMART Health IT, so any leakage of a developer's prior server
+selection (or an unset `USE_MOCK`) would point the test run at
+`https://r4.smarthealthit.org`. The MSW fixtures the specs assert against
+(Ada Lovelace, her compartment counts, the test CapabilityStatement) do not
+exist on SMART, and the affected specs 404. See issue #416 for the full
+trace.
+
+Pinning the env var is enough on its own. The `if (USE_MOCK)` branch in
+`config.ts` ignores `localStorage` entirely, so a stale
+`fhir-place:active-server` cannot reach into the test session.
+
+If you change the demo's default backend or the resolver order, re-read this
+section before tweaking the playwright `webServer.command` — silently
+switching the test backend is exactly the failure mode this comment exists
+to prevent.
+
+The live-site monitor in `apps/demo/e2e-live/` deliberately runs against the
+deployed demo (real backend) and is governed by `playwright.live.config.ts`.
+Do not import that suite into the local config or add a `webServer` to the
+live config.

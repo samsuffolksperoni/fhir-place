@@ -22,7 +22,16 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm dev",
+    // Pin the dev server to MSW. Without `VITE_USE_MOCK=true`, the demo's
+    // `ACTIVE_SERVER_CONFIG` resolves through `loadActiveServerId()` →
+    // `localStorage.getItem("fhir-place:active-server")` → built-in default
+    // (SMART Health IT after #338). A developer's local browser state can
+    // therefore make the test run hit `https://r4.smarthealthit.org`, where
+    // MSW fixtures (Ada Lovelace, the patient compartment) don't exist and
+    // every Ada-dependent spec 404s. Pinning the env var forces the
+    // `if (USE_MOCK)` branch in `apps/demo/src/config.ts`, which ignores
+    // localStorage entirely — see issue #416.
+    command: "VITE_USE_MOCK=true pnpm dev",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: true,
     timeout: 120_000,
