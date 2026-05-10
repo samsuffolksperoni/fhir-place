@@ -54,13 +54,13 @@ List all open issues. For each, check whether it has:
 
 - exactly one `type:` label (`bug`, `feature`, `tech-debt`, `docs`, `spike`, `epic`)
 - at least one `area:` label (`fhir-explorer`, `react-fhir`, `workbench`, `cql`, `mcp`, `infra`, `auth`, `security`)
-- exactly one `priority:` label (`high`, `medium`, `low`)
+- exactly one `priority:` label (`P0`, `P1`, `P2`, `P3`)
 
 If any are missing, infer them from the title + body using these heuristics:
 
 - **type:** title starting with `fix(...)` / `bug:` / "broken" / "regression" → `type: bug`. Title starting with `feat(...)` / `add` / `support` / `expose` → `type: feature`. `refactor(...)` / "cleanup" / "drop" / "consolidate" → `type: tech-debt`. `docs(...)` / "document" / "README" → `type: docs`. `spike(...)` / "experiment" / "explore" → `type: spike`. "Epic:" / "tracking issue" / "meta issue" → `type: epic`.
 - **area:** scan body for file paths. `apps/demo/` or `apps/fhir-explorer/` → `area: fhir-explorer`. `packages/react-fhir/` → `area: react-fhir`. `packages/cql/` → `area: cql`. `.github/` or CI-related → `area: infra`. Auth / Cognito / SMART / OAuth → `area: auth`. Multi-area allowed.
-- **priority:** bugs default `high`. Spikes / "nice-to-have" / "experimental" default `low`. Everything else `medium`.
+- **priority:** bugs default `P0`. Spikes / "nice-to-have" / "experimental" default `P2`. Explicitly deferred / out-of-current-sprint work is `P3`. Everything else `P1`.
 
 Apply the labels via `mcp__github__issue_write method=update labels=[...]`. Note: this **replaces** the label set, so always include any pre-existing labels you want to keep (status:, origin:, phase-*).
 
@@ -101,11 +101,11 @@ List all open issues with `status: blocked`. For each, check the most recent com
 
 ### 6. Long-open issues without priority signal
 
-List open issues created >90 days ago that have neither `priority: high` nor any `phase-*` label. Add `status: needs-triage` and surface in the report. Do not change the existing priority.
+List open issues created >90 days ago that have neither `priority: P0` nor any `phase-*` label. Add `status: needs-triage` and surface in the report. Do not change the existing priority.
 
 ### 7. Roll-up daily report
 
-Find the open issue titled exactly `PM triage — daily report`. If it exists, **update its body** (do not append a new comment) with the day's results. If it doesn't exist, create it with labels `[type: docs, area: infra, priority: low, origin: bot-filed]` and assign nobody.
+Find the open issue titled exactly `PM triage — daily report`. If it exists, **update its body** (do not append a new comment) with the day's results. If it doesn't exist, create it with labels `[type: docs, area: infra, priority: P3, origin: bot-filed]` and assign nobody.
 
 Body format:
 
@@ -115,7 +115,7 @@ _Last run: YYYY-MM-DD HH:MM UTC. Auto-updated by `.github/workflows/daily-pm-tri
 ## Today
 
 ### Triaged (N issues)
-- #123 — set [type: feature, area: fhir-explorer, priority: medium]
+- #123 — set [type: feature, area: fhir-explorer, priority: P1]
 - ...
 
 ### Titles cleaned (N)

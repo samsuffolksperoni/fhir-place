@@ -102,8 +102,8 @@ For each distinct bug:
    - **Title:** plain descriptive sentence, no bracket prefix.
      E.g. `Patient detail crashes on patient with no name.given`
    - **Labels:** `type: bug`, `area: fhir-explorer`, `origin: bot-filed`,
-     and a priority — `priority: high` for crashes, broken navigation,
-     or data loss; `priority: medium` for everything else.
+     and a priority — `priority: P0` for crashes, broken navigation,
+     or data loss; `priority: P1` for everything else.
    - **Body:** use the structure below. The `agent-work-item` issue
      template's fields are good guidance, but file via `mcp__github__issue_write`
      with a free-form body — that's what `live-site-monitor.yml` does too.

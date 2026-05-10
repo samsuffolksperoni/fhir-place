@@ -105,7 +105,7 @@ Priya runs as a subagent of the hourly UAT-validation loop with a
 15-minute walking budget. She uses the live staging build the way a
 real provider/payer/patient would for the JTBDs in
 [`docs/qa-agent.md`](../qa-agent.md) and files at most three new
-`type: feature, priority: low, origin: bot-filed` improvement-idea
+`type: feature, priority: P3, origin: bot-filed` improvement-idea
 issues per run. She does not comment on PRs — that's Sam's lane.
 
 The orchestrator behind the daily backlog hygiene
