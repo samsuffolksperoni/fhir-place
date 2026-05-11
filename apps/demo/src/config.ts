@@ -21,12 +21,20 @@ export interface ServerConfig {
   builtin?: boolean;
 }
 
+export const DEFAULT_FHIR_SERVER: ServerConfig = {
+  id: "builtin-local-hapi",
+  label: "Local HAPI (Docker)",
+  baseUrl: "http://localhost:8080/fhir",
+  authMode: "none",
+  builtin: true,
+};
+
 /**
- * Built-in public FHIR R4 servers. Both support open access and CORS so the
- * browser can reach them directly. Users can layer auth/custom headers on top
- * via the Settings page (e.g. a personal access token for HAPI).
+ * Built-in FHIR R4 servers. Users can layer auth/custom headers on top via the
+ * Settings page (e.g. a personal access token for HAPI).
  */
 export const BUILTIN_SERVERS: ReadonlyArray<ServerConfig> = [
+  DEFAULT_FHIR_SERVER,
   {
     id: "builtin-smart",
     label: "SMART Health IT (R4)",
@@ -172,22 +180,14 @@ export const saveActiveServerId = (id: string): void => {
   }
 };
 
-const FALLBACK_SERVER: ServerConfig = {
-  id: "builtin-smart",
-  label: "SMART Health IT (R4)",
-  baseUrl: "https://r4.smarthealthit.org",
-  authMode: "none",
-  builtin: true,
-};
-
 export const resolveActiveServer = (): ServerConfig => {
   const servers = loadServers();
   const activeId = loadActiveServerId();
   if (activeId) {
     const match = servers.find((s) => s.id === activeId);
-    if (match) return match;
+    if (match?.baseUrl.trim()) return match;
   }
-  return servers[0] ?? { ...FALLBACK_SERVER };
+  return servers.find((s) => s.baseUrl.trim()) ?? { ...DEFAULT_FHIR_SERVER };
 };
 
 const normalizeBaseUrl = (url: string): string =>
@@ -226,7 +226,7 @@ export const resolveEnvOverrideServer = (
 };
 
 const ACTIVE_SERVER: ServerConfig = (() => {
-  if (USE_MOCK) {
+  if (USE_MOCK && !loadActiveServerId()) {
     return {
       id: "mock",
       label: "Mock (MSW)",
@@ -256,6 +256,9 @@ export const buildRequestHeaders = (server: ServerConfig): Record<string, string
   }
   return headers;
 };
+
+export const loadActiveRequestHeaders = (): Record<string, string> =>
+  buildRequestHeaders(resolveActiveServer());
 
 /**
  * Separate terminology server for ValueSet/$expand. Most data servers (HAPI

@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ServerConfig,
   BUILTIN_SERVERS,
+  DEFAULT_FHIR_SERVER,
   buildRequestHeaders,
+  loadActiveRequestHeaders,
   loadActiveServerId,
   loadServers,
   resolveActiveServer,
@@ -229,12 +231,43 @@ describe("resolveActiveServer", () => {
   });
 
   it("falls back to the first server when no active id is stored", () => {
-    expect(resolveActiveServer().id).toBe(BUILTIN_SERVERS[0]!.id);
+    expect(resolveActiveServer().id).toBe(DEFAULT_FHIR_SERVER.id);
+    expect(resolveActiveServer().baseUrl).toBe(DEFAULT_FHIR_SERVER.baseUrl);
   });
 
   it("falls back to the first server when active id matches nothing", () => {
     saveActiveServerId("never-existed");
-    expect(resolveActiveServer().id).toBe(BUILTIN_SERVERS[0]!.id);
+    expect(resolveActiveServer().id).toBe(DEFAULT_FHIR_SERVER.id);
+  });
+
+  it("falls back to local docker HAPI when the active server has a blank base URL", () => {
+    saveServers([
+      {
+        id: "custom-blank",
+        label: "Blank",
+        baseUrl: "",
+        authMode: "bearer",
+        bearerToken: "tok",
+      },
+    ]);
+    saveActiveServerId("custom-blank");
+    expect(resolveActiveServer()).toMatchObject(DEFAULT_FHIR_SERVER);
+  });
+});
+
+describe("loadActiveRequestHeaders", () => {
+  it("reads bearer settings from the active server in localStorage", () => {
+    saveServers([
+      {
+        id: "custom-headers",
+        label: "Header Server",
+        baseUrl: "https://example.org/fhir",
+        authMode: "bearer",
+        bearerToken: "tok",
+      },
+    ]);
+    saveActiveServerId("custom-headers");
+    expect(loadActiveRequestHeaders()).toEqual({ Authorization: "Bearer tok" });
   });
 });
 
