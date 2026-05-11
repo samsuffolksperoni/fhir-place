@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { AllergyIntolerance } from "fhir/r4";
 import { describe, expect, it } from "vitest";
 import { FetchFhirClient } from "../client/FetchFhirClient.js";
@@ -89,6 +89,45 @@ describe("HintedDetail", () => {
     expect(screen.getByTestId("hinted-detail-section-classification")).toBeInTheDocument();
     expect(screen.getByText("Patient")).toBeInTheDocument();
     expect(screen.getByText("Recorded Date")).toBeInTheDocument();
+  });
+
+  it("surfaces high criticality with reaction context without raw JSON", () => {
+    const hint = getLayoutHint("AllergyIntolerance")!;
+    wrap(
+      <HintedDetail
+        resource={allergy}
+        hint={hint}
+        structureDefinition={AllergyIntoleranceStructureDefinition}
+      />,
+    );
+
+    const reactions = screen.getByTestId("hinted-detail-section-reactions");
+    expect(within(reactions).getByText("criticality: high")).toBeInTheDocument();
+    expect(within(reactions).getByText("Hives")).toBeInTheDocument();
+    expect(
+      within(reactions).getByText(/developer-tool warning, not clinical decision support/),
+    ).toBeInTheDocument();
+    expect(within(reactions).queryByText(/"manifestation"/)).not.toBeInTheDocument();
+  });
+
+  it("keeps reaction plus verificationStatus visible when criticality is missing", () => {
+    const hint = getLayoutHint("AllergyIntolerance")!;
+    const withoutCriticality: AllergyIntolerance = {
+      ...allergy,
+      criticality: undefined,
+    };
+    wrap(
+      <HintedDetail
+        resource={withoutCriticality}
+        hint={hint}
+        structureDefinition={AllergyIntoleranceStructureDefinition}
+      />,
+    );
+
+    const reactions = screen.getByTestId("hinted-detail-section-reactions");
+    expect(within(reactions).queryByText(/criticality:/)).not.toBeInTheDocument();
+    expect(within(reactions).getByText("Confirmed")).toBeInTheDocument();
+    expect(within(reactions).getByText("Hives")).toBeInTheDocument();
   });
 
   it("skips fields that are absent from the resource", () => {
