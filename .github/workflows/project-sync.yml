@@ -148,8 +148,16 @@ jobs:
               } else {
                 // No special status: ensure it's at least in the project, in Todo.
                 // Skip overwriting a later-stage column — only set Todo on opened/
-                // reopened, or when the user actively removed the status label.
-                if (action === 'opened' || action === 'reopened' || action === 'unlabeled') {
+                // reopened, or when the user actively removed a status label.
+                // `unlabeled` fires for ANY label removal (priority:*, area:*, etc.),
+                // so gate on the removed label name to avoid yanking a Ready-for-
+                // review issue back to Todo when an unrelated label is removed.
+                let setTodo = action === 'opened' || action === 'reopened';
+                if (action === 'unlabeled') {
+                  const removed = context.payload.label && context.payload.label.name;
+                  setTodo = removed === 'status: in-progress' || removed === 'status: blocked';
+                }
+                if (setTodo) {
                   await setStatus(issue.node_id, OPTS.todo, 'Todo');
                 }
               }
