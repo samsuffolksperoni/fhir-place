@@ -84,4 +84,20 @@ describe.each([
     expect(sd.resourceType).toBe("StructureDefinition");
     expect(sd.type).toBe("Patient");
   });
+
+  it("synthesizes a minimal StructureDefinition for any other resource type", async () => {
+    // Regression: clicking into a resource type without a curated fixture
+    // (e.g. AllergyIntolerance referenced from a real server's data, or any
+    // non-compartment type) used to render "Could not resolve
+    // StructureDefinition" because mock mode disables the bundled-core
+    // fetcher. The catch-all handler keeps the structured view working.
+    const res = await fetch(
+      `http://localhost${fhirBase}/StructureDefinition/ServiceRequest`,
+    );
+    expect(res.status).toBe(200);
+    const sd = await res.json();
+    expect(sd.resourceType).toBe("StructureDefinition");
+    expect(sd.type).toBe("ServiceRequest");
+    expect(sd.snapshot?.element?.[0]?.path).toBe("ServiceRequest");
+  });
 });

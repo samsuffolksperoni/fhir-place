@@ -377,7 +377,7 @@ export const observationStructureDefinition: StructureDefinition = {
   },
 };
 
-const mkSd = (
+export const mkSd = (
   type: string,
   elements: Array<{
     path: string;

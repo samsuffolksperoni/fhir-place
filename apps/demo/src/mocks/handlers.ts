@@ -10,6 +10,7 @@ import {
   encountersFor,
   immunizationsFor,
   medicationRequestsFor,
+  mkSd,
   observationsFor,
   observationStructureDefinition,
   patients,
@@ -167,6 +168,14 @@ export const handlers = [
   // AllergyIntolerance / etc.
   ...compartmentStructureDefinitions.map((sd) =>
     http.get(`*${BASE}/StructureDefinition/${sd.type}`, () => okJson(sd)),
+  ),
+  // Catch-all: synthesize a minimal SD for any other resource type so detail
+  // pages render the structured view instead of a "Could not resolve
+  // StructureDefinition" error. The specific fixtures above (Patient,
+  // Observation, compartment types) win because MSW uses the first matching
+  // handler.
+  http.get(`*${BASE}/StructureDefinition/:type`, ({ params }) =>
+    okJson(mkSd(String(params.type), [])),
   ),
 
   http.get(`*${BASE}/Patient`, ({ request }) => {
