@@ -104,3 +104,171 @@ The pattern is: when a workflow is steady and predictable (the cron
 ones), local runs are cheap. When a workflow needs to respond to
 real-time GitHub events (slash commands, new PRs), GHA is more
 responsive — until the poll daemon ships.
+
+## SDLC transitions: trigger and where AI runs
+
+Each row is a state transition in the issue/PR lifecycle. "Trigger"
+is how the action fires; "AI runner" is where any LLM work executes
+(and therefore what bills it).
+
+`Local Claude` = `claude --print` here, on Daniel's Mac, against the
+Claude Max OAuth session — subscription-billed.
+`Hosted Claude` = `anthropics/claude-code-action@v1` on GHA against
+`ANTHROPIC_API_KEY` — pay-per-token.
+`Hosted Codex` = ChatGPT Codex GitHub app — covered by the Codex
+subscription.
+`No AI` = deterministic script (Node / shell / labeler), no LLM.
+
+| Transition | Triggered by | Workflow / driver | AI runner | Notes |
+| --- | --- | --- | --- | --- |
+| New issue → triaged (labels, dedupe, priority) | `issues: opened` (GHA) | `.github/workflows/issue-review.yml` | Hosted Claude (API) | Candidate to move to **Local Claude** via `poll-events.sh`. |
+| Stale backlog → triaged overnight | cron daily | `scripts/local/daily-pm-triage.sh` (local) **+** `daily-pm-triage.yml` (GHA, still on) | Local Claude (subscription) | GHA copy will turn off once the local run is stable. |
+| Ready issue → bot branch + draft PR | cron hourly | `scripts/local/engineer-dispatch.sh` (local) **+** `hourly-engineer-dispatch.yml` (GHA, still on, daily) | Local Claude (subscription) | Heaviest workload. Disable GHA copy once stable to stop double-billing. |
+| `/dispatch-engineer` comment on issue | `issue_comment: created` (GHA) | `.github/workflows/dispatch-engineer-on-issue.yml` | Hosted Claude (API) | Needs `poll-events.sh` to localize. |
+| PR opened / ready_for_review → automated review | `pull_request` (GHA) | `.github/workflows/pr-review.yml` **+** Codex auto-review (GitHub app) | Hosted Claude (API) + Hosted Codex (subscription) | Codex covers most of this for free; Claude review is the candidate to retire or move local. |
+| PR labeled `uat: requested` → `/staging/` deploy | `push` to `staging` after stack workflow lands the PR | `.github/workflows/pages.yml` | No AI | Deterministic build + deploy. |
+| Staged PR → UAT walked, `uat: passed` / `uat: failed` | cron hourly | `scripts/local/hourly-uat-validation.sh` (local) — GHA schedule currently commented out | Local Claude (subscription) | GHA copy is manual-only, local is the primary. |
+| `/resolve-conflicts` comment on PR | `issue_comment: created` (GHA) | `.github/workflows/pr-resolve-conflicts.yml` | Hosted Claude (API) | Needs `poll-events.sh` to localize. |
+| PR approved + `uat: passed` → stacked onto `staging` | `pull_request_review`, `pull_request`, `push` (GHA) | `.github/workflows/stack-approved-prs.yml` | No AI | Deterministic stacker (Model B). |
+| `staging` green → PR mergeable to `main` | reviewer action | (manual) | No AI | Gate is human + CI checks. |
+| Merge to `main` → Pages deploy | `push: main` (GHA) | `.github/workflows/pages.yml` | No AI | Deterministic. |
+| Daily exploratory QA against real FHIR | cron daily | `scripts/local/daily-qa-pass.sh` (local) **+** `daily-qa-pass.yml` (GHA, still on) | Local Claude (subscription) | Heaviest single workload; boots its own dev server. |
+| Daily docs freshness check | cron daily | `scripts/local/daily-doc-sync.sh` (local) | Local Claude (subscription) | No GHA equivalent — local is the only runner. |
+| Nightly live-site Playwright | cron daily | `.github/workflows/live-site-monitor.yml` | No AI | Fixed suite, deterministic. |
+| Nightly integration | cron daily | `.github/workflows/integration.yml` | No AI | Real-FHIR Playwright suite. |
+| Issue / PR / label / project state changes | `issues`, `pull_request`, `push` (GHA) | `.github/workflows/project-sync.yml` | No AI | Pure script. |
+| Label vocab changes on main | `push: main` (paths) | `.github/workflows/sync-labels.yml` | No AI | Pure script. |
+| Workflow failure | `workflow_run: failure` (GHA) | `.github/workflows/on-failure-issue.yml` | No AI | Files an issue on red runs. |
+
+**Cost-shifting summary.** Everything in the "Local Claude" rows is
+already running on the Max subscription via this PR's drivers. The GHA
+twins of those rows are still enabled for belt-and-suspenders; flip them
+off (rename `.yml.disabled` or `if: false`) once each local driver has
+5–10 clean runs. The remaining Hosted-Claude rows (issue-review,
+pr-review, dispatch-engineer-on-issue, pr-resolve-conflicts) all need
+the forthcoming `poll-events.sh` daemon — they're event-triggered, not
+cron-triggered, so launchd can't reach them.
+
+## Schedule calendar
+
+When does each cron-fired routine run? All times shown in **ET** because
+launchd uses local time and Daniel works in `America/New_York`. GHA
+schedules are converted from their UTC `cron` lines.
+
+### 24-hour view (ET)
+
+```
+hour    local launchd          GHA cron (still on)
+────    ─────────────────────  ─────────────────────────────────────
+EST 00          -              qa-pass + integration  (00:00 EST / 01:00 EDT)
+EST 01          -              live-site-monitor      (01:30 EST / 02:30 EDT)
+EST 02          -              pm-triage              (02:00 EST / 03:00 EDT)
+   03           -                       -
+   04           -                       -
+   05    qa-pass    (05:00)             -
+   06    doc-sync   (06:00)             -
+   07    pm-triage  (07:00)             -
+EST 08          -              [EDT shadow of EST 07 — empty]
+   09           -                       -
+EST 10          -              engineer-dispatch      (10:05 EST / 11:05 EDT)
+   11           -                       -
+   12 … 23      -                       -
+
+hourly engineer-dispatch fires at  :05  of every hour (local launchd only)
+hourly uat-validation     fires at  :15  of every hour (local launchd only)
+
+DST notes:
+- launchd `StartCalendarInterval` is local clock time — 07:00 ET year-round.
+- GHA `cron` is UTC, so GHA fires shift an hour with DST. Rows above show
+  EST first / EDT in parens.
+```
+
+### Repeating slots (every hour, every day, ET)
+
+```
+:00  - (nothing fires on :00)
+:05  ★ engineer-dispatch (local)        <-- heaviest hourly job
+:15  ★ uat-validation (local)
+:30  - (nothing scheduled)
+:45  - (nothing scheduled)
+```
+
+## Collision analysis
+
+The runner uses a per-prompt lockfile (`/tmp/fhir-place-<name>.lock`),
+so two copies of the **same** prompt cannot stomp on each other. The
+risks below are **different** prompts firing close together.
+
+### Concrete overlap windows (ET)
+
+| Time | Routines that may overlap | Risk |
+| --- | --- | --- |
+| 05:05 | qa-pass (~5 min in) + engineer-dispatch | **High.** QA owns :5173; engineer subagent's screenshot step also starts `pnpm dev` and will fail to bind, kicking the ticket to `needs-human`. |
+| 05:15 | qa-pass (~15 min in) + uat-validation | Low. UAT walks `/staging/`, not localhost. Both hit GitHub API. |
+| 06:05 | doc-sync (~5 min in) + engineer-dispatch | Low. Doc-sync is markdown-only. |
+| 06:15 | doc-sync + uat-validation | Low. |
+| 07:05 | pm-triage (~5 min in) + engineer-dispatch | Low. Both write labels but on different label families (PM-triage: `area:` / `priority:` / `type:`; engineer-dispatch: `status: in-progress`). Same-issue concurrent edits are still atomic per-label on GitHub's side. |
+| 07:15 | pm-triage + uat-validation | Low. |
+
+### Cross-routine hazards
+
+1. **Port 5173 (HIGH).** The QA pass owns it for the run's duration
+   (~30–60 min). If engineer-dispatch fires during that window and
+   picks a ticket that needs screenshots, the subagent's
+   `pnpm --filter @fhir-place/demo dev` will fail to bind. **Mitigation:**
+   either move engineer-dispatch off `:05` during the 05:00 QA window,
+   or have the engineer subagent fall back to a random free port for
+   screenshots.
+2. **Claude Max rate limits (MEDIUM).** Three concurrent `claude --print`
+   sessions during overlap windows count against the same Max account.
+   Hitting the limit silently degrades the output of whichever session
+   gets throttled. **Mitigation:** stagger by ≥10 min within an hour.
+3. **GitHub PAT rate limit (LOW).** Fine-grained PAT gets 5000 req/hr.
+   Combined ceiling across all five routines is well under that.
+4. **Mac CPU under load (MEDIUM).** Two Playwright runs concurrently
+   (QA + engineer screenshots) on an M-series Mac is OK; Playwright +
+   `pnpm build` + e2e on top of that may bottleneck. **Mitigation:**
+   same as #1 — don't run engineer-dispatch during QA window.
+5. **Same `~/src/fhir-place` checkout (LOW).** The runner refuses to
+   start when the working tree is dirty, and engineer-dispatch creates
+   its own `wt-*` worktrees. Nothing mutates the primary checkout from
+   inside a routine.
+6. **iMessage failure notifications (LOW).** If three routines fail in
+   the same window, you get three notifications. Annoying, not harmful.
+
+### Recommended schedule (post-merge)
+
+Only the QA-pass / engineer-dispatch overlap is actually load-bearing
+(both want `:5173`). The other "overlaps" are either single-threaded by
+locks or hit different surfaces. The minimum fix is to move
+engineer-dispatch off `:05` so it doesn't fire mid-QA-pass:
+
+```
+05:00  qa-pass            (heavy, owns :5173, ~30–60 min)
+06:00  doc-sync           (light)
+07:00  pm-triage          (medium)
+xx:30  engineer-dispatch  (hourly thereafter)   ← was :05
+xx:45  uat-validation     (hourly thereafter)   ← was :15
+```
+
+The only residual collision is **05:30 / 05:45**, when engineer-dispatch
+and uat-validation both fire while QA-pass may still be running. UAT
+walks `/staging/` and never touches localhost, so :45 is fine. The
+:30 engineer-dispatch fire is still at risk if (a) QA-pass is still
+going **and** (b) the engineer subagent picks a screenshot-requiring
+ticket. To eliminate that case entirely, add a guard at the top of
+`scripts/local/engineer-dispatch.sh`:
+
+```bash
+# Skip engineer-dispatch during the QA-pass window — they fight for :5173.
+hour=$(date +%H)
+if [[ "$hour" == "05" ]] && curl -fsS http://localhost:5173 > /dev/null 2>&1; then
+  echo "qa-pass is running — skipping this engineer-dispatch fire"
+  exit 0
+fi
+```
+
+The plist changes (`:05` → `:30`, `:15` → `:45`) are deliberately
+**not** in this PR — they belong with the GHA-twin disable, after each
+local driver has 5–10 clean runs. See `scripts/local/README.md` § "One-time
+setup" step 5 for the cutover sequence.

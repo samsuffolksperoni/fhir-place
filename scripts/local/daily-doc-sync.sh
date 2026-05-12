@@ -6,4 +6,4 @@
 set -Eeuo pipefail
 exec "$(dirname "$0")/../run-prompt-locally.sh" daily-doc-sync \
   --max-turns 100 \
-  --allowedTools "Read,Edit,Write,Grep,Glob,mcp__github__*,Bash(git:*),Bash(gh:*)"
+  --allowedTools "Read,Edit,Write,Grep,Glob,mcp__github__*,Bash(git:*),Bash(gh:*),Bash(pnpm:*),Bash(node:*),Bash(tail:*)"
