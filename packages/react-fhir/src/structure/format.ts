@@ -199,10 +199,13 @@ export function formatTiming(t: Timing | undefined): string {
   if (r?.boundsPeriod) parts.push(formatPeriod(r.boundsPeriod));
   else if (r?.boundsRange) parts.push(`for ${formatRange(r.boundsRange)}`);
   else if (r?.boundsDuration) parts.push(`for ${formatQuantity(r.boundsDuration)}`);
+  if (t.event?.length) {
+    const events = t.event.join(", ");
+    parts.push(parts.length ? `(at ${events})` : events);
+  }
 
   const phrase = parts.join(" ").trim();
   if (phrase) return phrase;
-  if (t.event?.length) return t.event.join(", ");
   // Last resort: surface the raw code so coded-only timings aren't lost.
   return t.code?.coding?.find((c) => c.code)?.code ?? "";
 }

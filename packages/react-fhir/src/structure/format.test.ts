@@ -226,6 +226,19 @@ describe("formatTiming", () => {
     expect(formatTiming({ repeat: { count: 3, countMax: 5 } })).toBe("for 3–5 doses");
   });
 
+  it("includes Timing.event alongside a repeat phrase", () => {
+    expect(
+      formatTiming({
+        event: ["2024-01-01T08:00:00Z"],
+        repeat: { frequency: 1, period: 1, periodUnit: "d" },
+      }),
+    ).toBe("once per day (at 2024-01-01T08:00:00Z)");
+    // event-only timing renders the timestamps directly
+    expect(formatTiming({ event: ["2024-01-01T08:00:00Z", "2024-01-02T08:00:00Z"] })).toBe(
+      "2024-01-01T08:00:00Z, 2024-01-02T08:00:00Z",
+    );
+  });
+
   it("includes repeat.offset with the when phrase", () => {
     expect(
       formatTiming({ repeat: { when: ["AC"], offset: 30 } }),
