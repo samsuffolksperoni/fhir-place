@@ -65,10 +65,45 @@ export function formatQuantity(q: Quantity | undefined): string {
   return `${comparator}${num}${unit ? ` ${unit}` : ""}`.trim();
 }
 
+/**
+ * Human-readable rendering of a FHIR `date` / `dateTime` / `instant` value.
+ *
+ * - Year and year-month partial dates are returned verbatim — there's no day
+ *   to spell out, and `new Date()` would invent one.
+ * - `YYYY-MM-DD` becomes e.g. `Sep 7, 2019`.
+ * - Values with a time component become e.g. `Sep 7, 2019, 5:39 PM`, rendered
+ *   in the runtime's local time zone.
+ * - Anything unparseable falls back to the original string.
+ */
+export function formatDateTime(value: string | undefined): string {
+  if (!value) return "";
+  if (/^\d{4}(-\d{2})?$/.test(value)) return value;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const d = new Date(`${value}T00:00:00`);
+    return Number.isNaN(d.getTime())
+      ? value
+      : d.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        });
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? value
+    : d.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+}
+
 export function formatPeriod(p: Period | undefined): string {
   if (!p) return "";
-  const start = p.start ?? "…";
-  const end = p.end ?? "…";
+  const start = p.start ? formatDateTime(p.start) : "…";
+  const end = p.end ? formatDateTime(p.end) : "…";
   return `${start} → ${end}`;
 }
 

@@ -438,7 +438,7 @@ describe("ResourceTable", () => {
       );
       const row = screen.getByTestId("resource-row");
       // PeriodRenderer shows start and end
-      expect(within(row).getByText(/2023-03-01/)).toBeInTheDocument();
+      expect(within(row).getByText("Mar 1, 2023")).toBeInTheDocument();
       expect(within(row).queryByText(/"start":/)).not.toBeInTheDocument();
     });
 
@@ -488,7 +488,7 @@ describe("ResourceTable", () => {
         { wrapper: wrap() },
       );
       const row = screen.getByTestId("resource-row");
-      expect(within(row).getByText(/2022-02-01/)).toBeInTheDocument();
+      expect(within(row).getByText("Feb 1, 2022")).toBeInTheDocument();
       expect(within(row).queryByText(/"start":/)).not.toBeInTheDocument();
     });
 
@@ -610,7 +610,7 @@ describe("ResourceTable", () => {
       expect(within(card).getByText("Gender")).toBeInTheDocument();
       expect(within(card).getByText("female")).toBeInTheDocument();
       expect(within(card).getByText("Birth Date")).toBeInTheDocument();
-      expect(within(card).getByText("1815-12-10")).toBeInTheDocument();
+      expect(within(card).getByText("Dec 10, 1815")).toBeInTheDocument();
     });
 
     it("card rows are keyboard-clickable when onRowClick is set", async () => {

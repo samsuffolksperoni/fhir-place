@@ -3,6 +3,7 @@ import {
   FhirError,
   HintedDetail,
   ResourceView,
+  formatDateTime,
   getLayoutHint,
   useDeleteResource,
   useResource,
@@ -36,24 +37,35 @@ const HTML_ESCAPES: Record<string, string> = {
 };
 const escapeHtml = (s: string): string => s.replace(/[&<>]/g, (c) => HTML_ESCAPES[c]!);
 
+// Colour bare scalars (numbers, booleans, null) in a *non-string* segment.
+// Never run this over the inside of a JSON string literal — FHIR timestamps
+// like "2021-04-06T03:01:38.604-04:00" carry colons and digits that a naive
+// number/colon pass would otherwise mangle into "2021-04-06T03: 01: 38…".
+function colorJsonScalars(segment: string): string {
+  return segment
+    .replace(/(-?\d+(?:\.\d+)?)/g, `<span style="color:var(--accent)">$1</span>`)
+    .replace(/\b(true|false|null)\b/g, `<span style="color:var(--accent)">$1</span>`);
+}
+
+const JSON_STRING_RE = /"(?:[^"\\]|\\.)*"/g;
+
 export function colorJson(line: string): string {
-  return escapeHtml(line)
-    .replace(
-      /("(?:[^"\\]|\\.)*")(\s*:)/g,
-      `<span style="color:var(--accent-text)">$1</span>$2`,
-    )
-    .replace(
-      /:\s*("(?:[^"\\]|\\.)*")/g,
-      `: <span style="color:var(--success)">$1</span>`,
-    )
-    .replace(
-      /:\s*(true|false|null)/g,
-      `: <span style="color:var(--accent)">$1</span>`,
-    )
-    .replace(
-      /:\s*(-?\d+(?:\.\d+)?)/g,
-      `: <span style="color:var(--accent)">$1</span>`,
-    );
+  const escaped = escapeHtml(line);
+  let out = "";
+  let last = 0;
+  JSON_STRING_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = JSON_STRING_RE.exec(escaped)) !== null) {
+    out += colorJsonScalars(escaped.slice(last, m.index));
+    const str = m[0];
+    const tail = escaped.slice(m.index + str.length);
+    const isKey = /^\s*:/.test(tail);
+    const color = isKey ? "accent-text" : "success";
+    out += `<span style="color:var(--${color})">${str}</span>`;
+    last = m.index + str.length;
+  }
+  out += colorJsonScalars(escaped.slice(last));
+  return out;
 }
 
 export function ResourceDetailPage() {
@@ -319,7 +331,7 @@ export function ResourceDetailPage() {
               >
                 {(data as Resource & { meta?: { versionId?: string; lastUpdated?: string } })
                   .meta?.lastUpdated
-                  ? `Updated ${(data as Resource & { meta?: { lastUpdated?: string } }).meta?.lastUpdated}`
+                  ? `Updated ${formatDateTime((data as Resource & { meta?: { lastUpdated?: string } }).meta?.lastUpdated)}`
                   : null}
               </div>
             </div>

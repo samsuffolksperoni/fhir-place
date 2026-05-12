@@ -20,6 +20,7 @@ import type { ReactNode } from "react";
 import { Fragment } from "react";
 import {
   formatAddress,
+  formatDateTime,
   formatHumanName,
   formatReferenceLabel,
 } from "../structure/format.js";
@@ -55,18 +56,13 @@ const Primitive: FhirTypeRenderer = (value) => <span>{String(value)}</span>;
 const Boolean_: FhirTypeRenderer = (value) => (
   <span className="font-mono">{value ? "true" : "false"}</span>
 );
-const Date_: FhirTypeRenderer = (value) => (
-  <time dateTime={String(value)}>{String(value)}</time>
-);
+const Date_: FhirTypeRenderer = (value) => {
+  const s = String(value);
+  return <time dateTime={s}>{formatDateTime(s)}</time>;
+};
 const DateTime_: FhirTypeRenderer = (value) => {
   const s = String(value);
-  let formatted = s;
-  try {
-    formatted = new Date(s).toLocaleString();
-  } catch {
-    // keep raw
-  }
-  return <time dateTime={s}>{formatted}</time>;
+  return <time dateTime={s}>{formatDateTime(s)}</time>;
 };
 const Code_: FhirTypeRenderer = (value) => (
   <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{String(value)}</code>
@@ -294,9 +290,9 @@ const PeriodRenderer: FhirTypeRenderer = (value) => {
   const p = value as Period;
   return (
     <span>
-      <time>{p.start ?? "…"}</time>
+      {p.start ? <time dateTime={p.start}>{formatDateTime(p.start)}</time> : <span>…</span>}
       <span className="mx-1 text-slate-400">→</span>
-      <time>{p.end ?? "…"}</time>
+      {p.end ? <time dateTime={p.end}>{formatDateTime(p.end)}</time> : <span>…</span>}
     </span>
   );
 };
@@ -361,7 +357,7 @@ const MetaRenderer: FhirTypeRenderer = (value, ctx) => {
   const m = value as Meta;
   const summaryParts = [
     m.versionId && `v${m.versionId}`,
-    m.lastUpdated,
+    m.lastUpdated && formatDateTime(m.lastUpdated),
     m.source,
   ].filter(Boolean);
   const fields: { label: string; node: ReactNode }[] = [];
@@ -371,7 +367,7 @@ const MetaRenderer: FhirTypeRenderer = (value, ctx) => {
   if (m.lastUpdated) {
     fields.push({
       label: "Last Updated",
-      node: <time dateTime={m.lastUpdated}>{m.lastUpdated}</time>,
+      node: <time dateTime={m.lastUpdated}>{formatDateTime(m.lastUpdated)}</time>,
     });
   }
   if (m.source) {
@@ -445,7 +441,11 @@ const AnnotationRenderer: FhirTypeRenderer = (value) => {
         <span className="text-slate-400">{a.authorString}: </span>
       )}
       <span>{a.text}</span>
-      {a.time && <span className="ml-2 text-slate-400">({a.time})</span>}
+      {a.time && (
+        <span className="ml-2 text-slate-400">
+          (<time dateTime={a.time}>{formatDateTime(a.time)}</time>)
+        </span>
+      )}
     </div>
   );
 };

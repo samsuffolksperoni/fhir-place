@@ -3,6 +3,7 @@ import {
   formatAddress,
   formatCodeableConcept,
   formatCoding,
+  formatDateTime,
   formatHumanName,
   formatPeriod,
   formatQuantity,
@@ -110,12 +111,36 @@ describe("formatQuantity", () => {
   });
 });
 
+describe("formatDateTime", () => {
+  it("returns year and year-month partial dates verbatim", () => {
+    expect(formatDateTime("2019")).toBe("2019");
+    expect(formatDateTime("2019-09")).toBe("2019-09");
+  });
+
+  it("spells out a full calendar date without inventing a time", () => {
+    expect(formatDateTime("2019-09-07")).toBe("Sep 7, 2019");
+  });
+
+  it("renders a date-time with a time component", () => {
+    const out = formatDateTime("2019-09-07T17:39:34+00:00");
+    expect(out).not.toBe("2019-09-07T17:39:34+00:00");
+    expect(out).toContain("2019");
+    expect(out).toMatch(/\d:\d{2}/);
+  });
+
+  it("falls back to the raw string when unparseable", () => {
+    expect(formatDateTime("not-a-date")).toBe("not-a-date");
+    expect(formatDateTime(undefined)).toBe("");
+    expect(formatDateTime("")).toBe("");
+  });
+});
+
 describe("formatPeriod", () => {
   it("renders start → end with ellipsis fallbacks", () => {
     expect(formatPeriod({ start: "2024-01-01", end: "2024-12-31" })).toBe(
-      "2024-01-01 → 2024-12-31",
+      "Jan 1, 2024 → Dec 31, 2024",
     );
-    expect(formatPeriod({ start: "2024-01-01" })).toBe("2024-01-01 → …");
+    expect(formatPeriod({ start: "2024-01-01" })).toBe("Jan 1, 2024 → …");
     expect(formatPeriod({})).toBe("… → …");
     expect(formatPeriod(undefined)).toBe("");
   });
