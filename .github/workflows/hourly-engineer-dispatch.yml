@@ -1,35 +1,18 @@
-# Hourly engineer-dispatch routine. :)
+# Engineer-dispatch routine (manual-trigger only).
 #
 # Picks up to 3 ready issues from the backlog, hands each to the engineer
 # subagent (.claude/agents/engineer.md), opens draft PRs, and updates a
 # rolling tracking issue. Mirrors the daily-pm-triage workflow's shape.
 #
-# Setup required (one-time):
-#   1. ANTHROPIC_API_KEY already exists in repo secrets (used by the PM
-#      workflow). No new secret to add.
-#   2. Branch protection on `main` must require:
-#        - PR before merge
-#        - Required status checks: test, e2e
-#        - Block force-push and deletion
-#      The agent only opens drafts; humans approve and merge.
-#   3. (Recommended) `.github/CODEOWNERS` so bot draft PRs auto-route
-#      to the right human reviewer.
-#   4. Open one tracking issue manually titled exactly
-#      `Engineer dispatch — hourly report`. The bot will populate it.
-#   5. Cron is enabled at a daily cadence (15:05 UTC = 11:05 ET) so runs
-#      land inside Daniel's work day. workflow_dispatch is preserved for
-#      manual triggers. Despite the name, this workflow is daily — the
-#      file/prompt rename is a separate follow-up.
+# No schedule: scheduled runs would bill the ANTHROPIC_API_KEY. Day-to-day
+# dispatch runs via scripts/dispatch-engineer.sh (launchd) under the
+# Claude Max OAuth session. This workflow exists only for the
+# workflow_dispatch button: manual trigger from the Actions tab when the
+# local driver is unavailable.
 
 name: Hourly engineer dispatch
 
 on:
-  # Daily cadence (not hourly, despite the workflow name). 15:05 UTC =
-  # 11:05 ET, inside Daniel's work day so he can see runs land.
-  # workflow_dispatch is preserved alongside the schedule so manual
-  # triggers still work.
-  schedule:
-    - cron: "5 15 * * *"   # 11:05 ET, daily
   workflow_dispatch:
 
 permissions:
