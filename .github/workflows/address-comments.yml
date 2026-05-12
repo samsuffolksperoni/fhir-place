@@ -1,0 +1,110 @@
+# Addresses unresolved review comments on a PR when a maintainer
+# comments /address-comments. Mirrors pr-resolve-conflicts.yml.
+#
+# Closes SDLC gap #1 from PR #479: nothing closed the feedback loop on
+# review comments. When the pr-review bot (or a human) requested
+# changes, the PR sat until the author pushed manually. The engineer
+# dispatcher only ever picked fresh issues, never its own open PRs.
+#
+# Trigger:       PR comment containing "/address-comments" on its own line
+# Security gate: commenter must have OWNER, MEMBER, or COLLABORATOR association
+# Local twin:    scripts/local/event-address-comments.sh (dispatched by
+#                scripts/poll-events.sh)
+
+name: PR — address review comments
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write       # push fix commits to the PR head branch
+  pull-requests: write  # post acknowledgment, reply inline to threads
+  issues: read
+  id-token: write
+
+concurrency:
+  group: pr-address-comments-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  address:
+    if: >-
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '/address-comments') &&
+      (
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Get PR details
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('head_ref', pr.data.head.ref);
+            core.setOutput('base_ref', pr.data.base.ref);
+
+      - name: Acknowledge request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                "Addressing unresolved review threads on `${{ steps.pr.outputs.head_ref }}`.",
+                "I'll reply inline to each thread as I fix it (or post `needs-human` if I can't).",
+              ].join('\n'),
+            });
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Claude Code to address comments
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            PR #${{ github.event.issue.number }} has unresolved review comments
+            that need to be addressed.
+
+            Context:
+            - PR number:    ${{ github.event.issue.number }}
+            - Head branch:  ${{ steps.pr.outputs.head_ref }}
+            - Base branch:  ${{ steps.pr.outputs.base_ref }}
+            - Working directory is already checked out on `${{ steps.pr.outputs.head_ref }}`.
+
+            Read the file at docs/prompts/address-comments.md and execute the
+            instructions in it. Do not modify the prompt file itself.
+          claude_args: "--max-turns 200 --allowedTools Read,Edit,Write,Bash,Grep,Glob,Agent,mcp__github__*"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

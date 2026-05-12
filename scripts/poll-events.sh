@@ -212,6 +212,16 @@ poll_once() {
         dispatch_async "$REPO_ROOT/scripts/local/event-resolve-conflicts.sh" "$num"
       fi
     fi
+
+    if echo "$body" | grep -qE '(^|[[:space:]])/address-comments([[:space:]]|$)'; then
+      # /address-comments is PR-only.
+      if echo "$url" | grep -q '/pull/'; then
+        if already_handled "$cid"; then continue; fi
+        echo "/address-comments on PR #$num (comment $cid) → review-comment addresser"
+        mark_handled "$cid"
+        dispatch_async "$REPO_ROOT/scripts/local/event-address-comments.sh" "$num"
+      fi
+    fi
   done
 
   # Update watermarks to `now`. Slightly racy (a comment posted between
