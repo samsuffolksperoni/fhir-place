@@ -223,7 +223,7 @@ describe("formatTiming", () => {
     expect(
       formatTiming({ repeat: { frequency: 1, period: 1, periodMax: 2, periodUnit: "d" } }),
     ).toBe("once every 1–2 days");
-    expect(formatTiming({ repeat: { count: 3, countMax: 5 } })).toBe("for 3–5 doses");
+    expect(formatTiming({ repeat: { count: 3, countMax: 5 } })).toBe("for 3–5 occurrences");
   });
 
   it("includes Timing.event alongside a repeat phrase", () => {
@@ -250,7 +250,7 @@ describe("formatTiming", () => {
       formatTiming({
         repeat: { frequency: 1, period: 1, periodUnit: "d", when: ["HS"], count: 5 },
       }),
-    ).toBe("once per day at bedtime for 5 doses");
+    ).toBe("once per day at bedtime for 5 occurrences");
   });
 
   it("prefers code.text over coding display", () => {
@@ -386,6 +386,19 @@ describe("formatDosage", () => {
         timing: { repeat: { frequency: 2, period: 1, periodUnit: "d" } },
       }),
     ).toBe("1 tablet 2 times per day");
+  });
+
+  it("summarises rate-only dosage instructions", () => {
+    expect(
+      formatDosage({
+        doseAndRate: [
+          { rateRatio: { numerator: { value: 100, unit: "mL" }, denominator: { value: 1, unit: "h" } } },
+        ],
+      }),
+    ).toBe("100 mL / 1 h");
+    expect(
+      formatDosage({ doseAndRate: [{ rateQuantity: { value: 50, unit: "mL/h" } }] }),
+    ).toBe("50 mL/h");
   });
 
   it("formats one-sided dose ranges without a dangling dash", () => {

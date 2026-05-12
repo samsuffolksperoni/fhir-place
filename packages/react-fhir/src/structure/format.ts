@@ -193,7 +193,7 @@ export function formatTiming(t: Timing | undefined): string {
       const count = r.count ?? 1;
       const countStr = r.countMax ? `${count}–${r.countMax}` : `${count}`;
       const plural = (r.countMax ?? count) === 1 ? "" : "s";
-      parts.push(`for ${countStr} dose${plural}`);
+      parts.push(`for ${countStr} occurrence${plural}`);
     }
   }
   if (r?.boundsPeriod) parts.push(formatPeriod(r.boundsPeriod));
@@ -220,9 +220,20 @@ function formatRange(r: { low?: Quantity; high?: Quantity } | undefined): string
   return "";
 }
 
+function formatRatio(r: { numerator?: Quantity; denominator?: Quantity } | undefined): string {
+  if (!r) return "";
+  const num = formatQuantity(r.numerator);
+  const denom = formatQuantity(r.denominator);
+  if (num && denom) return `${num} / ${denom}`;
+  return num || denom;
+}
+
 function formatDoseAndRate(dr: NonNullable<Dosage["doseAndRate"]>[number]): string {
   if (dr.doseQuantity) return formatQuantity(dr.doseQuantity);
   if (dr.doseRange) return formatRange(dr.doseRange);
+  if (dr.rateQuantity) return formatQuantity(dr.rateQuantity);
+  if (dr.rateRatio) return formatRatio(dr.rateRatio);
+  if (dr.rateRange) return formatRange(dr.rateRange);
   return "";
 }
 
