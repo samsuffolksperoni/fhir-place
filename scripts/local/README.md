@@ -165,6 +165,49 @@ driver has 5–10 clean runs. The only rows still on the API-billed
 hosted runner are the deterministic "No AI" workflows, which don't
 spend tokens regardless.
 
+## SDLC feedback-loop closes (this PR)
+
+The gap analysis on PR #479 named four missing transitions in the
+feedback loop after a bot PR was opened. This PR closes all four:
+
+| Gap | How it's closed |
+| --- | --- |
+| **1. Address review comments** | New `/address-comments` slash command. Maintainer comments `/address-comments` on a PR → the dispatcher reads every unresolved review thread, applies the smallest fix, pushes one commit, replies inline. Mirrors `/resolve-conflicts` exactly. Workflow: `.github/workflows/address-comments.yml`. Prompt: `docs/prompts/address-comments.md`. Local driver: `scripts/local/event-address-comments.sh` (dispatched by `poll-events.sh`). |
+| **2. Feature branch behind main** | Already covered by GitHub's native repo settings — `allow_auto_merge: true` and `allow_update_branch: true` are enabled, so the "Update branch" hint shows and the Auto-merge button is available. No custom workflow needed; using the platform lever instead. Real conflicts (where merging isn't a fast-forward) still go through `/resolve-conflicts`, which dispatches the agent. |
+| **3. Random CI failures on PR branches** | New `.github/workflows/pr-ci-flake-handler.yml`. Listens for `workflow_run.failure` on PR branches (skips `main` / `staging` — those are `on-failure-issue.yml`'s turf). Two retries before escalating; on the 3rd consecutive failure on the same commit, it stops retrying and posts a comment that hands off to `pr-fixup-dispatch`. No label applied — the dispatcher picks up red-CI PRs from its own queue filter. |
+| **4. Engineer dispatcher PR mode** | New `pr-fixup-dispatch` prompt + workflow + local driver + plist. Sibling of `hourly-engineer-dispatch` but operates on **existing** bot PRs (red CI or unresolved review threads) and pushes to the existing branch. Runs at **09:30 + 14:30 ET** — staggered 30 min after the issue-mode dispatcher (09:00 / 14:00) so the engineer subagent doesn't get rate-limited running both at once. |
+
+### How they layer
+
+```
+new issue → engineer-dispatch (09:00, 14:00 ET) → opens bot/* PR with CI running
+                                                            │
+                          ┌─────────────────────────────────┴─────────────────────────────────┐
+                          ▼                                                                   ▼
+                    CI succeeds                                                          CI fails
+                          │                                                                   │
+                          ▼                                                                   ▼
+            human reviews → comments               flake-handler retries up to 2× (auto)
+                    │                                                                         │
+        ┌───────────┼───────────┐                          ┌─────────────┴──────────────┐
+        ▼           ▼           ▼                          ▼                            ▼
+   approves   requests        merge                  retry passes                  3rd failure
+   + uat:     changes         conflict               (PR moves on)                       │
+   passed         │              │                                                       ▼
+        │        ▼              ▼                                            pr-fixup-dispatch (09:30, 14:30)
+        ▼  /address-comments  /resolve-conflicts                                  picks up red-CI PR,
+   auto-merge   (agent          (agent thinks                                 dispatches engineer subagent
+   via native   addresses       through real                                       to existing branch
+   GitHub      threads,         conflict, pushes                                          │
+   setting    pushes, replies   resolution)                                               ▼
+              inline)                                                       engineer either fixes or
+                                                                            self-applies needs-human
+```
+
+Agents own the genuinely-hard decisions (real conflicts, real bugs,
+ambiguous review comments). Deterministic infra owns the rest (retries,
+fast-forward updates, label flow).
+
 ## Schedule calendar
 
 When does each cron-fired routine run? All times shown in **ET** because
