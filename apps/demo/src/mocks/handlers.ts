@@ -1,4 +1,4 @@
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, passthrough } from "msw";
 import type { Patient, Resource } from "fhir/r4";
 import { FHIR_BASE_URL } from "../config.js";
 import {
@@ -169,14 +169,19 @@ export const handlers = [
   ...compartmentStructureDefinitions.map((sd) =>
     http.get(`*${BASE}/StructureDefinition/${sd.type}`, () => okJson(sd)),
   ),
-  // Catch-all: synthesize a minimal SD for any other resource type so detail
-  // pages render the structured view instead of a "Could not resolve
+  // Catch-all: synthesize a minimal SD for any other *base resource type* so
+  // detail pages render the structured view instead of a "Could not resolve
   // StructureDefinition" error. The specific fixtures above (Patient,
   // Observation, compartment types) win because MSW uses the first matching
-  // handler.
-  http.get(`*${BASE}/StructureDefinition/:type`, ({ params }) =>
-    okJson(mkSd(String(params.type), [])),
-  ),
+  // handler. Profile IDs (e.g. `us-core-patient` — kebab-case, read first when
+  // a resource carries `meta.profile`) are passed through so the resolver's
+  // canonical-search / bundled-base-type fallback still runs rather than
+  // rendering against a near-empty `mkSd("us-core-patient", [])`.
+  http.get(`*${BASE}/StructureDefinition/:type`, ({ params }) => {
+    const type = String(params.type);
+    if (!/^[A-Z][A-Za-z]+$/.test(type)) return passthrough();
+    return okJson(mkSd(type, []));
+  }),
 
   http.get(`*${BASE}/Patient`, ({ request }) => {
     const url = new URL(request.url);
