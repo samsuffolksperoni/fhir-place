@@ -153,9 +153,8 @@ export function formatTiming(t: Timing | undefined): string {
     if (display) return display;
   }
   const r = t.repeat;
-  if (!r) return t.event?.length ? t.event.join(", ") : "";
   const parts: string[] = [];
-  if (r.frequency != null || r.period != null) {
+  if (r?.frequency != null || r?.period != null) {
     const freq = r.frequency ?? 1;
     const period = r.period ?? 1;
     const freqStr = r.frequencyMax ? `${freq}–${r.frequencyMax}` : `${freq}`;
@@ -168,23 +167,35 @@ export function formatTiming(t: Timing | undefined): string {
     } else {
       parts.push(`${timesWord} every ${period} ${unitLabel(r.periodUnit, period)}`);
     }
-  } else if (r.duration != null && r.durationUnit) {
+  } else if (r?.duration != null && r.durationUnit) {
     parts.push(`over ${r.duration} ${unitLabel(r.durationUnit, r.duration)}`);
   }
-  if (r.when?.length) {
+  if (r?.when?.length) {
     parts.push(r.when.map((w) => WHEN_LABELS[w] ?? w).join(", "));
   }
-  if (r.timeOfDay?.length) parts.push(`at ${r.timeOfDay.join(", ")}`);
-  if (r.dayOfWeek?.length) parts.push(`on ${r.dayOfWeek.join(", ")}`);
-  if (r.count != null) parts.push(`for ${r.count} dose${r.count === 1 ? "" : "s"}`);
-  return parts.join(" ").trim();
+  if (r?.timeOfDay?.length) parts.push(`at ${r.timeOfDay.join(", ")}`);
+  if (r?.dayOfWeek?.length) parts.push(`on ${r.dayOfWeek.join(", ")}`);
+  if (r?.count != null) parts.push(`for ${r.count} dose${r.count === 1 ? "" : "s"}`);
+  const phrase = parts.join(" ").trim();
+  if (phrase) return phrase;
+  if (t.event?.length) return t.event.join(", ");
+  // Last resort: surface the raw code so coded-only timings aren't lost.
+  return code?.coding?.find((c) => c.code)?.code ?? "";
+}
+
+function formatRange(r: { low?: Quantity; high?: Quantity } | undefined): string {
+  if (!r) return "";
+  const low = formatQuantity(r.low);
+  const high = formatQuantity(r.high);
+  if (low && high) return `${low}–${high}`;
+  if (low) return `≥ ${low}`;
+  if (high) return `≤ ${high}`;
+  return "";
 }
 
 function formatDoseAndRate(dr: NonNullable<Dosage["doseAndRate"]>[number]): string {
   if (dr.doseQuantity) return formatQuantity(dr.doseQuantity);
-  if (dr.doseRange) {
-    return `${formatQuantity(dr.doseRange.low)}–${formatQuantity(dr.doseRange.high)}`.trim();
-  }
+  if (dr.doseRange) return formatRange(dr.doseRange);
   return "";
 }
 

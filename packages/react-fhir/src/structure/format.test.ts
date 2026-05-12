@@ -253,6 +253,12 @@ describe("formatTiming", () => {
     expect(formatTiming({ repeat: { frequency: 1, period: 3 } })).toBe("once");
   });
 
+  it("falls back to the raw coding.code when there is no display or text", () => {
+    expect(
+      formatTiming({ code: { coding: [{ system: "http://snomed.info/sct", code: "307468000" }] } }),
+    ).toBe("307468000");
+  });
+
   it("returns '' for empty timing", () => {
     expect(formatTiming(undefined)).toBe("");
     expect(formatTiming({})).toBe("");
@@ -271,6 +277,20 @@ describe("formatDosage", () => {
         timing: { repeat: { frequency: 2, period: 1, periodUnit: "d" } },
       }),
     ).toBe("1 tablet 2 times per day");
+  });
+
+  it("formats one-sided dose ranges without a dangling dash", () => {
+    expect(
+      formatDosage({ doseAndRate: [{ doseRange: { low: { value: 5, unit: "mg" } } }] }),
+    ).toBe("≥ 5 mg");
+    expect(
+      formatDosage({ doseAndRate: [{ doseRange: { high: { value: 10, unit: "mg" } } }] }),
+    ).toBe("≤ 10 mg");
+    expect(
+      formatDosage({
+        doseAndRate: [{ doseRange: { low: { value: 5, unit: "mg" }, high: { value: 10, unit: "mg" } } }],
+      }),
+    ).toBe("5 mg–10 mg");
   });
 
   it("includes route and as-needed", () => {
