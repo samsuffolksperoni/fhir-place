@@ -75,7 +75,11 @@ restarts if it crashes.
    ```
 
    Repeat for `daily-qa-pass`, `daily-doc-sync`, `hourly-engineer-dispatch`,
-   `hourly-uat-validation` as desired.
+   `hourly-uat-validation`, and `poll-events` as desired.
+   `poll-events` is the daemon that handles event-triggered prompts
+   (new issue, new PR, slash commands) — install it the same way as
+   the cron plists; its plist sets `KeepAlive: true` so it restarts if
+   it crashes.
 
 5. **Disable the corresponding GHA workflow.** Once a local driver is
    stable, rename its GHA counterpart (`mv foo.yml foo.yml.disabled`)
@@ -111,10 +115,11 @@ log in.
 | Trigger | launchd cron + `poll-events.sh` daemon | GitHub events directly |
 | Security | runs as you, with your secrets in keychain | runs in sandboxed runner with repo secrets |
 
-The pattern is: when a workflow is steady and predictable (the cron
-ones), local runs are cheap. When a workflow needs to respond to
-real-time GitHub events (slash commands, new PRs), GHA is more
-responsive — until the poll daemon ships.
+The pattern is: cron-fired routines run via launchd; event-fired
+routines (new-issue, new-PR, slash commands) run via the
+`poll-events.sh` daemon, which queries GitHub on a 60s loop. Latency
+is ~30s average for event-fired prompts vs. ~5s for GHA webhooks —
+acceptable for these flows.
 
 ## SDLC transitions: trigger and where AI runs
 
@@ -132,14 +137,14 @@ subscription.
 
 | Transition | Triggered by | Workflow / driver | AI runner | Notes |
 | --- | --- | --- | --- | --- |
-| New issue → triaged (labels, dedupe, priority) | `issues: opened` (GHA) | `.github/workflows/issue-review.yml` | Hosted Claude (API) | Candidate to move to **Local Claude** via `poll-events.sh`. |
+| New issue → triaged (labels, dedupe, priority) | `poll-events.sh` (local, every 60s) **+** `issues: opened` (GHA) | `scripts/local/event-issue-review.sh` (local) **+** `.github/workflows/issue-review.yml` (GHA, still on) | Local Claude (subscription) | Disable GHA copy once the daemon proves out. |
 | Stale backlog → triaged overnight | cron daily | `scripts/local/daily-pm-triage.sh` (local) **+** `daily-pm-triage.yml` (GHA, still on) | Local Claude (subscription) | GHA copy will turn off once the local run is stable. |
 | Ready issue → bot branch + draft PR | cron twice daily (09:00, 14:00 ET) | `scripts/local/engineer-dispatch.sh` (local) **+** `hourly-engineer-dispatch.yml` (GHA, still on, daily) | Local Claude (subscription) | Heaviest workload. Twice-daily for now while we get comfortable; will go back to hourly once the cadence proves out. Disable GHA copy once stable to stop double-billing. |
-| `/dispatch-engineer` comment on issue | `issue_comment: created` (GHA) | `.github/workflows/dispatch-engineer-on-issue.yml` | Hosted Claude (API) | Needs `poll-events.sh` to localize. |
-| PR opened / ready_for_review → automated review | `pull_request` (GHA) | `.github/workflows/pr-review.yml` **+** Codex auto-review (GitHub app) | Hosted Claude (API) + Hosted Codex (subscription) | Codex covers most of this for free; Claude review is the candidate to retire or move local. |
+| `/dispatch-engineer` comment on issue | `poll-events.sh` (local, every 60s) **+** `issue_comment: created` (GHA) | `scripts/local/event-dispatch-engineer.sh` (local) **+** `.github/workflows/dispatch-engineer-on-issue.yml` (GHA, still on) | Local Claude (subscription) | Collaborator-gated; eyes reaction marks dispatched. |
+| PR opened / ready_for_review → automated review | `poll-events.sh` (local, every 60s) **+** `pull_request` (GHA) | `scripts/local/event-pr-review.sh` (local) **+** `.github/workflows/pr-review.yml` (GHA, still on) **+** Codex auto-review (GitHub app) | Local Claude (subscription) + Hosted Codex (subscription) | Codex covers most of this for free; local Claude run is the same prompt, just on the Max OAuth session. |
 | PR labeled `uat: requested` → `/staging/` deploy | `push` to `staging` after stack workflow lands the PR | `.github/workflows/pages.yml` | No AI | Deterministic build + deploy. |
 | Staged PR → UAT walked, `uat: passed` / `uat: failed` | cron hourly | `scripts/local/hourly-uat-validation.sh` (local) — GHA schedule currently commented out | Local Claude (subscription) | GHA copy is manual-only, local is the primary. |
-| `/resolve-conflicts` comment on PR | `issue_comment: created` (GHA) | `.github/workflows/pr-resolve-conflicts.yml` | Hosted Claude (API) | Needs `poll-events.sh` to localize. |
+| `/resolve-conflicts` comment on PR | `poll-events.sh` (local, every 60s) **+** `issue_comment: created` (GHA) | `scripts/local/event-resolve-conflicts.sh` (local) **+** `.github/workflows/pr-resolve-conflicts.yml` (GHA, still on) | Local Claude (subscription) | Collaborator-gated; eyes reaction marks dispatched. |
 | PR approved + `uat: passed` → stacked onto `staging` | `pull_request_review`, `pull_request`, `push` (GHA) | `.github/workflows/stack-approved-prs.yml` | No AI | Deterministic stacker (Model B). |
 | `staging` green → PR mergeable to `main` | reviewer action | (manual) | No AI | Gate is human + CI checks. |
 | Merge to `main` → Pages deploy | `push: main` (GHA) | `.github/workflows/pages.yml` | No AI | Deterministic. |
@@ -151,14 +156,14 @@ subscription.
 | Label vocab changes on main | `push: main` (paths) | `.github/workflows/sync-labels.yml` | No AI | Pure script. |
 | Workflow failure | `workflow_run: failure` (GHA) | `.github/workflows/on-failure-issue.yml` | No AI | Files an issue on red runs. |
 
-**Cost-shifting summary.** Everything in the "Local Claude" rows is
-already running on the Max subscription via this PR's drivers. The GHA
-twins of those rows are still enabled for belt-and-suspenders; flip them
-off (rename `.yml.disabled` or `if: false`) once each local driver has
-5–10 clean runs. The remaining Hosted-Claude rows (issue-review,
-pr-review, dispatch-engineer-on-issue, pr-resolve-conflicts) all need
-the forthcoming `poll-events.sh` daemon — they're event-triggered, not
-cron-triggered, so launchd can't reach them.
+**Cost-shifting summary.** Every "Local Claude" row above is running
+on the Max subscription via this PR's drivers (cron-fired via launchd
+or event-fired via `poll-events.sh`). The GHA twins of those rows are
+still enabled for belt-and-suspenders during the bake-in window; flip
+them off (rename `.yml.disabled` or `if: false`) once each local
+driver has 5–10 clean runs. The only rows still on the API-billed
+hosted runner are the deterministic "No AI" workflows, which don't
+spend tokens regardless.
 
 ## Schedule calendar
 
