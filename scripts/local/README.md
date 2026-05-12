@@ -13,7 +13,9 @@ just billed against the Claude Max subscription.
   notification on failure, and `--add-dir` for the worktree parent.
   Never sets `ANTHROPIC_API_KEY`, so `claude` falls back to OAuth.
 - `engineer-dispatch.sh` — picks up to 3 ready issues per run, hands
-  each to the engineer subagent in a worktree. Runs hourly.
+  each to the engineer subagent in a worktree. Runs **twice daily** at
+  09:00 and 14:00 ET while we get comfortable with the local drivers
+  (it will go back to hourly once the cadence proves out).
 - `daily-pm-triage.sh` — labels new issues, closes duplicates,
   re-checks blocked items. Runs 07:00 ET.
 - `daily-qa-pass.sh` — exploratory Playwright walk of the demo, files
@@ -123,7 +125,7 @@ subscription.
 | --- | --- | --- | --- | --- |
 | New issue → triaged (labels, dedupe, priority) | `issues: opened` (GHA) | `.github/workflows/issue-review.yml` | Hosted Claude (API) | Candidate to move to **Local Claude** via `poll-events.sh`. |
 | Stale backlog → triaged overnight | cron daily | `scripts/local/daily-pm-triage.sh` (local) **+** `daily-pm-triage.yml` (GHA, still on) | Local Claude (subscription) | GHA copy will turn off once the local run is stable. |
-| Ready issue → bot branch + draft PR | cron hourly | `scripts/local/engineer-dispatch.sh` (local) **+** `hourly-engineer-dispatch.yml` (GHA, still on, daily) | Local Claude (subscription) | Heaviest workload. Disable GHA copy once stable to stop double-billing. |
+| Ready issue → bot branch + draft PR | cron twice daily (09:00, 14:00 ET) | `scripts/local/engineer-dispatch.sh` (local) **+** `hourly-engineer-dispatch.yml` (GHA, still on, daily) | Local Claude (subscription) | Heaviest workload. Twice-daily for now while we get comfortable; will go back to hourly once the cadence proves out. Disable GHA copy once stable to stop double-billing. |
 | `/dispatch-engineer` comment on issue | `issue_comment: created` (GHA) | `.github/workflows/dispatch-engineer-on-issue.yml` | Hosted Claude (API) | Needs `poll-events.sh` to localize. |
 | PR opened / ready_for_review → automated review | `pull_request` (GHA) | `.github/workflows/pr-review.yml` **+** Codex auto-review (GitHub app) | Hosted Claude (API) + Hosted Codex (subscription) | Codex covers most of this for free; Claude review is the candidate to retire or move local. |
 | PR labeled `uat: requested` → `/staging/` deploy | `push` to `staging` after stack workflow lands the PR | `.github/workflows/pages.yml` | No AI | Deterministic build + deploy. |
@@ -158,24 +160,26 @@ schedules are converted from their UTC `cron` lines.
 ### 24-hour view (ET)
 
 ```
-hour    local launchd          GHA cron (still on)
-────    ─────────────────────  ─────────────────────────────────────
-EST 00          -              qa-pass + integration  (00:00 EST / 01:00 EDT)
-EST 01          -              live-site-monitor      (01:30 EST / 02:30 EDT)
-EST 02          -              pm-triage              (02:00 EST / 03:00 EDT)
-   03           -                       -
-   04           -                       -
-   05    qa-pass    (05:00)             -
-   06    doc-sync   (06:00)             -
-   07    pm-triage  (07:00)             -
-EST 08          -              [EDT shadow of EST 07 — empty]
-   09           -                       -
-EST 10          -              engineer-dispatch      (10:05 EST / 11:05 EDT)
-   11           -                       -
-   12 … 23      -                       -
+hour    local launchd                       GHA cron (still on)
+────    ─────────────────────────────────   ─────────────────────────────────
+EST 00          -                           qa-pass + integration  (00:00 EST / 01:00 EDT)
+EST 01          -                           live-site-monitor      (01:30 EST / 02:30 EDT)
+EST 02          -                           pm-triage              (02:00 EST / 03:00 EDT)
+   03           -                                    -
+   04           -                                    -
+   05    qa-pass            (05:00)                  -
+   06    doc-sync           (06:00)                  -
+   07    pm-triage          (07:00)                  -
+   08           -                                    -
+   09    engineer-dispatch  (09:00)                  -
+EST 10          -                           engineer-dispatch      (10:05 EST / 11:05 EDT)
+   11           -                                    -
+   12           -                                    -
+   13           -                                    -
+   14    engineer-dispatch  (14:00)                  -
+   15 … 23      -                                    -
 
-hourly engineer-dispatch fires at  :05  of every hour (local launchd only)
-hourly uat-validation     fires at  :15  of every hour (local launchd only)
+uat-validation fires at  :15  of every hour (local launchd only)
 
 DST notes:
 - launchd `StartCalendarInterval` is local clock time — 07:00 ET year-round.
@@ -186,9 +190,8 @@ DST notes:
 ### Repeating slots (every hour, every day, ET)
 
 ```
-:00  - (nothing fires on :00)
-:05  ★ engineer-dispatch (local)        <-- heaviest hourly job
-:15  ★ uat-validation (local)
+:00  ★ engineer-dispatch (local) — but ONLY at 09:00 and 14:00 (twice daily)
+:15  ★ uat-validation    (local) — every hour
 :30  - (nothing scheduled)
 :45  - (nothing scheduled)
 ```
@@ -201,14 +204,17 @@ risks below are **different** prompts firing close together.
 
 ### Concrete overlap windows (ET)
 
+With engineer-dispatch on a twice-daily schedule (09:00 + 14:00), the
+sharp QA-pass collision is gone. UAT-validation still fires every
+hour at `:15`, so its overlaps are the only ones to watch.
+
 | Time | Routines that may overlap | Risk |
 | --- | --- | --- |
-| 05:05 | qa-pass (~5 min in) + engineer-dispatch | **High.** QA owns :5173; engineer subagent's screenshot step also starts `pnpm dev` and will fail to bind, kicking the ticket to `needs-human`. |
 | 05:15 | qa-pass (~15 min in) + uat-validation | Low. UAT walks `/staging/`, not localhost. Both hit GitHub API. |
-| 06:05 | doc-sync (~5 min in) + engineer-dispatch | Low. Doc-sync is markdown-only. |
 | 06:15 | doc-sync + uat-validation | Low. |
-| 07:05 | pm-triage (~5 min in) + engineer-dispatch | Low. Both write labels but on different label families (PM-triage: `area:` / `priority:` / `type:`; engineer-dispatch: `status: in-progress`). Same-issue concurrent edits are still atomic per-label on GitHub's side. |
 | 07:15 | pm-triage + uat-validation | Low. |
+| 09:00 + 09:15 | engineer-dispatch (start) → uat-validation 15 min later | Low. Different surfaces; UAT runs read-only against `/staging/`. |
+| 14:00 + 14:15 | engineer-dispatch (start) → uat-validation 15 min later | Low. Same as 09:00. |
 
 ### Cross-routine hazards
 
@@ -236,27 +242,30 @@ risks below are **different** prompts firing close together.
 6. **iMessage failure notifications (LOW).** If three routines fail in
    the same window, you get three notifications. Annoying, not harmful.
 
-### Recommended schedule (post-merge)
-
-Only the QA-pass / engineer-dispatch overlap is actually load-bearing
-(both want `:5173`). The other "overlaps" are either single-threaded by
-locks or hit different surfaces. The minimum fix is to move
-engineer-dispatch off `:05` so it doesn't fire mid-QA-pass:
+### Current schedule (this PR)
 
 ```
 05:00  qa-pass            (heavy, owns :5173, ~30–60 min)
 06:00  doc-sync           (light)
 07:00  pm-triage          (medium)
-xx:30  engineer-dispatch  (hourly thereafter)   ← was :05
-xx:45  uat-validation     (hourly thereafter)   ← was :15
+09:00  engineer-dispatch  ← morning fire (twice daily, not hourly)
+14:00  engineer-dispatch  ← afternoon fire (twice daily, not hourly)
+xx:15  uat-validation     (hourly)
 ```
 
-The only residual collision is **05:30 / 05:45**, when engineer-dispatch
-and uat-validation both fire while QA-pass may still be running. UAT
-walks `/staging/` and never touches localhost, so :45 is fine. The
-:30 engineer-dispatch fire is still at risk if (a) QA-pass is still
-going **and** (b) the engineer subagent picks a screenshot-requiring
-ticket. To eliminate that case entirely, add a guard at the top of
+Twice-daily engineer-dispatch is the temporary cadence — both fires
+land well after QA-pass is done, so the `:5173` contention is gone.
+We'll move back to hourly once we trust the local cadence (the prompt
+file is still named `hourly-engineer-dispatch.md` so the rename is a
+no-op).
+
+### When we eventually flip back to hourly
+
+The plist's `StartCalendarInterval` array goes back to a single
+`<dict><key>Minute</key><integer>30</integer></dict>` entry. `:30`
+(not `:05`) avoids the residual qa-pass overlap window if the prompt
+ever picks a screenshot-requiring ticket and we're still inside
+QA-pass's run. If even that feels risky, add a guard at the top of
 `scripts/local/engineer-dispatch.sh`:
 
 ```bash
@@ -267,8 +276,3 @@ if [[ "$hour" == "05" ]] && curl -fsS http://localhost:5173 > /dev/null 2>&1; th
   exit 0
 fi
 ```
-
-The plist changes (`:05` → `:30`, `:15` → `:45`) are deliberately
-**not** in this PR — they belong with the GHA-twin disable, after each
-local driver has 5–10 clean runs. See `scripts/local/README.md` § "One-time
-setup" step 5 for the cutover sequence.
