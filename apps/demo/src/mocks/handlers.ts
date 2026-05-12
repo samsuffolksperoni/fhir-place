@@ -1,3 +1,4 @@
+import { bundledTypes } from "@fhir-place/react-fhir";
 import { http, HttpResponse, passthrough } from "msw";
 import type { Patient, Resource } from "fhir/r4";
 import { FHIR_BASE_URL } from "../config.js";
@@ -23,6 +24,11 @@ import {
 // A hardcoded "/fhir" here caused a production-only 404 when the app was served
 // under a non-root base path (see #8).
 const BASE = FHIR_BASE_URL;
+
+// Every core R4 resource type name (from the library's bundled SD index) —
+// used by the StructureDefinition catch-all to tell a base type apart from a
+// profile ID.
+const KNOWN_RESOURCE_TYPES = new Set<string>(bundledTypes);
 
 // Mutable in-memory store so create/update/delete actually persist during the session.
 const store = {
@@ -173,13 +179,14 @@ export const handlers = [
   // detail pages render the structured view instead of a "Could not resolve
   // StructureDefinition" error. The specific fixtures above (Patient,
   // Observation, compartment types) win because MSW uses the first matching
-  // handler. Profile IDs (e.g. `us-core-patient` — kebab-case, read first when
-  // a resource carries `meta.profile`) are passed through so the resolver's
-  // canonical-search / bundled-base-type fallback still runs rather than
-  // rendering against a near-empty `mkSd("us-core-patient", [])`.
+  // handler. We only synthesize for known R4 resource type names — profile IDs
+  // (which the resolver instance-reads first when a resource carries
+  // `meta.profile`) are passed through so its canonical-search / bundled-base-
+  // type fallback still runs rather than rendering against a near-empty
+  // `mkSd("<profile-id>", [])` with the wrong root type.
   http.get(`*${BASE}/StructureDefinition/:type`, ({ params }) => {
     const type = String(params.type);
-    if (!/^[A-Z][A-Za-z]+$/.test(type)) return passthrough();
+    if (!KNOWN_RESOURCE_TYPES.has(type)) return passthrough();
     return okJson(mkSd(type, []));
   }),
 
