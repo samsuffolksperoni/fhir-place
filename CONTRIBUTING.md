@@ -137,7 +137,7 @@ GitHub Issues are the canonical backlog (see `docs/decisions/0001-use-github-iss
 | --- | --- | --- | --- |
 | `type:` | exactly one | `bug`, `feature`, `tech-debt`, `docs`, `spike`, `epic` | What kind of work this is. `epic` = tracker for sub-issues. `spike` = time-boxed exploration. |
 | `area:` | one or more | `fhir-explorer`, `react-fhir`, `workbench`, `cql`, `mcp`, `infra`, `auth`, `security` | Which part of the codebase is touched. `fhir-explorer` is the demo app at `apps/demo/` (legacy names: "demo", "fhir-ui", "live-monitor"). `react-fhir` is the published library at `packages/react-fhir/`. |
-| `priority:` | exactly one | `high`, `medium`, `low` | Triage signal. Bugs default to `high`. Spikes / nice-to-haves default to `low`. Default `medium`. |
+| `priority:` | exactly one | `P0`, `P1`, `P2`, `P3` | Triage signal. Bugs default to `P0`. Spikes / nice-to-haves default to `P2`. `P3` is the explicit-deferral bucket — out of current sprint, "someday" — not the same as no priority. Default `P1`. |
 | `status:` | optional | `blocked`, `needs-triage`, `in-progress`, `needs-human`, `agent-paused` | Workflow state. Use sparingly. `in-progress` / `needs-human` are bot-managed by the engineer-dispatch routine; `agent-paused` on the dispatch tracking issue is the kill switch. |
 | `origin:` | optional | `bot-filed` | Filed by automation (e.g. `live-site-monitor.yml`). |
 | `phase-N` | optional | `phase-0`..`phase-3`, `fhir-workbench-phase-a` | Multi-phase epic tracking. Keep as plain (no prefix) for grep-ability. |

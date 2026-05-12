@@ -65,7 +65,25 @@ For every open PR from a `bot/*` branch with no human review in 7+ days:
 
 Do not close the PR — that's a human's call.
 
-## Step 3 — compute the ready queue
+## Step 3 — compute the sprint-scoped ready queue
+
+The canonical work source is the
+[fhir-place project board](https://github.com/orgs/danielsperoniteam/projects/1),
+scoped to the current sprint iteration. Bots and humans both pull from
+that board sorted by Priority (P0 first). Issues outside the current
+sprint are not eligible for dispatch even if they otherwise look ready.
+
+> **PENDING — requires `read:project` token scope.** The
+> `GITHUB_TOKEN` available to this workflow does not have the project
+> scope, so the project-board GraphQL query is not yet wired in. Until
+> the `PROJECTS_PAT` secret is configured, this step falls back to the
+> all-issues-with-labels behavior described below.
+>
+> **TODO:** replace this fallback once `PROJECTS_PAT` is configured.
+> See the tracking issue
+> [Sprint-aware dispatch + priority label rename + SDLC sync](https://github.com/danielsperoniteam/fhir-place/issues/436).
+
+### Fallback: label-only ready queue
 
 A "ready" issue is **all of**:
 
@@ -79,7 +97,7 @@ A "ready" issue is **all of**:
 - every issue listed in the body under "Blocked by:" or as a
   `blocks`-style sub-issue link is closed
 
-Sort by: `priority: high` → `priority: medium` → `priority: low`,
+Sort by: `priority: P0` → `priority: P1` → `priority: P2` → `priority: P3`,
 then by `created_at` ascending. Take the top 3.
 
 If the queue is empty, jump to Step 5 (update the tracking issue) and
@@ -119,7 +137,7 @@ Compute slugs as `kebab-case(first-50-chars-of-title-after-stripping-prefixes)`.
 
 Find the open issue titled exactly `Engineer dispatch — hourly report`. If
 it does not exist, create it with labels
-`[type: docs, area: infra, priority: low, origin: bot-filed]` and an empty
+`[type: docs, area: infra, priority: P3, origin: bot-filed]` and an empty
 body (this routine populates it).
 
 **Update the body** (do not append a comment — at hourly cadence, comments

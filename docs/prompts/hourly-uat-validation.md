@@ -270,8 +270,8 @@ bug observations from Step 3c. For each one (cap 5):
      (the daily-pm-triage routine strips them).
    - **Labels:** `type: bug`, `area: fhir-explorer` (or another `area:`
      if the bug is clearly elsewhere), `origin: bot-filed`, and a
-     priority — `priority: high` for crashes, broken navigation, or
-     data loss; `priority: medium` otherwise.
+     priority — `priority: P0` for crashes, broken navigation, or
+     data loss; `priority: P1` otherwise.
    - **Body** (free-form, mirroring `daily-qa-pass.md`):
 
      ```
@@ -319,7 +319,7 @@ Spawn the `health-tech-pm` subagent with this brief:
      (`origin: bot-filed` + `type: feature`). If a near-match exists,
      add a `+1 with new context` comment instead of filing.
   3. File new ideas with: `type: feature`, `area: fhir-explorer` (or
-     other), `priority: low` (these are brainstorms, not committed
+     other), `priority: P3` (these are brainstorms, not committed
      work), `origin: bot-filed`. Body should explain the user, the job,
      the friction observed on staging, and a suggested direction —
      not an implementation. Plain title, no bracket prefix.
@@ -333,7 +333,7 @@ The PM subagent must not comment on PRs — that is the QA agent's lane.
 
 Find the open issue titled exactly `UAT validation — hourly report`. If
 it does not exist, create it with labels
-`[type: docs, area: infra, priority: low, origin: bot-filed]` and an
+`[type: docs, area: infra, priority: P3, origin: bot-filed]` and an
 empty body (this routine populates it).
 
 **Replace the body wholesale** (do not append — at hourly cadence,

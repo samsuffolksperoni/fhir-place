@@ -151,7 +151,7 @@ jobs:
                   repo: context.repo.repo,
                   title: issueTitle,
                   body,
-                  labels: ['type: bug', 'area: fhir-explorer', 'priority: high', 'origin: bot-filed'],
+                  labels: ['type: bug', 'area: fhir-explorer', 'priority: P0', 'origin: bot-filed'],
                 });
               }
             }
