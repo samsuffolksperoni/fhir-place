@@ -216,6 +216,16 @@ describe("formatTiming", () => {
     );
   });
 
+  it("renders periodMax and countMax as ranges", () => {
+    expect(
+      formatTiming({ repeat: { frequency: 1, period: 4, periodMax: 6, periodUnit: "h" } }),
+    ).toBe("once every 4–6 hours");
+    expect(
+      formatTiming({ repeat: { frequency: 1, period: 1, periodMax: 2, periodUnit: "d" } }),
+    ).toBe("once every 1–2 days");
+    expect(formatTiming({ repeat: { count: 3, countMax: 5 } })).toBe("for 3–5 doses");
+  });
+
   it("appends when / count modifiers", () => {
     expect(
       formatTiming({

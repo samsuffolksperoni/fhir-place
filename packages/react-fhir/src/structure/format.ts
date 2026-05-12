@@ -160,12 +160,15 @@ export function formatTiming(t: Timing | undefined): string {
     const freqStr = r.frequencyMax ? `${freq}–${r.frequencyMax}` : `${freq}`;
     const timesWord =
       freq === 1 && !r.frequencyMax ? "once" : `${freqStr} times`;
+    const periodStr = r.periodMax ? `${period}–${r.periodMax}` : `${period}`;
     if (!r.periodUnit) {
       parts.push(timesWord);
-    } else if (period === 1) {
+    } else if (period === 1 && !r.periodMax) {
       parts.push(`${timesWord} per ${unitLabel(r.periodUnit, 1)}`);
     } else {
-      parts.push(`${timesWord} every ${period} ${unitLabel(r.periodUnit, period)}`);
+      parts.push(
+        `${timesWord} every ${periodStr} ${unitLabel(r.periodUnit, r.periodMax ?? period)}`,
+      );
     }
   } else if (r?.duration != null && r.durationUnit) {
     parts.push(`over ${r.duration} ${unitLabel(r.durationUnit, r.duration)}`);
@@ -175,7 +178,12 @@ export function formatTiming(t: Timing | undefined): string {
   }
   if (r?.timeOfDay?.length) parts.push(`at ${r.timeOfDay.join(", ")}`);
   if (r?.dayOfWeek?.length) parts.push(`on ${r.dayOfWeek.join(", ")}`);
-  if (r?.count != null) parts.push(`for ${r.count} dose${r.count === 1 ? "" : "s"}`);
+  if (r?.count != null || r?.countMax != null) {
+    const count = r.count ?? 1;
+    const countStr = r.countMax ? `${count}–${r.countMax}` : `${count}`;
+    const plural = (r.countMax ?? count) === 1 ? "" : "s";
+    parts.push(`for ${countStr} dose${plural}`);
+  }
   const phrase = parts.join(" ").trim();
   if (phrase) return phrase;
   if (t.event?.length) return t.event.join(", ");
