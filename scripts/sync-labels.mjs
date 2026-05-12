@@ -25,7 +25,7 @@ if (!TOKEN) {
 
 const CANONICAL = [
   // type:
-  { name: 'type: bug', color: 'd73a4a', description: 'Defect or regression. Bugs default to priority: high.' },
+  { name: 'type: bug', color: 'd73a4a', description: 'Defect or regression. Bugs default to priority: P0.' },
   { name: 'type: feature', color: 'a2eeef', description: 'New capability or user-visible enhancement.' },
   { name: 'type: tech-debt', color: 'd4c5f9', description: 'Refactor, cleanup, build/perf, or non-functional improvement.' },
   { name: 'type: docs', color: '0075ca', description: 'Documentation only.' },
@@ -41,9 +41,10 @@ const CANONICAL = [
   { name: 'area: auth', color: 'b60205', description: 'Authentication / authorization.' },
   { name: 'area: security', color: 'b60205', description: 'Security-sensitive change or review.' },
   // priority:
-  { name: 'priority: high', color: 'e11d21', description: 'Top of the queue.' },
-  { name: 'priority: medium', color: 'fbca04', description: 'Default priority.' },
-  { name: 'priority: low', color: '0e8a16', description: 'Nice-to-have.' },
+  { name: 'priority: P0', color: 'e11d21', description: 'Do now — top of the queue.' },
+  { name: 'priority: P1', color: 'fbca04', description: 'Default priority.' },
+  { name: 'priority: P2', color: '0e8a16', description: 'Nice-to-have.' },
+  { name: 'priority: P3', color: 'BFD4F2', description: 'Deferred — someday / out of current sprint.' },
   // status:
   { name: 'status: blocked', color: '000000', description: 'Cannot progress until a referenced blocker resolves.' },
   { name: 'status: needs-triage', color: 'cccccc', description: 'No type/area/priority set, or PM agent unsure — needs human review.' },

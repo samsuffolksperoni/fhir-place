@@ -43,6 +43,10 @@ VITE_USE_MOCK=false VITE_FHIR_BASE_URL=http://localhost:8080/fhir pnpm dev
    Pick the bump (`patch` / `minor` / `major`) and describe the change in human terms. Commit the generated `.changeset/*.md` alongside your code.
 4. Open the PR. CI runs typecheck + tests + build. The release workflow automatically opens / updates a "Version Packages" PR that bumps versions + CHANGELOG when your PR lands; merging that second PR triggers a fresh npm publish.
 
+> **Note:** `release.yml` is currently disabled (renamed to `release.yml.disabled`) until npm publishing is set up. The flow described above and the warning below apply once it's re-enabled — pending changesets accumulate in `.changeset/*.md` in the meantime and are not lost. To re-enable: flip the org-level "Allow GitHub Actions to create and approve pull requests" setting, populate the `NPM_TOKEN` repo secret, and rename the workflow back.
+
+> **Do not manually create a "chore: release" PR.** The `changesets/action` manages that PR itself (pushing to `changeset-release/main` and opening a bot-owned PR). A human-authored PR targeting `main` from any other branch with the same title causes the action to fail when it tries to update the conflicting PR. If the Release workflow shows a red check on `main` and the only step that failed is the `changesets/action`, look for an open PR titled "chore: release" that was not created by `github-actions[bot]` — closing it unblocks the workflow.
+
 ## Staging deploys
 
 The `staging` branch is a continuously-rebuilt deploy target:
@@ -139,7 +143,7 @@ GitHub Issues are the canonical backlog (see `docs/decisions/0001-use-github-iss
 | --- | --- | --- | --- |
 | `type:` | exactly one | `bug`, `feature`, `tech-debt`, `docs`, `spike`, `epic` | What kind of work this is. `epic` = tracker for sub-issues. `spike` = time-boxed exploration. |
 | `area:` | one or more | `fhir-explorer`, `react-fhir`, `workbench`, `cql`, `mcp`, `infra`, `auth`, `security` | Which part of the codebase is touched. `fhir-explorer` is the demo app at `apps/demo/` (legacy names: "demo", "fhir-ui", "live-monitor"). `react-fhir` is the published library at `packages/react-fhir/`. |
-| `priority:` | exactly one | `high`, `medium`, `low` | Triage signal. Bugs default to `high`. Spikes / nice-to-haves default to `low`. Default `medium`. |
+| `priority:` | exactly one | `P0`, `P1`, `P2`, `P3` | Triage signal. Bugs default to `P0`. Spikes / nice-to-haves default to `P2`. `P3` is the explicit-deferral bucket — out of current sprint, "someday" — not the same as no priority. Default `P1`. |
 | `status:` | optional | `blocked`, `needs-triage`, `in-progress`, `needs-human`, `agent-paused` | Workflow state. Use sparingly. `in-progress` / `needs-human` are bot-managed by the engineer-dispatch routine; `agent-paused` on the dispatch tracking issue is the kill switch. |
 | `origin:` | optional | `bot-filed` | Filed by automation (e.g. `live-site-monitor.yml`). |
 | `phase-N` | optional | `phase-0`..`phase-3`, `fhir-workbench-phase-a` | Multi-phase epic tracking. Keep as plain (no prefix) for grep-ability. |

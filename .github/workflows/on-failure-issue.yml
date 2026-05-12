@@ -100,6 +100,6 @@ jobs:
                 repo: context.repo.repo,
                 title,
                 body,
-                labels: ['type: bug', 'area: infra', 'priority: high', 'origin: bot-filed'],
+                labels: ['type: bug', 'area: infra', 'priority: P0', 'origin: bot-filed'],
               });
             }

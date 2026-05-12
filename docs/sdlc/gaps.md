@@ -82,7 +82,7 @@ To make the label universal at filing time, these three places change:
 
 | File | Today | Change |
 | --- | --- | --- |
-| `.github/workflows/live-site-monitor.yml` line 154 | `labels: ['type: bug', 'area: fhir-explorer', 'priority: high', 'origin: bot-filed']` | Add `'human-review-needed: low'` for normal Playwright failures; the existing `github-script` adds `'human-review-needed: high'` and `assignees: ['danielsperoniteam']` if the failed test's title matches the patient-safety regex (med/dose/allergy/problem). |
+| `.github/workflows/live-site-monitor.yml` line 154 | `labels: ['type: bug', 'area: fhir-explorer', 'priority: P0', 'origin: bot-filed']` | Add `'human-review-needed: low'` for normal Playwright failures; the existing `github-script` adds `'human-review-needed: high'` and `assignees: ['danielsperoniteam']` if the failed test's title matches the patient-safety regex (med/dose/allergy/problem). |
 | `docs/prompts/daily-qa-pass.md` Step 4 — Labels | `type: bug, area: fhir-explorer, origin: bot-filed, priority: …` | Append `human-review-needed: <level>`, applying the decision table above. For `high`, also pass `assignees: ['danielsperoniteam']` to `mcp__github__issue_write`. |
 | `docs/prompts/hourly-uat-validation.md` Step 4 (out-of-scope bugs) and Step 5 (PM improvement ideas) | same shape | same change as above. PM ideas default `low`. |
 
@@ -213,7 +213,7 @@ the deploy).
 Sketch of the fix: a `revert-on-failure.yml` workflow that, when
 live-site-monitor reports a P0 regression on `main`, opens a
 `revert/<sha>` PR with `git revert <sha>` and labels it
-`priority: high, status: needs-human`. **Do not auto-merge.** A human
+`priority: P0, status: needs-human`. **Do not auto-merge.** A human
 still pulls the trigger.
 
 A bigger version of this fix needs feature flags as substrate — flag

@@ -156,7 +156,7 @@ Issues come from four places:
   a real FHIR sandbox, files `type: bug, origin: bot-filed`.
 - **Live site monitor** at 06:30 UTC — fixed Playwright suite against
   the deployed `/` URL, files `type: bug, area: fhir-explorer,
-  priority: high, origin: bot-filed` for each failed test, deduping by
+  priority: P0, origin: bot-filed` for each failed test, deduping by
   title.
 - **Hourly UAT validation** when it spots out-of-scope bugs while
   walking a PR (cap 5 per run); same `bot-filed` shape.
@@ -184,6 +184,23 @@ standard `Closes #N` trailer in a merged PR.
 
 [`docs/prompts/hourly-engineer-dispatch.md`](../prompts/hourly-engineer-dispatch.md)
 
+#### Target model: sprint-scoped ready queue
+
+The canonical work source is the
+[fhir-place project board](https://github.com/orgs/danielsperoniteam/projects/1),
+scoped to the current sprint iteration. Bots and humans both pull from
+the board sorted by Priority (`P0` → `P1` → `P2` → `P3`). Issues outside
+the current sprint are not eligible for dispatch even if they otherwise
+look ready.
+
+> **PENDING — requires `read:project` token scope.** Implementation is
+> blocked on configuring a `PROJECTS_PAT` secret with project read
+> access. Until then, the dispatcher uses the label-only fallback below.
+> Tracking issue:
+> [Sprint-aware dispatch + priority label rename + SDLC sync](https://github.com/danielsperoniteam/fhir-place/issues/436).
+
+#### Bridge: label-only ready predicate
+
 The "ready" predicate is precise:
 
 - exactly one `type:` label
@@ -192,6 +209,9 @@ The "ready" predicate is precise:
 - no `status: blocked / needs-triage / in-progress / needs-human`
 - no assignees
 - every "Blocked by:" / sub-issue link is closed
+
+Sort: `priority: P0` → `priority: P1` → `priority: P2` → `priority: P3`,
+then `created_at` ascending. Take the top 3.
 
 The `status: in-progress` label is the **claim lock**. It's added before
 the subagent is dispatched. The "ready" predicate excludes it, so a
