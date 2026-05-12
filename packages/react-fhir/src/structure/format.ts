@@ -136,11 +136,15 @@ function unitLabel(unit: string | undefined, count: number): string {
  * "3 times per week in the morning". Prefers an explicit `Timing.code`
  * abbreviation, then falls back to building a phrase from `repeat`.
  */
+const V3_GTS_ABBREVIATION_SYSTEM =
+  "http://terminology.hl7.org/CodeSystem/v3-GTSAbbreviation";
+
 export function formatTiming(t: Timing | undefined): string {
   if (!t) return "";
   const code = t.code;
   if (code) {
     for (const c of code.coding ?? []) {
+      if (c.system && c.system !== V3_GTS_ABBREVIATION_SYSTEM) continue;
       const label = c.code ? TIMING_ABBREVIATION_LABELS[c.code] : undefined;
       if (label) return label;
     }
@@ -157,7 +161,9 @@ export function formatTiming(t: Timing | undefined): string {
     const freqStr = r.frequencyMax ? `${freq}–${r.frequencyMax}` : `${freq}`;
     const timesWord =
       freq === 1 && !r.frequencyMax ? "once" : `${freqStr} times`;
-    if (period === 1) {
+    if (!r.periodUnit) {
+      parts.push(timesWord);
+    } else if (period === 1) {
       parts.push(`${timesWord} per ${unitLabel(r.periodUnit, 1)}`);
     } else {
       parts.push(`${timesWord} every ${period} ${unitLabel(r.periodUnit, period)}`);

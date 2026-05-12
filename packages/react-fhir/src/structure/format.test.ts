@@ -230,6 +230,29 @@ describe("formatTiming", () => {
     ).toBe("every other Tuesday");
   });
 
+  it("ignores abbreviation codes from non-v3-GTS systems", () => {
+    // A code "BID" from some unrelated terminology must not become "twice daily".
+    expect(
+      formatTiming({
+        code: {
+          coding: [{ system: "http://example.org/other", code: "BID", display: "Bid label" }],
+        },
+        repeat: { frequency: 3, period: 1, periodUnit: "d" },
+      }),
+    ).toBe("Bid label");
+    expect(
+      formatTiming({
+        code: { coding: [{ system: "http://example.org/other", code: "BID" }] },
+        repeat: { frequency: 3, period: 1, periodUnit: "d" },
+      }),
+    ).toBe("3 times per day");
+  });
+
+  it("omits the period clause when periodUnit is missing", () => {
+    expect(formatTiming({ repeat: { frequency: 2 } })).toBe("2 times");
+    expect(formatTiming({ repeat: { frequency: 1, period: 3 } })).toBe("once");
+  });
+
   it("returns '' for empty timing", () => {
     expect(formatTiming(undefined)).toBe("");
     expect(formatTiming({})).toBe("");
