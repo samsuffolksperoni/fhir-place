@@ -65,6 +65,19 @@ export function formatQuantity(q: Quantity | undefined): string {
   return `${comparator}${num}${unit ? ` ${unit}` : ""}`.trim();
 }
 
+// True when `Y-M-D` denotes a real calendar day. `new Date` rolls overflow
+// parts forward (2021-02-31 → Mar 3), so we reject anything that doesn't
+// round-trip rather than silently render a different day.
+function isRealCalendarDay(y: number, mo: number, day: number): boolean {
+  const d = new Date(y, mo - 1, day);
+  return d.getFullYear() === y && d.getMonth() === mo - 1 && d.getDate() === day;
+}
+
+// FHIR `dateTime` / `instant` with a time component:
+//   YYYY-MM-DDThh:mm[:ss[.sss]][Z|±hh:mm]
+const FHIR_DATE_TIME_RE =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?$/;
+
 /**
  * Human-readable rendering of a FHIR `date` / `dateTime` / `instant` value.
  *
@@ -73,26 +86,33 @@ export function formatQuantity(q: Quantity | undefined): string {
  * - `YYYY-MM-DD` becomes e.g. `Sep 7, 2019`.
  * - Values with a time component become e.g. `Sep 7, 2019, 5:39 PM`, rendered
  *   in the runtime's local time zone.
- * - Anything unparseable falls back to the original string.
+ * - Malformed or out-of-range values (e.g. `2021-02-31`) fall back to the
+ *   original string rather than being normalised to a different instant.
  */
 export function formatDateTime(value: string | undefined): string {
   if (!value) return "";
   if (/^\d{4}(-\d{2})?$/.test(value)) return value;
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [y, mo, day] = value.split("-").map(Number) as [number, number, number];
-    const d = new Date(y, mo - 1, day);
-    // `new Date` silently rolls over out-of-range parts (2021-02-31 → Mar 3),
-    // so a malformed date would otherwise render as a different day. Only
-    // format when the components round-trip; otherwise keep the raw string.
-    const roundTrips =
-      d.getFullYear() === y && d.getMonth() === mo - 1 && d.getDate() === day;
-    return roundTrips
-      ? d.toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : value;
+    if (!isRealCalendarDay(y, mo, day)) return value;
+    return new Date(y, mo - 1, day).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+  const m = FHIR_DATE_TIME_RE.exec(value);
+  if (!m) return value;
+  const [, ys, mos, ds, hs, mins, ss] = m as unknown as string[];
+  const y = Number(ys);
+  const mo = Number(mos);
+  const day = Number(ds);
+  const hour = Number(hs);
+  const minute = Number(mins);
+  const sec = ss === undefined ? 0 : Number(ss);
+  // `new Date` would roll these forward too; validate before trusting it.
+  if (!isRealCalendarDay(y, mo, day) || hour > 23 || minute > 59 || sec > 60) {
+    return value;
   }
   const d = new Date(value);
   return Number.isNaN(d.getTime())

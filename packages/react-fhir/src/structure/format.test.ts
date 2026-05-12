@@ -138,6 +138,11 @@ describe("formatDateTime", () => {
     expect(formatDateTime("2021-02-31")).toBe("2021-02-31");
     expect(formatDateTime("2021-13-01")).toBe("2021-13-01");
   });
+
+  it("does not normalise an out-of-range date-time", () => {
+    expect(formatDateTime("2021-02-31T00:00:00Z")).toBe("2021-02-31T00:00:00Z");
+    expect(formatDateTime("2021-04-06T25:01:00Z")).toBe("2021-04-06T25:01:00Z");
+  });
 });
 
 describe("formatPeriod", () => {
