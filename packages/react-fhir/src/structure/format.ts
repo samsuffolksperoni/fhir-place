@@ -2,10 +2,12 @@ import type {
   Address,
   CodeableConcept,
   Coding,
+  Dosage,
   HumanName,
   Period,
   Quantity,
   Resource,
+  Timing,
 } from "fhir/r4";
 
 /**
@@ -70,6 +72,137 @@ export function formatPeriod(p: Period | undefined): string {
   const start = p.start ?? "…";
   const end = p.end ?? "…";
   return `${start} → ${end}`;
+}
+
+const PERIOD_UNIT_LABELS: Record<string, string> = {
+  s: "second",
+  min: "minute",
+  h: "hour",
+  d: "day",
+  wk: "week",
+  mo: "month",
+  a: "year",
+};
+
+/** v3-GTSAbbreviation timing codes that have a clean plain-English reading. */
+const TIMING_ABBREVIATION_LABELS: Record<string, string> = {
+  BID: "twice daily",
+  TID: "three times daily",
+  QID: "four times daily",
+  AM: "in the morning",
+  PM: "in the afternoon",
+  QD: "once daily",
+  QOD: "every other day",
+  QHS: "at bedtime",
+  Q1H: "every hour",
+  Q2H: "every 2 hours",
+  Q3H: "every 3 hours",
+  Q4H: "every 4 hours",
+  Q6H: "every 6 hours",
+  Q8H: "every 8 hours",
+  WK: "weekly",
+  MO: "monthly",
+};
+
+const WHEN_LABELS: Record<string, string> = {
+  MORN: "in the morning",
+  AFT: "in the afternoon",
+  EVE: "in the evening",
+  NIGHT: "at night",
+  HS: "at bedtime",
+  WAKE: "on waking",
+  C: "with meals",
+  CM: "with breakfast",
+  CD: "with lunch",
+  CV: "with dinner",
+  AC: "before meals",
+  ACM: "before breakfast",
+  ACD: "before lunch",
+  ACV: "before dinner",
+  PC: "after meals",
+  PCM: "after breakfast",
+  PCD: "after lunch",
+  PCV: "after dinner",
+};
+
+function unitLabel(unit: string | undefined, count: number): string {
+  if (!unit) return "";
+  const base = PERIOD_UNIT_LABELS[unit] ?? unit;
+  return count === 1 ? base : `${base}s`;
+}
+
+/**
+ * Plain-English summary of a FHIR Timing — e.g. "twice daily", "every 8 hours",
+ * "3 times per week in the morning". Prefers an explicit `Timing.code`
+ * abbreviation, then falls back to building a phrase from `repeat`.
+ */
+export function formatTiming(t: Timing | undefined): string {
+  if (!t) return "";
+  const code = t.code;
+  if (code) {
+    for (const c of code.coding ?? []) {
+      const label = c.code ? TIMING_ABBREVIATION_LABELS[c.code] : undefined;
+      if (label) return label;
+    }
+    if (code.text) return code.text;
+    const display = code.coding?.find((c) => c.display)?.display;
+    if (display) return display;
+  }
+  const r = t.repeat;
+  if (!r) return t.event?.length ? t.event.join(", ") : "";
+  const parts: string[] = [];
+  if (r.frequency != null || r.period != null) {
+    const freq = r.frequency ?? 1;
+    const period = r.period ?? 1;
+    const freqStr = r.frequencyMax ? `${freq}–${r.frequencyMax}` : `${freq}`;
+    const timesWord =
+      freq === 1 && !r.frequencyMax ? "once" : `${freqStr} times`;
+    if (period === 1) {
+      parts.push(`${timesWord} per ${unitLabel(r.periodUnit, 1)}`);
+    } else {
+      parts.push(`${timesWord} every ${period} ${unitLabel(r.periodUnit, period)}`);
+    }
+  } else if (r.duration != null && r.durationUnit) {
+    parts.push(`over ${r.duration} ${unitLabel(r.durationUnit, r.duration)}`);
+  }
+  if (r.when?.length) {
+    parts.push(r.when.map((w) => WHEN_LABELS[w] ?? w).join(", "));
+  }
+  if (r.timeOfDay?.length) parts.push(`at ${r.timeOfDay.join(", ")}`);
+  if (r.dayOfWeek?.length) parts.push(`on ${r.dayOfWeek.join(", ")}`);
+  if (r.count != null) parts.push(`for ${r.count} dose${r.count === 1 ? "" : "s"}`);
+  return parts.join(" ").trim();
+}
+
+function formatDoseAndRate(dr: NonNullable<Dosage["doseAndRate"]>[number]): string {
+  if (dr.doseQuantity) return formatQuantity(dr.doseQuantity);
+  if (dr.doseRange) {
+    return `${formatQuantity(dr.doseRange.low)}–${formatQuantity(dr.doseRange.high)}`.trim();
+  }
+  return "";
+}
+
+/**
+ * One-line plain-English summary of a FHIR Dosage. Prefers the authored
+ * `text`; otherwise assembles dose + route + schedule + as-needed.
+ */
+export function formatDosage(d: Dosage | undefined): string {
+  if (!d) return "";
+  if (d.text) return d.text;
+  const parts: string[] = [];
+  const dose = d.doseAndRate?.map(formatDoseAndRate).filter(Boolean).join(", ");
+  if (dose) parts.push(dose);
+  const route = formatCodeableConcept(d.route);
+  if (route) parts.push(route);
+  const timing = formatTiming(d.timing);
+  if (timing) parts.push(timing);
+  let summary = parts.join(" ").trim();
+  if (d.asNeededBoolean) summary = summary ? `${summary}, as needed` : "as needed";
+  else if (d.asNeededCodeableConcept) {
+    const why = formatCodeableConcept(d.asNeededCodeableConcept);
+    summary = `${summary ? `${summary}, ` : ""}as needed${why ? ` for ${why}` : ""}`;
+  }
+  return summary;
 }
 
 /**

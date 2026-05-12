@@ -3,10 +3,12 @@ import {
   formatAddress,
   formatCodeableConcept,
   formatCoding,
+  formatDosage,
   formatHumanName,
   formatPeriod,
   formatQuantity,
   formatReferenceLabel,
+  formatTiming,
 } from "./format.js";
 
 describe("formatHumanName", () => {
@@ -186,5 +188,80 @@ describe("formatReferenceLabel", () => {
     expect(
       formatReferenceLabel({ resourceType: "Device", id: "dev-1" } as never),
     ).toBe("Device/dev-1");
+  });
+});
+
+describe("formatTiming", () => {
+  it("uses a known abbreviation code", () => {
+    expect(
+      formatTiming({
+        code: {
+          coding: [
+            {
+              system: "http://terminology.hl7.org/CodeSystem/v3-GTSAbbreviation",
+              code: "BID",
+            },
+          ],
+        },
+      }),
+    ).toBe("twice daily");
+  });
+
+  it("builds a phrase from frequency + period", () => {
+    expect(formatTiming({ repeat: { frequency: 2, period: 1, periodUnit: "d" } })).toBe(
+      "2 times per day",
+    );
+    expect(formatTiming({ repeat: { frequency: 1, period: 8, periodUnit: "h" } })).toBe(
+      "once every 8 hours",
+    );
+  });
+
+  it("appends when / count modifiers", () => {
+    expect(
+      formatTiming({
+        repeat: { frequency: 1, period: 1, periodUnit: "d", when: ["HS"], count: 5 },
+      }),
+    ).toBe("once per day at bedtime for 5 doses");
+  });
+
+  it("prefers code.text over coding display", () => {
+    expect(
+      formatTiming({ code: { text: "every other Tuesday", coding: [{ display: "x" }] } }),
+    ).toBe("every other Tuesday");
+  });
+
+  it("returns '' for empty timing", () => {
+    expect(formatTiming(undefined)).toBe("");
+    expect(formatTiming({})).toBe("");
+  });
+});
+
+describe("formatDosage", () => {
+  it("returns the authored text verbatim", () => {
+    expect(formatDosage({ text: "1 tab twice daily" })).toBe("1 tab twice daily");
+  });
+
+  it("assembles dose + schedule when text is absent", () => {
+    expect(
+      formatDosage({
+        doseAndRate: [{ doseQuantity: { value: 1, unit: "tablet" } }],
+        timing: { repeat: { frequency: 2, period: 1, periodUnit: "d" } },
+      }),
+    ).toBe("1 tablet 2 times per day");
+  });
+
+  it("includes route and as-needed", () => {
+    expect(
+      formatDosage({
+        doseAndRate: [{ doseQuantity: { value: 400, unit: "mg" } }],
+        route: { text: "oral" },
+        asNeededBoolean: true,
+      }),
+    ).toBe("400 mg oral, as needed");
+  });
+
+  it("returns '' for empty dosage", () => {
+    expect(formatDosage(undefined)).toBe("");
+    expect(formatDosage({})).toBe("");
   });
 });
