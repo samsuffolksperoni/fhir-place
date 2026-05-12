@@ -182,10 +182,15 @@ export function formatTiming(t: Timing | undefined): string {
     }
     if (r.when?.length) {
       const whenPhrase = r.when.map((w) => WHEN_LABELS[w] ?? w).join(", ");
-      const offset = r.offset
-        ? `${r.offset} minute${r.offset === 1 ? "" : "s"} `
-        : "";
-      parts.push(`${offset}${whenPhrase}`);
+      if (r.offset) {
+        const mins = `${r.offset} minute${r.offset === 1 ? "" : "s"}`;
+        // AC*/PC* event codes already encode before/after; for neutral codes
+        // FHIR defaults the offset to "after", shown here as "(+N minutes)".
+        const directional = r.when.every((w) => /^(AC|PC)/.test(w));
+        parts.push(directional ? `${mins} ${whenPhrase}` : `${whenPhrase} (+${mins})`);
+      } else {
+        parts.push(whenPhrase);
+      }
     }
     if (r.timeOfDay?.length) parts.push(`at ${r.timeOfDay.join(", ")}`);
     if (r.dayOfWeek?.length) parts.push(`on ${r.dayOfWeek.join(", ")}`);

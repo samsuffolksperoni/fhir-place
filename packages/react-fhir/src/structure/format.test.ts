@@ -243,6 +243,10 @@ describe("formatTiming", () => {
     expect(
       formatTiming({ repeat: { when: ["AC"], offset: 30 } }),
     ).toBe("30 minutes before meals");
+    // neutral event codes get a "(+N minutes)" suffix (FHIR default = after)
+    expect(
+      formatTiming({ repeat: { when: ["WAKE"], offset: 30 } }),
+    ).toBe("on waking (+30 minutes)");
   });
 
   it("appends when / count modifiers", () => {
