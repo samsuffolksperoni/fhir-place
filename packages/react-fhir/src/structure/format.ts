@@ -144,7 +144,7 @@ export function formatTiming(t: Timing | undefined): string {
   const code = t.code;
   if (code) {
     for (const c of code.coding ?? []) {
-      if (c.system && c.system !== V3_GTS_ABBREVIATION_SYSTEM) continue;
+      if (c.system !== V3_GTS_ABBREVIATION_SYSTEM) continue;
       const label = c.code ? TIMING_ABBREVIATION_LABELS[c.code] : undefined;
       if (label) return label;
     }
@@ -183,6 +183,11 @@ export function formatTiming(t: Timing | undefined): string {
     const countStr = r.countMax ? `${count}–${r.countMax}` : `${count}`;
     const plural = (r.countMax ?? count) === 1 ? "" : "s";
     parts.push(`for ${countStr} dose${plural}`);
+  }
+  if (!parts.length && r) {
+    if (r.boundsPeriod) parts.push(formatPeriod(r.boundsPeriod));
+    else if (r.boundsRange) parts.push(formatRange(r.boundsRange));
+    else if (r.boundsDuration) parts.push(`over ${formatQuantity(r.boundsDuration)}`);
   }
   const phrase = parts.join(" ").trim();
   if (phrase) return phrase;

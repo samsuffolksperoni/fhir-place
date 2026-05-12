@@ -240,6 +240,39 @@ describe("formatTiming", () => {
     ).toBe("every other Tuesday");
   });
 
+  it("does not expand abbreviation codes that lack an explicit v3-GTS system", () => {
+    expect(
+      formatTiming({
+        code: { coding: [{ code: "BID" }] },
+        repeat: { frequency: 3, period: 1, periodUnit: "d" },
+      }),
+    ).toBe("3 times per day");
+    // …but a coding whose system *is* v3-GTS still expands.
+    expect(
+      formatTiming({
+        code: {
+          coding: [
+            { system: "http://terminology.hl7.org/CodeSystem/v3-GTSAbbreviation", code: "TID" },
+          ],
+        },
+      }),
+    ).toBe("three times daily");
+  });
+
+  it("renders bounds-only timings instead of an em-dash", () => {
+    expect(
+      formatTiming({ repeat: { boundsPeriod: { start: "2024-01-01", end: "2024-03-01" } } }),
+    ).toBe("2024-01-01 → 2024-03-01");
+    expect(
+      formatTiming({ repeat: { boundsDuration: { value: 14, unit: "days" } } }),
+    ).toBe("over 14 days");
+    expect(
+      formatTiming({
+        repeat: { boundsRange: { low: { value: 7, unit: "d" }, high: { value: 10, unit: "d" } } },
+      }),
+    ).toBe("7 d–10 d");
+  });
+
   it("ignores abbreviation codes from non-v3-GTS systems", () => {
     // A code "BID" from some unrelated terminology must not become "twice daily".
     expect(
