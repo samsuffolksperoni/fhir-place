@@ -180,6 +180,23 @@ export const medicationRequestsFor = (patientId: string): MedicationRequest[] =>
       subject: adaSubject,
       authoredOn: "2018-08-12T14:00:00Z",
     },
+    // Reference-style order — exercises `medication[x]` choice resolution
+    // in the table column. Many production EHRs reference a Medication
+    // resource rather than embedding a CodeableConcept; hard-pinning the
+    // column to medicationCodeableConcept used to render a blank cell here
+    // (#372).
+    {
+      resourceType: "MedicationRequest",
+      id: "mr-amox-ada",
+      status: "active",
+      intent: "order",
+      medicationReference: {
+        reference: "Medication/med-amox",
+        display: "Amoxicillin 500 mg oral capsule",
+      },
+      subject: adaSubject,
+      authoredOn: "2024-03-12T11:15:00Z",
+    },
   ];
 };
 
@@ -362,7 +379,15 @@ export const observationStructureDefinition: StructureDefinition = {
 
 const mkSd = (
   type: string,
-  elements: Array<{ path: string; short?: string; type?: string; array?: boolean }>,
+  elements: Array<{
+    path: string;
+    short?: string;
+    /** Single-type shorthand. Use `types` for choice elements with multiple variants. */
+    type?: string;
+    /** Multi-type list for choice elements (paths ending in `[x]`). */
+    types?: string[];
+    array?: boolean;
+  }>,
 ): StructureDefinition => ({
   resourceType: "StructureDefinition",
   id: type,
@@ -377,14 +402,17 @@ const mkSd = (
       { id: type, path: type, min: 0, max: "*" },
       { id: `${type}.id`, path: `${type}.id`, min: 0, max: "1", type: [{ code: "id" }] },
       { id: `${type}.meta`, path: `${type}.meta`, min: 0, max: "1", type: [{ code: "Meta" }] },
-      ...elements.map((e) => ({
-        id: `${type}.${e.path}`,
-        path: `${type}.${e.path}`,
-        min: 0,
-        max: e.array ? "*" : "1",
-        ...(e.short ? { short: e.short } : {}),
-        ...(e.type ? { type: [{ code: e.type }] } : {}),
-      })),
+      ...elements.map((e) => {
+        const types = e.types ?? (e.type ? [e.type] : undefined);
+        return {
+          id: `${type}.${e.path}`,
+          path: `${type}.${e.path}`,
+          min: 0,
+          max: e.array ? "*" : "1",
+          ...(e.short ? { short: e.short } : {}),
+          ...(types ? { type: types.map((code) => ({ code })) } : {}),
+        };
+      }),
     ],
   },
 });
@@ -396,13 +424,17 @@ export const compartmentStructureDefinitions: StructureDefinition[] = [
     { path: "verificationStatus", short: "unconfirmed | provisional | differential | confirmed | refuted | entered-in-error", type: "CodeableConcept" },
     { path: "code", short: "Identification of the condition", type: "CodeableConcept" },
     { path: "subject", short: "Who the condition is about", type: "Reference" },
-    { path: "onsetDateTime", short: "Estimated or actual date, date-time, or age", type: "dateTime" },
+    // Declare onset as the FHIR `[x]` choice so columns / detail views resolve
+    // every variant (#372).
+    { path: "onset[x]", short: "Estimated or actual date, date-time, or age", types: ["dateTime", "Age", "Period", "Range", "string"] },
   ]),
   mkSd("MedicationRequest", [
     { path: "status", short: "active | on-hold | cancelled | completed | entered-in-error | stopped | draft | unknown", type: "code" },
     { path: "intent", short: "proposal | plan | order | original-order | reflex-order | filler-order | instance-order | option", type: "code" },
     { path: "priority", short: "routine | urgent | asap | stat", type: "code" },
-    { path: "medicationCodeableConcept", short: "Medication ordered", type: "CodeableConcept" },
+    // Spec-correct choice element. Hard-pinning to medicationCodeableConcept
+    // hid the active medication for any reference-style order (#372).
+    { path: "medication[x]", short: "Medication to be taken", types: ["CodeableConcept", "Reference"] },
     { path: "subject", short: "Who the medication is for", type: "Reference" },
     { path: "authoredOn", short: "When the request was initially authored", type: "dateTime" },
   ]),
@@ -417,7 +449,8 @@ export const compartmentStructureDefinitions: StructureDefinition[] = [
     { path: "status", short: "preparation | in-progress | not-done | on-hold | stopped | completed | entered-in-error | unknown", type: "code" },
     { path: "code", short: "Identification of the procedure", type: "CodeableConcept" },
     { path: "subject", short: "Who the procedure was performed on", type: "Reference" },
-    { path: "performedDateTime", short: "When the procedure was performed", type: "dateTime" },
+    // Choice element — performed[x] covers DateTime, Period, String, Age, Range.
+    { path: "performed[x]", short: "When the procedure was performed", types: ["dateTime", "Period", "string", "Age", "Range"] },
   ]),
   mkSd("Encounter", [
     { path: "status", short: "planned | arrived | triaged | in-progress | onleave | finished | cancelled | entered-in-error | unknown", type: "code" },
@@ -429,7 +462,8 @@ export const compartmentStructureDefinitions: StructureDefinition[] = [
     { path: "status", short: "completed | entered-in-error | not-done", type: "code" },
     { path: "vaccineCode", short: "Vaccine product administered", type: "CodeableConcept" },
     { path: "patient", short: "Who was immunised", type: "Reference" },
-    { path: "occurrenceDateTime", short: "When the vaccine was administered", type: "dateTime" },
+    // Choice element — occurrence[x] covers DateTime and String per FHIR R4.
+    { path: "occurrence[x]", short: "When the vaccine was administered", types: ["dateTime", "string"] },
   ]),
   mkSd("DiagnosticReport", [
     { path: "status", short: "registered | partial | preliminary | final | amended | corrected | appended | cancelled | entered-in-error | unknown", type: "code" },
