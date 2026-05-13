@@ -43,7 +43,12 @@ test.describe("Procedure list — Performed column", () => {
     await expect(times.first()).toContainText("2022-02-01");
     await expect(times.nth(1)).toContainText("2022-06-30");
 
-    // The period row must not collapse to the `—` placeholder.
-    await expect(periodRow).not.toContainText(/^—$/);
+    // The Performed cell specifically must not collapse to the `—` placeholder.
+    // Asserting against the whole row would still pass if only this cell
+    // regressed (other cells still carry text), so scope to the column.
+    // Default visible columns are Status, Procedure (code), Performed —
+    // index 2.
+    const performedCell = periodRow.locator("td").nth(2);
+    await expect(performedCell).not.toHaveText(/^—$/);
   });
 });
