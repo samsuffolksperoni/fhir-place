@@ -143,6 +143,28 @@ describe("formatDateTime", () => {
     expect(formatDateTime("2021-02-31T00:00:00Z")).toBe("2021-02-31T00:00:00Z");
     expect(formatDateTime("2021-04-06T25:01:00Z")).toBe("2021-04-06T25:01:00Z");
   });
+
+  it("rejects out-of-range timezone offsets", () => {
+    // Hour 14 only valid with :00 minutes; +14:30 is not a real FHIR offset.
+    expect(formatDateTime("2021-01-01T00:00:00+14:30")).toBe(
+      "2021-01-01T00:00:00+14:30",
+    );
+    expect(formatDateTime("2021-01-01T00:00:00+15:00")).toBe(
+      "2021-01-01T00:00:00+15:00",
+    );
+    expect(formatDateTime("2021-01-01T00:00:00+05:75")).toBe(
+      "2021-01-01T00:00:00+05:75",
+    );
+  });
+
+  it("accepts real-world half- and quarter-hour offsets", () => {
+    // India (+05:30), Nepal (+05:45), Chatham Islands (+12:45), and the
+    // boundary +14:00 are all valid FHIR offsets.
+    for (const tz of ["+05:30", "+05:45", "+12:45", "+14:00", "-09:30"]) {
+      const out = formatDateTime(`2021-01-01T00:00:00${tz}`);
+      expect(out).not.toBe(`2021-01-01T00:00:00${tz}`);
+    }
+  });
 });
 
 describe("formatPeriod", () => {

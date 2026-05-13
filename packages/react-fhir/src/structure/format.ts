@@ -75,8 +75,10 @@ function isRealCalendarDay(y: number, mo: number, day: number): boolean {
 
 // FHIR `dateTime` / `instant` with a time component:
 //   YYYY-MM-DDThh:mm[:ss[.sss]][Z|±hh:mm]
+// Timezone offset matches the FHIR R4 spec: hours 00-13 with minutes 00-59,
+// or exactly 14:00 (https://hl7.org/fhir/R4/datatypes.html#dateTime).
 const FHIR_DATE_TIME_RE =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?$/;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))?$/;
 
 /**
  * Human-readable rendering of a FHIR `date` / `dateTime` / `instant` value.
