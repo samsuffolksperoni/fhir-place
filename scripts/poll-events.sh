@@ -26,6 +26,10 @@ STATE_FILE="$STATE_DIR/poll-events.json"
 LOG_DIR="${LOG_DIR:-$REPO_ROOT/logs}"
 POLL_INTERVAL_SECONDS="${POLL_INTERVAL_SECONDS:-60}"
 PHONE="${PHONE:-+15082827897}"
+# Cap on concurrent event drivers. 3 matches the README's collision
+# analysis ("3 concurrent claude --print sessions = MEDIUM risk"). Raise
+# only if the Max plan can absorb it.
+MAX_CONCURRENT="${POLL_EVENTS_MAX_CONCURRENT:-3}"
 
 export PATH="$HOME/Library/pnpm:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 export GITHUB_TOKEN="${GITHUB_TOKEN:-$(security find-generic-password -s github-pat-fhir-place -a "$USER" -w 2>/dev/null || true)}"
@@ -119,6 +123,16 @@ dispatch_async() {
   # double-runs; we just want the poll loop to stay responsive.
   local script="$1"
   shift
+  # Backpressure: never run more than MAX_CONCURRENT event drivers at
+  # once. Count by command pattern because we detach with ( ... & ),
+  # which hides the child from the parent shell's job table.
+  while :; do
+    local count
+    count=$(pgrep -f "$REPO_ROOT/scripts/local/event-" 2>/dev/null | wc -l | tr -d ' ')
+    [[ "$count" -lt "$MAX_CONCURRENT" ]] && break
+    echo "→ concurrency cap reached ($count/$MAX_CONCURRENT); waiting 2s"
+    sleep 2
+  done
   ( "$script" "$@" & ) >/dev/null 2>&1
   echo "→ dispatched: $script $*"
 }
@@ -145,9 +159,17 @@ poll_once() {
     --jq '[.[] | select(.pull_request == null) | {number, created_at, user: .user.login}]' \
     2>/dev/null || echo '[]')
   echo "$new_issues" | jq -c '.[]' | while read -r row; do
-    local num user
+    local num user created_at
     num=$(echo "$row" | jq -r '.number')
     user=$(echo "$row" | jq -r '.user')
+    created_at=$(echo "$row" | jq -r '.created_at')
+    # GitHub's /issues `since=` parameter filters by updated_at, not
+    # created_at — so an old issue with a fresh label change comes back
+    # looking like "new." Gate explicitly on created_at to avoid
+    # re-reviewing stale issues every time someone re-labels them.
+    if [[ ! "$created_at" > "$issues_since" ]]; then
+      continue
+    fi
     if issue_already_reviewed "$num"; then
       echo "skip issue-review #$num (already reviewed)"
       continue
