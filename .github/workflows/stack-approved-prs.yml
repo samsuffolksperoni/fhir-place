@@ -123,6 +123,7 @@ jobs:
       - name: Rebuild staging from main + approved PRs
         env:
           PRS: ${{ steps.prs.outputs.prs }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Reset staging to main HEAD. Any prior staging history is
           # discarded — this branch is a deploy artifact, not source of
