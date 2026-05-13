@@ -92,9 +92,17 @@ export async function resolveStructureDefinition(
   // 4. Last-resort: the bundled core SD for the base type. Unlike step 1 this
   // runs even when a profile/non-standard canonical was requested — the base
   // R4 schema is a far better outcome than a hard "could not resolve" error.
+  // We warn because the caller asked for a *profile* and is now getting base
+  // structure (no slicing / must-support context).
   if (options.useBundledFallback !== false && !canUseBundled) {
     const bundled = await coreStructureDefinition(type, signal);
-    if (bundled) return bundled;
+    if (bundled) {
+      console.warn(
+        `[fhir-place] Could not resolve StructureDefinition "${canonical}"; ` +
+          `falling back to the bundled base R4 schema for "${type}".`,
+      );
+      return bundled;
+    }
   }
 
   throw new Error(
