@@ -65,11 +65,19 @@ export function formatQuantity(q: Quantity | undefined): string {
   return `${comparator}${num}${unit ? ` ${unit}` : ""}`.trim();
 }
 
+// Build a local-time Date for the given Y-M-D without the `new Date(yy, …)`
+// 0–99 → 1900–1999 century remap (FHIR permits years 0001 through 9999).
+function localDate(y: number, mo: number, day: number): Date {
+  const d = new Date(2000, 0, 1);
+  d.setFullYear(y, mo - 1, day);
+  return d;
+}
+
 // True when `Y-M-D` denotes a real calendar day. `new Date` rolls overflow
 // parts forward (2021-02-31 → Mar 3), so we reject anything that doesn't
 // round-trip rather than silently render a different day.
 function isRealCalendarDay(y: number, mo: number, day: number): boolean {
-  const d = new Date(y, mo - 1, day);
+  const d = localDate(y, mo, day);
   return d.getFullYear() === y && d.getMonth() === mo - 1 && d.getDate() === day;
 }
 
@@ -97,7 +105,7 @@ export function formatDateTime(value: string | undefined): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [y, mo, day] = value.split("-").map(Number) as [number, number, number];
     if (!isRealCalendarDay(y, mo, day)) return value;
-    return new Date(y, mo - 1, day).toLocaleDateString(undefined, {
+    return localDate(y, mo, day).toLocaleDateString(undefined, {
       year: "numeric",
       month: "short",
       day: "numeric",

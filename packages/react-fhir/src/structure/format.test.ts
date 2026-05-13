@@ -157,6 +157,15 @@ describe("formatDateTime", () => {
     );
   });
 
+  it("does not remap low years (0001-0099) onto the 20th century", () => {
+    // `new Date(yy, …)` would map year 99 → 1999; the helper must not.
+    const low = formatDateTime("0099-12-31");
+    expect(low).not.toBe("0099-12-31");
+    expect(low).not.toMatch(/199\d/);
+    expect(low).toMatch(/\b99\b/);
+    expect(formatDateTime("0001-01-01")).not.toBe("0001-01-01");
+  });
+
   it("accepts real-world half- and quarter-hour offsets", () => {
     // India (+05:30), Nepal (+05:45), Chatham Islands (+12:45), and the
     // boundary +14:00 are all valid FHIR offsets.
