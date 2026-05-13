@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Daily PM triage at 07:00 ET. Install:
+
+    cp scripts/launchd/com.fhir-place.daily-pm-triage.plist ~/Library/LaunchAgents/
+    sed -i '' "s#__HOME__#$HOME#g" ~/Library/LaunchAgents/com.fhir-place.daily-pm-triage.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.fhir-place.daily-pm-triage.plist
+    launchctl kickstart -p gui/$(id -u)/com.fhir-place.daily-pm-triage  # one-off test
+
+  To temporarily pause every local runner at once:
+    touch ~/.fhir-place-pause
+
+  To resume:
+    rm ~/.fhir-place-pause
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.fhir-place.daily-pm-triage</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/src/fhir-place/scripts/local/daily-pm-triage.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>7</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>__HOME__/src/fhir-place</string>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/src/fhir-place/logs/launchd-daily-pm-triage.out</string>
+
+  <key>StandardErrorPath</key>
+  <string>__HOME__/src/fhir-place/logs/launchd-daily-pm-triage.err</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
