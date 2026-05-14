@@ -3,6 +3,10 @@ import {
   ResourceSearch,
   ResourceTable,
   SortPicker,
+  labelFromFhirPath,
+  mergeFhirPathColumns,
+  summaryColumnsFromStructureDefinition,
+  topLevelColumnsFromStructureDefinition,
   useFhirClient,
   useInfiniteSearch,
   useStructureDefinition,
@@ -65,24 +69,6 @@ const readLayout = (rt: string, scoped: boolean): Layout => {
   const v = window.localStorage.getItem(layoutKey(rt));
   if (v === "table" || v === "json") return v;
   return "table";
-};
-
-const labelFromPath = (path: string): string => {
-  const last = path.split(".").pop() ?? path;
-  return last
-    .replace(/\[\d+\]/g, "")
-    .replace(/\[x\]$/, "")
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (c) => c.toUpperCase())
-    .trim();
-};
-
-const summaryPathsFromStructure = (resourceType: string, paths: string[]): string[] => {
-  const prefix = `${resourceType}.`;
-  return paths
-    .filter((path) => path.startsWith(prefix) && path.split(".").length > 2)
-    .map((path) => path.slice(prefix.length))
-    .filter((path) => !path.includes(".extension") && !path.includes(".modifierExtension"));
 };
 
 const collectPaths = (value: unknown, prefix = "", out = new Set<string>()): Set<string> => {
@@ -193,27 +179,25 @@ export function ResourceListPage() {
   const totalAdvertised = data?.pages[0]?.total;
 
   const { data: structureDefinition } = useStructureDefinition(resourceType, {
-    enabled: !config && Boolean(resourceType),
+    enabled: Boolean(resourceType),
   });
 
   const derivedDefaults = useMemo(() => {
     if (config) return null;
-    const summary = summaryPathsFromStructure(
-      resourceType,
-      structureDefinition?.snapshot?.element
-        ?.filter((element) => element.isSummary)
-        .map((element) => element.path ?? "") ?? [],
-    );
+    const summary = summaryColumnsFromStructureDefinition(resourceType, structureDefinition);
     if (summary.length > 0) return summary.slice(0, 8);
     return ["status", "code.text", "subject.reference", "id"];
-  }, [config, resourceType, structureDefinition?.snapshot?.element]);
+  }, [config, resourceType, structureDefinition]);
 
   const tableColumns: ResourceListColumn[] = useMemo(() => {
-    if (config) return config.tableColumns;
+    const topLevelColumns = topLevelColumnsFromStructureDefinition(resourceType, structureDefinition);
+    if (config) return mergeFhirPathColumns(config.tableColumns, topLevelColumns);
     const fromRows = resources.flatMap((resource) => Array.from(collectPaths(resource)));
-    const unique = new Set<string>([...(derivedDefaults ?? []), ...fromRows]);
-    return Array.from(unique).map((path) => ({ path, label: labelFromPath(path) }));
-  }, [config, derivedDefaults, resources]);
+    const rowColumns = Array.from(new Set([...(derivedDefaults ?? []), ...fromRows])).map(
+      (path) => ({ path, label: labelFromFhirPath(path) }),
+    );
+    return mergeFhirPathColumns(topLevelColumns, rowColumns);
+  }, [config, derivedDefaults, resourceType, resources, structureDefinition]);
 
   const defaultVisibleColumns = useMemo(
     () => config?.defaultVisibleColumns ?? derivedDefaults ?? [],
@@ -552,7 +536,9 @@ export function ResourceListPage() {
             <ResourceTable<Resource>
               resources={resources}
               columns={tableColumns.map((c) => c.path).filter((p) => columns.includes(p))}
-              columnLabels={Object.fromEntries(tableColumns.map((c) => [c.path, c.label]))}
+              columnLabels={Object.fromEntries(
+                tableColumns.map((c) => [c.path, c.label ?? labelFromFhirPath(c.path)]),
+              )}
               cellRenderers={
                 resourceType === "Patient"
                   ? {
