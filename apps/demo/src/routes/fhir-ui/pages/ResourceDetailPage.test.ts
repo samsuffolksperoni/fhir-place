@@ -48,6 +48,21 @@ describe("colorJson", () => {
     );
   });
 
+  it("does not mangle colons or digits inside a string value (timestamps)", () => {
+    const line = '    "lastUpdated": "2021-04-06T03:01:38.604-04:00",';
+    const out = colorJson(line);
+    // The timestamp must survive verbatim — no stray "': '" inserted after
+    // the inner colons by the number/boolean colouriser.
+    expect(out).toContain("2021-04-06T03:01:38.604-04:00");
+    expect(out).not.toContain("T03: 01");
+    // Still styled: the key is wrapped, and the value is wrapped as a string
+    // (not split into numeric chunks).
+    expect(out).toContain('style="color:var(--accent-text)">"lastUpdated"');
+    expect(out).toContain(
+      'style="color:var(--success)">"2021-04-06T03:01:38.604-04:00"',
+    );
+  });
+
   it("leaves safe lines untouched aside from token spans", () => {
     const out = colorJson('{');
     // Bare punctuation has no JSON tokens to wrap; it should round-trip.

@@ -3,6 +3,7 @@ import {
   formatAddress,
   formatCodeableConcept,
   formatCoding,
+  formatDateTime,
   formatHumanName,
   formatPeriod,
   formatQuantity,
@@ -110,12 +111,90 @@ describe("formatQuantity", () => {
   });
 });
 
+describe("formatDateTime", () => {
+  it("returns year and year-month partial dates verbatim", () => {
+    expect(formatDateTime("2019")).toBe("2019");
+    expect(formatDateTime("2019-09")).toBe("2019-09");
+  });
+
+  it("spells out a full calendar date without inventing a time", () => {
+    expect(formatDateTime("2019-09-07")).toBe("Sep 7, 2019");
+  });
+
+  it("renders a date-time with a time component", () => {
+    const out = formatDateTime("2019-09-07T17:39:34+00:00");
+    expect(out).not.toBe("2019-09-07T17:39:34+00:00");
+    expect(out).toContain("2019");
+    expect(out).toMatch(/\d:\d{2}/);
+  });
+
+  it("falls back to the raw string when unparseable", () => {
+    expect(formatDateTime("not-a-date")).toBe("not-a-date");
+    expect(formatDateTime(undefined)).toBe("");
+    expect(formatDateTime("")).toBe("");
+  });
+
+  it("does not normalise an out-of-range full date", () => {
+    expect(formatDateTime("2021-02-31")).toBe("2021-02-31");
+    expect(formatDateTime("2021-13-01")).toBe("2021-13-01");
+  });
+
+  it("does not normalise an out-of-range date-time", () => {
+    expect(formatDateTime("2021-02-31T00:00:00Z")).toBe("2021-02-31T00:00:00Z");
+    expect(formatDateTime("2021-04-06T25:01:00Z")).toBe("2021-04-06T25:01:00Z");
+  });
+
+  it("requires seconds and a timezone offset on FHIR date-times", () => {
+    // Per FHIR R4: when a time is present, seconds + tz are required.
+    expect(formatDateTime("2021-01-01T09:30")).toBe("2021-01-01T09:30");
+    expect(formatDateTime("2021-01-01T09:30:00")).toBe("2021-01-01T09:30:00");
+    expect(formatDateTime("2021-01-01T09:30Z")).toBe("2021-01-01T09:30Z");
+  });
+
+  it("rejects out-of-range timezone offsets", () => {
+    // Hour 14 only valid with :00 minutes; +14:30 is not a real FHIR offset.
+    expect(formatDateTime("2021-01-01T00:00:00+14:30")).toBe(
+      "2021-01-01T00:00:00+14:30",
+    );
+    expect(formatDateTime("2021-01-01T00:00:00+15:00")).toBe(
+      "2021-01-01T00:00:00+15:00",
+    );
+    expect(formatDateTime("2021-01-01T00:00:00+05:75")).toBe(
+      "2021-01-01T00:00:00+05:75",
+    );
+  });
+
+  it("rejects year 0000 and other out-of-range years", () => {
+    // FHIR date/dateTime years are 0001..9999.
+    expect(formatDateTime("0000-01-01")).toBe("0000-01-01");
+    expect(formatDateTime("0000-01-01T00:00:00Z")).toBe("0000-01-01T00:00:00Z");
+  });
+
+  it("does not remap low years (0001-0099) onto the 20th century", () => {
+    // `new Date(yy, …)` would map year 99 → 1999; the helper must not.
+    const low = formatDateTime("0099-12-31");
+    expect(low).not.toBe("0099-12-31");
+    expect(low).not.toMatch(/199\d/);
+    expect(low).toMatch(/\b99\b/);
+    expect(formatDateTime("0001-01-01")).not.toBe("0001-01-01");
+  });
+
+  it("accepts real-world half- and quarter-hour offsets", () => {
+    // India (+05:30), Nepal (+05:45), Chatham Islands (+12:45), and the
+    // boundary +14:00 are all valid FHIR offsets.
+    for (const tz of ["+05:30", "+05:45", "+12:45", "+14:00", "-09:30"]) {
+      const out = formatDateTime(`2021-01-01T00:00:00${tz}`);
+      expect(out).not.toBe(`2021-01-01T00:00:00${tz}`);
+    }
+  });
+});
+
 describe("formatPeriod", () => {
   it("renders start → end with ellipsis fallbacks", () => {
     expect(formatPeriod({ start: "2024-01-01", end: "2024-12-31" })).toBe(
-      "2024-01-01 → 2024-12-31",
+      "Jan 1, 2024 → Dec 31, 2024",
     );
-    expect(formatPeriod({ start: "2024-01-01" })).toBe("2024-01-01 → …");
+    expect(formatPeriod({ start: "2024-01-01" })).toBe("Jan 1, 2024 → …");
     expect(formatPeriod({})).toBe("… → …");
     expect(formatPeriod(undefined)).toBe("");
   });

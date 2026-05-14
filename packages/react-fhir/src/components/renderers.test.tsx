@@ -13,6 +13,7 @@ import {
   defaultTypeRenderers,
   preferredCoding,
 } from "./renderers.js";
+import { formatDateTime } from "../structure/format.js";
 
 // CodeChip uses useCodeLookup → useQuery, so every renderer that may emit a
 // chip needs to render inside a QueryClientProvider. Tests don't configure a
@@ -346,7 +347,10 @@ describe("Meta renderer", () => {
     const summary = container.querySelector("summary");
     expect(summary).not.toBeNull();
     expect(summary!.textContent).toContain("v1");
-    expect(summary!.textContent).toContain("2026-02-10T17:48:37.700+00:00");
+    expect(summary!.textContent).toContain(
+      formatDateTime("2026-02-10T17:48:37.700+00:00"),
+    );
+    expect(summary!.textContent).not.toContain("2026-02-10T17:48:37.700+00:00");
     expect(summary!.textContent).toContain("#wiWDxr1Jk1z1zMIZ");
   });
 

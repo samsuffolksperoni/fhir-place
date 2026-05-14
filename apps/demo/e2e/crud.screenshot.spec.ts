@@ -52,11 +52,11 @@ test.describe("CRUD flows", () => {
     // Navigated to the detail view of the newly created patient
     await expect(page.getByTestId("resource-view")).toBeVisible();
     // Scope to the rendered ResourceView; the JSON `<details>` block
-    // also includes "1936-08-17" verbatim, which would trip strict-mode
-    // duplicate matching against the formatted `<time>` cell.
+    // also includes "1936-08-17" verbatim, separate from the formatted
+    // `<time>` cell rendered in the structured view.
     const view = page.getByTestId("resource-view");
     await expect(view.getByText("Margaret Hamilton")).toBeVisible();
-    await expect(view.getByText("1936-08-17")).toBeVisible();
+    await expect(view.getByText("Aug 17, 1936")).toBeVisible();
 
     await page.screenshot({
       path: "../../screenshots/07-created-patient.png",
