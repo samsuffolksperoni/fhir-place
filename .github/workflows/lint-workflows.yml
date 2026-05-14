@@ -63,17 +63,15 @@ jobs:
       #                            source that local-reporter doesn't
       #                            have, which makes the action error
       #                            with "diff command is empty".
-      #   fail_on_error: true    — exit non-zero on any finding so the
-      #                            workflow fails (instead of just
-      #                            warning silently — the whole point of
-      #                            this PR).
+      #   fail_level: error      — exit non-zero on error-severity
+      #                            findings (the modern replacement for
+      #                            the deprecated fail_on_error input).
       - name: actionlint
         uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1.72.0
         with:
           fail_level: error
           reporter: local
           filter_mode: nofilter
-          fail_on_error: true
           # Ignore two pre-existing findings that this PR intentionally
           # does not fix (the scope is the lint gate, not workflow
           # cleanup). Each one has a follow-up tracked in the PR body.
