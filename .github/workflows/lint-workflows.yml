@@ -1,0 +1,69 @@
+# Lints the workflows themselves. Runs on every PR that touches
+# `.github/workflows/**` and on push to main. Two checks:
+#
+#   1. actionlint — community-standard syntax and shellcheck pass over
+#      every workflow file. Pinned to a release SHA so a moving tag
+#      cannot silently change behavior.
+#   2. lint-workflow-permissions — repo-specific custom lint that asserts
+#      `permissions:` and `env:` declarations match each step's shell
+#      content. Written after PRs #545 and #517 silently 403'd on
+#      missing `pull-requests: write` and missing `GH_TOKEN`.
+#
+# Read-only — no contents/issues/pull-requests writes. If either check
+# returns non-zero, the job fails.
+
+name: Lint workflows
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/lint-workflow-permissions.mjs'
+      - 'scripts/lint-workflow-permissions.test.mjs'
+      - '.github/workflows/lint-workflows.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/lint-workflow-permissions.mjs'
+      - 'scripts/lint-workflow-permissions.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-workflows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # actionlint — community-maintained workflow + shellcheck linter.
+      # Pinned to the v1.72.0 release commit SHA so a tag move cannot
+      # smuggle in a behaviour change. Bump intentionally via PR.
+      - name: actionlint
+        uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1.72.0
+        with:
+          fail_level: error
+          # Default reporter is github-pr-check, which requires
+          # `checks: write`. Switch to local — surfaces findings in the
+          # job log without granting any write scope.
+          reporter: local
+
+      - name: Run lint-workflow-permissions self-tests
+        run: node --test scripts/lint-workflow-permissions.test.mjs
+
+      - name: Lint workflow permissions + env
+        run: node scripts/lint-workflow-permissions.mjs .github/workflows
