@@ -36,7 +36,9 @@ in the wrong state until a human notices.
    for every PR/issue write. The MCP server is only configured inside
    the workflow runner. After we moved the walker to a local launchd
    schedule, it began bailing each hour ("can't run cleanly without
-   MCP"). Cron is alive, producing no work.
+   MCP"). Cron is alive, producing no work. Resolution: migrate the
+   prompt to `gh` (see Decision below); `scripts/sync-labels.mjs` and
+   `scripts/staging/transition-uat-label.mjs` are the prior art.
 
 Common root: the machinery that builds and validates code has no
 machinery built and validating it. The blast radius is wide:
@@ -75,17 +77,23 @@ one.
 
 ### Layer 3: end-to-end smoke against a test-PR fixture
 
-A nightly workflow that:
+Two variants:
 
-1. Opens a throwaway PR against a sacrificial branch in this repo.
-2. Approves it via a bot identity.
-3. Asserts the expected label transitions land within N seconds and
-   that `staging` includes the PR's head.
-4. Closes the PR, cleans up.
+**3a. Local sim (per-PR, cheap).** A script that drives the SDLC
+state transitions sequentially via `gh` against a sacrificial PR, then
+invokes the extracted `scripts/sdlc/` and `scripts/staging/` modules
+in the order the workflow would. No webhook wait, no run minutes,
+cleans its own fixtures. Runs on every PR touching
+`.github/workflows/`. Catches state-machine bugs in seconds.
 
-This is the only layer that catches the "PR-ref carries a stale
-workflow" class of bug, since the failure is structural to GitHub's
-event model and only visible end-to-end.
+**3b. Nightly fixture (real event delivery).** Opens a throwaway PR,
+approves via a bot identity, asserts label transitions and `staging`
+inclusion within N seconds, cleans up. Only layer that catches bug #3
+(stale workflow on PR ref); 3a does not.
+
+Tradeoff: 3a is fast and free; 3b is slow, costs minutes, adds moving
+parts. Ship 3a first; treat 3b as a nightly safety net.
+**Judgment call:** if 3a holds and bug #3 stays rare, drop 3b.
 
 ### What we are not doing in this ADR
 
@@ -95,9 +103,11 @@ event model and only visible end-to-end.
   "move state out of labels." A proper state machine is its own
   decision with its own ADR if labels prove insufficient.
 - **No prompt-engine abstraction for the MCP-vs-`gh` coupling.**
-  The fix for bug #5 is to pick one: either configure MCP in the
-  local launchd plist, or rewrite the prompt to use `gh` everywhere.
-  Both are small; one of them ships, in a follow-up issue.
+  Decision: `gh` everywhere. `scripts/sync-labels.mjs` and
+  `scripts/staging/transition-uat-label.mjs` already follow this
+  pattern and have worked well. Bug #5 closes by migrating
+  `hourly-uat-validation.md` and any remaining `mcp__github__*` call
+  sites in `docs/prompts/` to `gh`. Tracked in #575.
 - **No "test every workflow" mandate.** Cover the five workflows
   that touch labels or `staging`. The other 17 are read-only or
   diagnostic; they fail loudly enough.
@@ -113,6 +123,12 @@ Positive:
   pipeline test. The pipeline tests itself.
 - Future workflow changes get a fast feedback loop. Iteration speed
   on the SDLC machinery goes up, not down.
+- The layer-2 extracts under `scripts/sdlc/` and the custom
+  permission/silent-failure lint from layer 1 are runtime-agnostic by
+  construction. They run the same under GitHub Actions, local
+  launchd, a webhook-driven server, or a cloud instance. That falls
+  out of the design rather than being a separate goal, but it matters
+  for where the runtime is heading (see "Out of scope / future").
 
 Negative:
 
@@ -136,6 +152,58 @@ Out of scope / future:
   blob on the PR or into a side table.
 - A reusable lint for the silent-failure idiom may want to live as a
   published action so other repos can adopt it. Out of scope here.
+- **Runtime is going to shift.** Today the SDLC automation runs in two
+  places: GitHub Actions for some workflows, and macOS launchd locally
+  for engineer dispatch, pr-fixup, and the UAT walker (moved off GHA
+  this week so the local Claude Max OAuth subscription bills instead
+  of an API key). Directionally we expect: GitHub webhooks delivered
+  to a server we own, initially still on the local machine driving
+  tmux, eventually on cloud instances. The hardening here is
+  deliberately friendly to that path. Tests assert behavior of the
+  extracted scripts, not the surrounding runner; scripts are
+  invokable from cron, launchd, a GHA step, or a webhook handler
+  without modification. Concrete principle: **prompts and scripts
+  must be invokable as standalone executables.** They cannot assume a
+  surrounding GHA environment with `mcp__github__*` tools wired up,
+  cannot assume `GITHUB_TOKEN` is auto-injected, and cannot assume a
+  specific working directory. Bug #5 is the cautionary example: a
+  prompt written against `mcp__github__*` that bailed silently the
+  moment its runtime changed. New prompts and scripts should use
+  `gh` (or an equivalent runtime-agnostic client) and read their
+  config from explicit env vars or flags.
+- **Multi-runtime, multi-model.** We use both Codex (OpenAI) and
+  Claude as agent runtimes and will continue to. Prompts and the
+  scripts that invoke them should not assume one model or one CLI.
+  Where a script shells out to an agent, the binary and any
+  model-specific flags belong in env vars or a config file, not
+  hardcoded.
+
+## GitHub-side configuration as code
+
+Future direction. Layers 1-3 ship first.
+
+Pipeline behavior also lives in GitHub's UI: branch protection /
+rulesets on `main` and `staging`, the project board, repo settings,
+merge queue. Drift there is invisible to everything in this ADR.
+
+Already in repo: `CODEOWNERS` and the label set
+(`scripts/sync-labels.mjs`). The rest is UI-configured.
+
+Patterns: (1) Terraform `integrations/github` provider, strongest
+drift detection, overkill for one repo; (2) `safe-settings` (GitHub's
+Probot-based app, reconciles `.github/settings.yml` on a schedule);
+(3) the original Probot Settings app, same shape but stale.
+
+**Judgment call:** option 2. Covers branch protection, labels, and
+most repo settings; reads YAML from the repo; one app to install.
+
+Realistic scope: in - branch protection, rulesets, repo settings,
+merge queue, label set; maybe - project board fields (ProjectV2 API
+works but is awkward); out - project board automations (replace with
+workflow adds or accept drift).
+
+Tracked as a follow-up: research first (survey + recommendation),
+prototype only if obvious.
 
 ## Follow-ups
 
