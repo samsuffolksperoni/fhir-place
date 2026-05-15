@@ -252,6 +252,26 @@ force-pushes; never targets a branch other than the PR head.
 The "needs-human" exit is taken whenever a conflict is in a binary
 file, generated file, or a lock-file hunk that differs semantically.
 
+### Staging stack agent resolver
+
+- **Workflow:** [`staging-stack-agent.yml`](../../.github/workflows/staging-stack-agent.yml)
+- **Prompt:** [`staging-stack-resolve-conflicts.md`](../prompts/staging-stack-resolve-conflicts.md)
+- **Trigger:** `workflow_dispatch` from `stack-approved-prs.yml` when an
+  approved PR conflicts with the current staging stack.
+- **Concurrency group:** `staging-stack-agent`
+
+The normal stacker still handles clean merges. When a conflict appears, it
+comments on the PR, dispatches this resolver, and defers the staging push. The
+resolver rebuilds `staging` from `origin/main` plus the approved PRs in
+PR-number order, resolves hand-authored conflicts directly in the staging
+artifact when the combined intent is clear, runs targeted verification, and
+pushes `staging` with `--force-with-lease`.
+
+The resolver does **not** push to PR branches. Its job is to produce the live
+UAT integration artifact. If the conflict is binary, generated, semantically
+ambiguous, or needs a product decision, it leaves that PR out of the staging
+artifact and escalates to `@danielsperoni` with the files that need judgment.
+
 ## Pages deploy — the deploy lane
 
 - **Workflow:** [`pages.yml`](../../.github/workflows/pages.yml)

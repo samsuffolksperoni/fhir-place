@@ -1,0 +1,73 @@
+# Rebuilds staging with agent judgment when the clean-merge stacker hits a
+# merge conflict between approved PRs.
+
+name: Staging stack agent resolver
+
+on:
+  workflow_dispatch:
+    inputs:
+      conflict_pr:
+        description: "PR number that first conflicted in stack-approved-prs.yml"
+        required: true
+      conflict_sha:
+        description: "Head SHA of the conflicted PR when the resolver was dispatched"
+        required: true
+
+permissions:
+  contents: write       # force-push staging
+  issues: write         # escalation and status comments on PRs
+  pull-requests: write  # read PR state and update UAT labels
+  id-token: write       # required by claude-code-action@v1
+
+concurrency:
+  group: staging-stack-agent
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve staging stack conflicts with Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            The clean-merge staging stacker hit a merge conflict.
+
+            Context:
+            - Conflicted PR: #${{ inputs.conflict_pr }}
+            - Conflicted PR head SHA at dispatch: ${{ inputs.conflict_sha }}
+            - Working directory is checked out on `main` with full git history.
+            - Your output branch is `staging`, which is a deploy artifact.
+            - Do not push to any PR branch, `main`, or `gh-pages`.
+
+            Read `docs/prompts/staging-stack-resolve-conflicts.md` and execute
+            the instructions in it. Do not modify the prompt file itself.
+          claude_args: "--max-turns 200 --allowedTools Read,Edit,Write,Bash,Grep,Glob,mcp__github__* --disallowedTools AskUserQuestion,ExitPlanMode"
+          show_full_output: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
