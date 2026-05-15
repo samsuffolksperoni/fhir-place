@@ -90,10 +90,16 @@ Sequence per run:
 2. **Flag stale bot PRs.** Any `bot/*` PR with no human review in 7+
    days gets a `@codeowner` mention and the linked issue gets
    `status: needs-human`.
-3. **Compute the ready queue.** A "ready" issue has exactly one `type:`,
-   ≥1 `area:`, exactly one `priority:`; no `status: blocked /
-   needs-triage / in-progress / needs-human`; no assignees; all listed
-   blockers closed. Sort by priority then created_at; take the top 3.
+3. **Compute the ready queue.** Target model: pull from the
+   [fhir-place project board](https://github.com/orgs/danielsperoniteam/projects/1)
+   scoped to the current sprint iteration, sorted by Priority
+   (`P0` → `P1` → `P2` → `P3`). **PENDING — requires `read:project`
+   token scope** (see [tracking issue #436](https://github.com/danielsperoniteam/fhir-place/issues/436));
+   until that lands, the dispatcher uses the label-only fallback: a
+   "ready" issue has exactly one `type:`, ≥1 `area:`, exactly one
+   `priority:`; no `status: blocked / needs-triage / in-progress /
+   needs-human`; no assignees; all listed blockers closed. Sort by
+   priority (`P0` first) then `created_at`; take the top 3.
 4. **Claim and dispatch — sequentially, never in parallel.** For each
    issue: add `status: in-progress` (the lock), comment the picked-up
    notice, invoke the `engineer` subagent in worktree isolation,

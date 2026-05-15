@@ -1,0 +1,57 @@
+# PR-mode fixup dispatcher. Sibling of hourly-engineer-dispatch.yml
+# that picks **existing** stalled bot PRs (red CI or unresolved review
+# threads) rather than fresh backlog issues.
+#
+# Closes SDLC gap #4 from PR #479: the issue-mode dispatcher only ever
+# opens new PRs; nothing kept existing ones moving.
+
+name: PR fixup dispatch
+
+on:
+  schedule:
+    # Twice daily at 09:30 and 14:30 ET — offset 30 minutes from the
+    # issue-mode dispatcher's 09:00/14:00 to let it finish first.
+    # 13:30 UTC = 08:30 EST / 09:30 EDT; 18:30 UTC = 13:30 EST / 14:30 EDT.
+    - cron: "30 13 * * *"
+    - cron: "30 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write       # push to existing bot/* branches
+  issues: write         # labels + comments
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: pr-fixup-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run Claude Code with the fixup-dispatch prompt
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Read the file at docs/prompts/pr-fixup-dispatch.md and execute
+            the instructions in it. Do not modify the prompt file itself.
+            The MCP github tools are configured; the `engineer` subagent
+            and the `docs/prompts/address-comments.md` prompt are both
+            available.
+          claude_args: "--max-turns 250 --allowedTools Read,Edit,Write,Bash,Grep,Glob,Agent,mcp__github__* --disallowedTools AskUserQuestion,ExitPlanMode"
+          show_full_output: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

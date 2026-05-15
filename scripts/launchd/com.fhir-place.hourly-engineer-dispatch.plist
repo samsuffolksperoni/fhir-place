@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Engineer dispatch at 09:00 and 14:00 ET (twice daily).
+
+  Despite the file's "hourly" name (kept for path compatibility with the
+  existing dispatch-engineer.sh shim and the docs/prompts/ filename),
+  the plist fires twice a day while we get comfortable with the local
+  drivers. Move back to hourly by replacing the StartCalendarInterval
+  array below with a single `<dict><key>Minute</key><integer>30</integer></dict>`
+  once Daniel signs off.
+
+  Runs AFTER the pr-fixup dispatcher in each window (pr-fixup at 09:00 /
+  14:00, this at 09:30 / 14:30) so fixes to existing PRs get prioritized
+  over pulling new work from the backlog. The 30-min stagger also keeps
+  the two off the same Claude Max OAuth session simultaneously.
+
+  See com.fhir-place.daily-pm-triage.plist for install steps.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.fhir-place.hourly-engineer-dispatch</string>
+  <key>ProgramArguments</key><array><string>__HOME__/src/fhir-place/scripts/local/engineer-dispatch.sh</string></array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict>
+      <key>Hour</key><integer>9</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+    <dict>
+      <key>Hour</key><integer>14</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+  </array>
+  <key>WorkingDirectory</key><string>__HOME__/src/fhir-place</string>
+  <key>StandardOutPath</key><string>__HOME__/src/fhir-place/logs/launchd-engineer-dispatch.out</string>
+  <key>StandardErrorPath</key><string>__HOME__/src/fhir-place/logs/launchd-engineer-dispatch.err</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>

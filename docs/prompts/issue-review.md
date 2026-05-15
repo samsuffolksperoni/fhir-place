@@ -61,8 +61,8 @@ or PR. Do not change labels — the daily PM triage owns labeling.
    - **What to cut** — the seductive scope that doesn't pay rent.
    - **Open questions** — discovery items, plus the cheapest way to
      answer each.
-   - **Prioritization signal** — your read on `priority:` (high /
-     medium / low) and why. Do **not** apply the label; the daily PM
+   - **Prioritization signal** — your read on `priority:` (`P0` / `P1`
+     / `P2` / `P3`) and why. Do **not** apply the label; the daily PM
      triage handles labels.
 
    Hard caps for the subagent: 250 words, no file edits, no branches,

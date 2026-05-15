@@ -43,10 +43,26 @@ VITE_USE_MOCK=false VITE_FHIR_BASE_URL=http://localhost:8080/fhir pnpm dev
    Pick the bump (`patch` / `minor` / `major`) and describe the change in human terms. Commit the generated `.changeset/*.md` alongside your code.
 4. Open the PR. CI runs typecheck + tests + build. The release workflow automatically opens / updates a "Version Packages" PR that bumps versions + CHANGELOG when your PR lands; merging that second PR triggers a fresh npm publish.
 
+> **Note:** `release.yml` is currently disabled (renamed to `release.yml.disabled`) until npm publishing is set up. The flow described above and the warning below apply once it's re-enabled — pending changesets accumulate in `.changeset/*.md` in the meantime and are not lost. To re-enable: flip the org-level "Allow GitHub Actions to create and approve pull requests" setting, populate the `NPM_TOKEN` repo secret, and rename the workflow back.
+
+> **Do not manually create a "chore: release" PR.** The `changesets/action` manages that PR itself (pushing to `changeset-release/main` and opening a bot-owned PR). A human-authored PR targeting `main` from any other branch with the same title causes the action to fail when it tries to update the conflicting PR. If the Release workflow shows a red check on `main` and the only step that failed is the `changesets/action`, look for an open PR titled "chore: release" that was not created by `github-actions[bot]` — closing it unblocks the workflow.
+
 ## Staging deploys
 
-A long-lived `staging` branch deploys alongside `main` so we can confirm
-several PRs work together before they hit production.
+The `staging` branch is a continuously-rebuilt deploy target:
+
+```
+staging = origin/main + every open PR with reviewDecision == APPROVED
+```
+
+Stacking is automatic — when a PR receives an approving CODEOWNER
+review, the [`stack-approved-prs.yml`](.github/workflows/stack-approved-prs.yml)
+workflow resets staging to main HEAD, merges every approved-and-open
+PR's head in order, and force-pushes. `pages.yml` redeploys
+`/staging/` with the new tip. Staging has no branch protection — it's
+a deploy artifact, not a source-of-truth branch.
+
+URLs:
 
 - `main` is published at <https://danielsperoniteam.github.io/fhir-place/>
   (goals-tasks at `/fhir-place/goals/`).
@@ -55,35 +71,29 @@ several PRs work together before they hit production.
 
 **Flow:**
 
-1. Open every PR — human or agent — with `base: main`. The PR diff is
-   reviewed against main; merging to main is the final step.
-2. **Promote the PR branch to `staging` before review.** Agents do this
-   automatically (see `.claude/agents/engineer.md` step 11). Humans
-   should do it by hand:
-   ```bash
-   git fetch origin staging
-   git checkout -B staging-promote origin/staging
-   git merge --no-ff --no-edit <your-branch>
-   git push origin staging-promote:staging
-   ```
-   The push to `staging` must be fast-forward or a no-ff merge —
-   never force-push. If it conflicts, resolve on staging by hand or
-   leave staging alone and note it on the PR.
-3. The Pages workflow rebuilds both branches on every push; wait for
-   the staging build to be green before declaring a change ready for
-   UAT.
-4. Walk the PR's **UAT on live staging** steps against the live
-   `/fhir-place/staging/` URL. If anything is off, fix on a follow-up
-   PR and re-promote.
-5. When UAT passes, merge the PR to `main`. The change is already on
-   staging from step 2, so /staging/ stays in sync; periodically
-   fast-forward `staging` back to `main` once the queue of in-flight
-   PRs has drained, to keep the two branches from diverging long-term.
+1. Open every PR — human or agent — with `base: main`.
+2. Get CODEOWNER approval. On approval, `stack-approved-prs.yml`
+   rebuilds staging automatically (you don't push to staging
+   yourself).
+3. Walk the PR's **UAT on live staging** steps against the live
+   `/staging/` URL. If anything is off, push a fix to the PR
+   branch — staging rebuilds on the next event (push, approval, or
+   close).
+4. When UAT passes, merge the PR to `main`. The next staging
+   rebuild excludes it (it's on main now, no longer "approved
+   and open").
 
-**Agents always promote to staging themselves.** See
-`.claude/agents/engineer.md` and `AGENTS.md`. Every agent-authored PR
-must include a UAT section with concrete copy-pasteable steps for the
-live staging URL.
+**Direct-to-main commits** trigger a staging rebuild from the new
+main HEAD automatically (the workflow fires on `push: main`). No
+separate sync step needed — every rebuild starts from main HEAD, so
+drift is impossible.
+
+**Agents never push to staging.** Engineer subagents only push to
+their `bot/*` branches; staging is owned by `stack-approved-prs.yml`
+and force-rebuilt from scratch on every relevant event. See
+`.claude/agents/engineer.md` and `AGENTS.md`. Every agent-authored
+PR must include a UAT section with concrete copy-pasteable steps for
+the live staging URL.
 
 ## Bump conventions
 
@@ -133,7 +143,7 @@ GitHub Issues are the canonical backlog (see `docs/decisions/0001-use-github-iss
 | --- | --- | --- | --- |
 | `type:` | exactly one | `bug`, `feature`, `tech-debt`, `docs`, `spike`, `epic` | What kind of work this is. `epic` = tracker for sub-issues. `spike` = time-boxed exploration. |
 | `area:` | one or more | `fhir-explorer`, `react-fhir`, `workbench`, `cql`, `mcp`, `infra`, `auth`, `security` | Which part of the codebase is touched. `fhir-explorer` is the demo app at `apps/demo/` (legacy names: "demo", "fhir-ui", "live-monitor"). `react-fhir` is the published library at `packages/react-fhir/`. |
-| `priority:` | exactly one | `high`, `medium`, `low` | Triage signal. Bugs default to `high`. Spikes / nice-to-haves default to `low`. Default `medium`. |
+| `priority:` | exactly one | `P0`, `P1`, `P2`, `P3` | Triage signal. Bugs default to `P0`. Spikes / nice-to-haves default to `P2`. `P3` is the explicit-deferral bucket — out of current sprint, "someday" — not the same as no priority. Default `P1`. |
 | `status:` | optional | `blocked`, `needs-triage`, `in-progress`, `needs-human`, `agent-paused` | Workflow state. Use sparingly. `in-progress` / `needs-human` are bot-managed by the engineer-dispatch routine; `agent-paused` on the dispatch tracking issue is the kill switch. |
 | `origin:` | optional | `bot-filed` | Filed by automation (e.g. `live-site-monitor.yml`). |
 | `phase-N` | optional | `phase-0`..`phase-3`, `fhir-workbench-phase-a` | Multi-phase epic tracking. Keep as plain (no prefix) for grep-ability. |

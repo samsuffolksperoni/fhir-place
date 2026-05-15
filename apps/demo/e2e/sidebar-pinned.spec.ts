@@ -66,6 +66,12 @@ test.describe("Sidebar Pinned section", () => {
     await expect(page.getByTestId("pinned-empty-state")).toBeVisible();
   });
 
+  test("topbar does not expose an inert History action", async ({ page }) => {
+    await expect(page.getByTestId("topbar-actions")).not.toContainText(
+      "History",
+    );
+  });
+
   test("clicking a pinned row navigates to its route", async ({ page }) => {
     await page.goto("/fhir-ui/Observation");
     await page.getByTestId("topbar-pin").click();
@@ -78,6 +84,21 @@ test.describe("Sidebar Pinned section", () => {
     // The row is keyed by a generated id, so locate it by its label text
     // inside the pinned section instead of guessing the id.
     await section.getByText("Observation", { exact: true }).click();
+    await expect(page).toHaveURL(/\/fhir-ui\/Observation$/);
+  });
+
+  test("pinned rows are keyboard-focusable links", async ({ page }) => {
+    await page.goto("/fhir-ui/Observation");
+    await page.getByTestId("topbar-pin").click();
+
+    await page.goto("/fhir-ui/Patient");
+    const pinnedRow = page.getByTestId(/^pinned-row-/);
+    await expect(pinnedRow).toContainText("Observation");
+    await expect(pinnedRow).toHaveAttribute("href", /\/fhir-ui\/Observation$/);
+
+    await pinnedRow.focus();
+    await expect(pinnedRow).toBeFocused();
+    await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/fhir-ui\/Observation$/);
   });
 });

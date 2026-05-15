@@ -39,6 +39,14 @@ export interface ResourceListConfig<T extends Resource = Resource> {
   tableColumns: ResourceListColumn[];
   /** Column subset shown by default. */
   defaultVisibleColumns: string[];
+  /**
+   * Default-visible subset for the detail-page Fields picker. When omitted
+   * the picker shows every top-level element walked from the StructureDefinition.
+   * Used today only by Patient since detail-page field-pickers are
+   * Patient-only; the option is part of `ResourceListConfig` so other
+   * detail pickers (added later) inherit the same shape.
+   */
+  defaultDetailFields?: string[];
   /** Optional list-view title. When omitted the type only renders in table view. */
   formatPrimary?: (resource: T) => string;
   /** Optional list-view metadata items rendered after the title. */
@@ -217,6 +225,23 @@ const PATIENT: ResourceListConfig<Patient> = {
     { path: "language", label: "Language" },
   ],
   defaultVisibleColumns: ["name", "gender", "birthDate", "address.city", "id", "__counts"],
+  // Curated default for the detail-page Fields picker. Mirrors the
+  // pre-full-SD-walk default — the dozen-or-so elements a clinician scans
+  // first. Power users reach the long tail (extensions, contact details,
+  // link, photo, multipleBirth variants) via the picker's filter input.
+  defaultDetailFields: [
+    "identifier",
+    "active",
+    "name",
+    "telecom",
+    "gender",
+    "birthDate",
+    "address",
+    "maritalStatus",
+    "communication",
+    "generalPractitioner",
+    "managingOrganization",
+  ],
   formatPrimary: formatPatientName,
   formatMeta: (p) => [p.gender, p.birthDate],
 };
@@ -231,11 +256,13 @@ const OBSERVATION: ResourceListConfig<Observation> = {
     { path: "category", label: "Category" },
     { path: "subject.reference", label: "Subject" },
     { path: "effectiveDateTime", label: "Observed" },
-    { path: "valueQuantity", label: "Value" },
-    { path: "valueString", label: "Value (string)" },
+    // `value[x]` resolves the materialised choice variant per row
+    // (valueQuantity, valueCodeableConcept, valueString, valueBoolean, …)
+    // so the cell never silently blanks for the common non-Quantity types.
+    { path: "value[x]", label: "Value" },
     { path: "id", label: "ID" },
   ],
-  defaultVisibleColumns: ["status", "code", "effectiveDateTime", "valueQuantity"],
+  defaultVisibleColumns: ["status", "code", "effectiveDateTime", "value[x]"],
   formatPrimary: (o) => codeText(o.code) ?? "(no code)",
   formatMeta: (o) => [o.status, o.effectiveDateTime],
 };
@@ -249,11 +276,12 @@ const CONDITION: ResourceListConfig<Condition> = {
     { path: "code", label: "Condition" },
     { path: "category", label: "Category" },
     { path: "subject.reference", label: "Subject" },
-    { path: "onsetDateTime", label: "Onset" },
+    // `onset[x]` covers onsetDateTime, onsetAge, onsetPeriod, onsetRange, onsetString.
+    { path: "onset[x]", label: "Onset" },
     { path: "recordedDate", label: "Recorded" },
     { path: "id", label: "ID" },
   ],
-  defaultVisibleColumns: ["clinicalStatus", "code", "onsetDateTime"],
+  defaultVisibleColumns: ["clinicalStatus", "code", "onset[x]"],
   formatPrimary: (c) => codeText(c.code) ?? "(no code)",
   formatMeta: (c) => [codeText(c.clinicalStatus), c.onsetDateTime],
 };
@@ -265,12 +293,16 @@ const MEDICATION_REQUEST: ResourceListConfig<MedicationRequest> = {
   tableColumns: [
     { path: "status", label: "Status" },
     { path: "intent", label: "Intent" },
-    { path: "medicationCodeableConcept", label: "Medication" },
+    // `medication[x]` resolves both medicationCodeableConcept and
+    // medicationReference per row. Hard-pinning to medicationCodeableConcept
+    // hid the active medication for any reference-style order — wrong-medication
+    // risk for a clinician scanning the table (#372).
+    { path: "medication[x]", label: "Medication" },
     { path: "subject.reference", label: "Subject" },
     { path: "authoredOn", label: "Ordered" },
     { path: "id", label: "ID" },
   ],
-  defaultVisibleColumns: ["status", "medicationCodeableConcept", "authoredOn"],
+  defaultVisibleColumns: ["status", "medication[x]", "authoredOn"],
   formatPrimary: (r) =>
     codeText(r.medicationCodeableConcept) ?? r.medicationReference?.display ?? "(no medication)",
   formatMeta: (r) => [r.status, r.authoredOn],
@@ -303,10 +335,12 @@ const PROCEDURE: ResourceListConfig<Procedure> = {
     { path: "status", label: "Status" },
     { path: "code", label: "Procedure" },
     { path: "subject.reference", label: "Subject" },
-    { path: "performedDateTime", label: "Performed" },
+    // `performed[x]` covers performedDateTime, performedPeriod, performedString,
+    // performedAge, performedRange.
+    { path: "performed[x]", label: "Performed" },
     { path: "id", label: "ID" },
   ],
-  defaultVisibleColumns: ["status", "code", "performedDateTime"],
+  defaultVisibleColumns: ["status", "code", "performed[x]"],
   formatPrimary: (p) => codeText(p.code) ?? "(no code)",
   formatMeta: (p) => [p.status, p.performedDateTime],
 };
@@ -337,10 +371,11 @@ const IMMUNIZATION: ResourceListConfig<Immunization> = {
     { path: "status", label: "Status" },
     { path: "vaccineCode", label: "Vaccine" },
     { path: "patient.reference", label: "Patient" },
-    { path: "occurrenceDateTime", label: "Administered" },
+    // `occurrence[x]` covers occurrenceDateTime and occurrenceString.
+    { path: "occurrence[x]", label: "Administered" },
     { path: "id", label: "ID" },
   ],
-  defaultVisibleColumns: ["status", "vaccineCode", "occurrenceDateTime"],
+  defaultVisibleColumns: ["status", "vaccineCode", "occurrence[x]"],
   formatPrimary: (i) => codeText(i.vaccineCode) ?? "(no vaccine)",
   formatMeta: (i) => [i.status, i.occurrenceDateTime],
 };

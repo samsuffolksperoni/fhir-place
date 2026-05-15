@@ -180,6 +180,32 @@ export const saveActiveServerId = (id: string): void => {
   }
 };
 
+const FALLBACK_SERVER: ServerConfig = {
+  id: "builtin-smart",
+  label: "SMART Health IT (R4)",
+  baseUrl: "https://r4.smarthealthit.org",
+  authMode: "none",
+  builtin: true,
+};
+
+/**
+ * First-paint default when the user has not explicitly chosen a server.
+ *
+ * The hosted Pages build (https://danielsperoniteam.github.io/fhir-place/)
+ * must land on a server the browser can actually reach. SMART Health IT R4
+ * is the only built-in we control end-to-end for both CORS and Chrome's
+ * Private Network Access policy, so it is the safe default everywhere.
+ *
+ * Built-in ordering in `BUILTIN_SERVERS` is owned by the Settings UI (the
+ * picker shows them in that order). Pinning the default by id rather than
+ * "first in the array" decouples the two concerns so future reorders of
+ * the picker can't silently change which server new visitors land on.
+ *
+ * Persisted user choice (`fhir-place:active-server` in localStorage) still
+ * wins — this only controls what a brand-new visitor sees on cold load.
+ */
+export const DEFAULT_ACTIVE_SERVER_ID = "builtin-smart";
+
 export const resolveActiveServer = (): ServerConfig => {
   const servers = loadServers();
   const activeId = loadActiveServerId();
@@ -187,7 +213,9 @@ export const resolveActiveServer = (): ServerConfig => {
     const match = servers.find((s) => s.id === activeId);
     if (match?.baseUrl.trim()) return match;
   }
-  return servers.find((s) => s.baseUrl.trim()) ?? { ...DEFAULT_FHIR_SERVER };
+  const preferred = servers.find((s) => s.id === DEFAULT_ACTIVE_SERVER_ID);
+  if (preferred) return preferred;
+  return servers[0] ?? { ...FALLBACK_SERVER };
 };
 
 const normalizeBaseUrl = (url: string): string =>

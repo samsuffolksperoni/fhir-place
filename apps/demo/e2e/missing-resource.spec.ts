@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { patientStructureDefinition } from "../src/mocks/fixtures.js";
 
 /**
  * Regression for the deployed Patient detail page hanging on "Loading…"
@@ -56,6 +57,72 @@ test.describe("Missing resource detail page", () => {
       await expect(
         page.getByTestId("resource-error").getByRole("button", { name: /retry/i }),
       ).toBeVisible();
+    });
+  });
+});
+
+test.describe("Missing resource edit page", () => {
+  test("Patient/<unknown id>/edit shows a Not Found state, not a blank pane", async ({
+    page,
+  }) => {
+    await page.goto("/Patient/this-id-does-not-exist/edit");
+
+    await expect(page.getByTestId("resource-not-found")).toBeVisible({
+      timeout: 5_000,
+    });
+    await expect(page.getByTestId("resource-loading")).toHaveCount(0);
+    await expect(
+      page.getByTestId("resource-not-found").getByRole("link", { name: /all patients/i }),
+    ).toBeVisible();
+  });
+
+  test.describe("transient 5xx (no service worker)", () => {
+    test.use({ serviceWorkers: "block" });
+
+    test("surfaces an error with Retry and then renders the editor", async ({ page }) => {
+      let attempts = 0;
+      let allowSuccess = false;
+      await page.route(/\/fhir\/Patient\/p-edit-flaky$/, async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        attempts += 1;
+        if (!allowSuccess) {
+          await route.fulfill({
+            status: 503,
+            contentType: "application/fhir+json",
+            body: JSON.stringify({
+              resourceType: "OperationOutcome",
+              issue: [{ severity: "error", code: "transient", diagnostics: "upstream down" }],
+            }),
+          });
+          return;
+        }
+
+        await route.fulfill({
+          status: 200,
+          contentType: "application/fhir+json",
+          body: JSON.stringify({
+            resourceType: "Patient",
+            id: "p-edit-flaky",
+            name: [{ family: "Retry", given: ["Pat"] }],
+          }),
+        });
+      });
+      await page.route(/\/fhir\/StructureDefinition\/Patient$/, async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/fhir+json",
+          body: JSON.stringify(patientStructureDefinition),
+        });
+      });
+
+      await page.goto("/Patient/p-edit-flaky/edit");
+      await expect(page.getByTestId("resource-error")).toBeVisible({ timeout: 10_000 });
+      allowSuccess = true;
+      await page.getByTestId("resource-error").getByRole("button", { name: /retry/i }).click();
+
+      await expect(page.getByTestId("resource-editor")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("resource-error")).toHaveCount(0);
+      expect(attempts).toBeGreaterThanOrEqual(3);
     });
   });
 });
