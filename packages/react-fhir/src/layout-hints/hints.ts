@@ -188,7 +188,7 @@ const ALLERGY_INTOLERANCE: LayoutHint = {
     sections: [
       { title: "Subject", fields: ["patient", "encounter", "recorder", "asserter"] },
       { title: "Classification", fields: ["type", "category", "onsetDateTime", "recordedDate"] },
-      { title: "Reactions", fields: ["reaction", "note"] },
+      { title: "Notes", fields: ["note"] },
     ],
     collections: {
       reaction: { mode: "cards", cardTitle: "manifestation" },
