@@ -239,12 +239,14 @@ morning is whatever live-site-monitor filed at 06:30.
 - **Workflow:** [`pr-resolve-conflicts.yml`](../../.github/workflows/pr-resolve-conflicts.yml)
 - **Prompt:** [`pr-resolve-conflicts.md`](../prompts/pr-resolve-conflicts.md)
 - **Trigger:** an `issue_comment` of `/resolve-conflicts` on a PR, posted
-  by a user with `OWNER` / `MEMBER` / `COLLABORATOR` association.
+  by a user with `OWNER` / `MEMBER` / `COLLABORATOR` association, or
+  `workflow_dispatch` from `pr-fixup-dispatch.yml` when a bot PR is
+  blocked by merge conflicts.
 - **Concurrency group:** `pr-resolve-conflicts-${{ pr_number }}`
 
 Acknowledges the request, checks out the PR head with full history,
-runs `git merge origin/<base_ref>`, resolves hand-authored conflicts
-inline, regenerates `pnpm-lock.yaml` if needed, runs
+runs `git merge origin/<base_ref>` (usually `main`), resolves
+hand-authored conflicts inline, regenerates `pnpm-lock.yaml` if needed, runs
 `typecheck`/`test:run`/`demo typecheck` to verify the build, commits
 with a structured "Resolved files:" message, and pushes. Never
 force-pushes; never targets a branch other than the PR head.
