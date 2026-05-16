@@ -268,7 +268,7 @@ function Field({
     return (
       <Fragment>
         <Dt label={label} path={path} />
-        <dd className="space-y-2">
+        <div className="space-y-2">
           {items.map((_, i) => (
             <ArrayRow
               key={i}
@@ -295,7 +295,7 @@ function Field({
           >
             + Add {relative}
           </button>
-        </dd>
+        </div>
       </Fragment>
     );
   }
@@ -303,7 +303,7 @@ function Field({
   return (
     <Fragment>
       <Dt label={label} path={path} />
-      <dd>
+      <div>
         <SingleValueInput
           sd={sd}
           element={element}
@@ -314,7 +314,7 @@ function Field({
           pathInputs={pathInputs}
           setAt={setAt}
         />
-      </dd>
+      </div>
     </Fragment>
   );
 }
@@ -369,7 +369,7 @@ function ChoiceField({
   return (
     <Fragment>
       <Dt label={label} path={element.path!} />
-      <dd className="space-y-2">
+      <div className="space-y-2">
         <select
           data-testid={`choice-${base}`}
           className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
@@ -396,7 +396,7 @@ function ChoiceField({
             override={activeValue}
           />
         )}
-      </dd>
+      </div>
     </Fragment>
   );
 }
@@ -458,10 +458,13 @@ function SingleValueInput({
 }
 
 function Dt({ label, path }: { label: string; path: string }) {
+  // Plain <div>, not <dt>: the editor lays fields out with CSS grid, and the
+  // FieldGroup container is a <div>, not a <dl>. A <dt>/<dd> here is invalid
+  // HTML and nested FieldGroups would put <dt>/<dd> inside a parent <dd>.
   return (
-    <dt className="font-medium text-slate-600" title={path}>
+    <div className="font-medium text-slate-600" title={path}>
       {label}
-    </dt>
+    </div>
   );
 }
 
