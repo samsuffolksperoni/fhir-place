@@ -165,6 +165,61 @@ describe("ResourceEditor", () => {
     expect(screen.getByRole("button", { name: /saving/i })).toBeDisabled();
   });
 
+  it("blocks onSave and shows an inline warning when confirmOnSave returns a message and the confirm is declined", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    wrap(
+      <ResourceEditor
+        resource={emptyPatient}
+        structureDefinition={PatientStructureDefinition}
+        onSave={onSave}
+        confirmOnSave={() => "This Patient has no name or identifier."}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(screen.getByTestId("resource-editor-warning")).toHaveTextContent(
+      /no name or identifier/i,
+    );
+    expect(onSave).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("proceeds with onSave when confirmOnSave returns a message and the confirm is accepted", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    wrap(
+      <ResourceEditor
+        resource={emptyPatient}
+        structureDefinition={PatientStructureDefinition}
+        onSave={onSave}
+        confirmOnSave={() => "This Patient has no name or identifier."}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
+    confirmSpy.mockRestore();
+  });
+
+  it("saves without prompting when confirmOnSave returns null", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm");
+    wrap(
+      <ResourceEditor
+        resource={emptyPatient}
+        structureDefinition={PatientStructureDefinition}
+        onSave={onSave}
+        confirmOnSave={() => null}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
   it("uses the path-based override for Observation.dataAbsentReason instead of the generic CodeableConcept input", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

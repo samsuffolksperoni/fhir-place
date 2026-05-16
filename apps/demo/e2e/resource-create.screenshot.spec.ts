@@ -49,6 +49,37 @@ test.describe("Generic ResourceCreatePage", () => {
     await expect(page).toHaveURL(/\/fhir-ui\/Encounter$/);
   });
 
+  test("blocks an empty Patient: Save fires a confirm dialog and dismissing it stays on the form", async ({
+    page,
+  }) => {
+    await page.goto("/Patient/new");
+    const editor = page.getByTestId("resource-editor");
+    await expect(editor).toBeVisible();
+
+    // Dismiss the confirm dialog — the equivalent of clicking Cancel.
+    let dialogMessage = "";
+    page.once("dialog", (dialog) => {
+      dialogMessage = dialog.message();
+      void dialog.dismiss();
+    });
+
+    await editor.getByRole("button", { name: /create patient/i }).click();
+
+    // The confirm dialog must have fired with the anonymous-Patient warning.
+    expect(dialogMessage).toMatch(/no name or identifier/i);
+
+    // Dismissed → no POST, still on the create form, inline warning shown.
+    await expect(page).toHaveURL(/\/Patient\/new$/);
+    await expect(page.getByTestId("resource-editor-warning")).toContainText(
+      /no name or identifier/i,
+    );
+
+    await page.screenshot({
+      path: "../../screenshots/18-patient-empty-save-guard.png",
+      fullPage: true,
+    });
+  });
+
   test("falls back to the type name for unconfigured resource types", async ({ page }) => {
     // Goal isn't in the top-10 config, but the spec-driven editor still
     // renders against a minimal SD when one is served.
