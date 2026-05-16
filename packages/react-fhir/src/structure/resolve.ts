@@ -28,9 +28,14 @@ const canonicalFor = (type: string) =>
  *
  * Resolution order:
  *
- *   1. Bundled core SD (no profile + bundled copy available) — zero network.
+ *   1. Bundled core SD (canonical is the base type's + a bundled copy ships) —
+ *      zero network.
  *   2. Instance read at `StructureDefinition/{id}`.
  *   3. Search by canonical URL (`StructureDefinition?url=...`) — first hit.
+ *   4. Bundled core SD for the base type — last-resort safety net for the
+ *      cases step 1 skipped (a profile was requested, or the configured
+ *      fetcher was unavailable on the first pass). Rendering against the base
+ *      R4 schema beats a hard failure.
  *
  * Throws only when every step fails, with a message that names the type and
  * hints at the workaround (supplying an SD explicitly).
@@ -44,8 +49,12 @@ export async function resolveStructureDefinition(
   const canonical = options.canonical ?? options.profile ?? canonicalFor(type);
   const canonicalType = canonicalFor(type);
   const useProfile = Boolean(options.profile);
+  // The bundled-first shortcut applies whenever the canonical we're after is
+  // the base type's — including when a "profile" was passed that just echoes
+  // the base canonical (some servers stamp `meta.profile` with it). A real
+  // profile canonical fails this check and goes to the server, as it must.
   const canUseBundled =
-    options.useBundledFallback !== false && !useProfile && canonical === canonicalType;
+    options.useBundledFallback !== false && canonical === canonicalType;
 
   // 1. Bundled core SD (skip the server entirely for the common path).
   if (canUseBundled) {
@@ -78,6 +87,22 @@ export async function resolveStructureDefinition(
     if (hit) return hit;
   } catch (err) {
     if (!shouldFallback(err)) throw err;
+  }
+
+  // 4. Last-resort: the bundled core SD for the base type. Unlike step 1 this
+  // runs even when a profile/non-standard canonical was requested — the base
+  // R4 schema is a far better outcome than a hard "could not resolve" error.
+  // We warn because the caller asked for a *profile* and is now getting base
+  // structure (no slicing / must-support context).
+  if (options.useBundledFallback !== false && !canUseBundled) {
+    const bundled = await coreStructureDefinition(type, signal);
+    if (bundled) {
+      console.warn(
+        `[fhir-place] Could not resolve StructureDefinition "${canonical}"; ` +
+          `falling back to the bundled base R4 schema for "${type}".`,
+      );
+      return bundled;
+    }
   }
 
   throw new Error(

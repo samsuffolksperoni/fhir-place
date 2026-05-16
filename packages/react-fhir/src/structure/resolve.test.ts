@@ -197,6 +197,48 @@ describe("resolveStructureDefinition", () => {
     setCoreStructureDefinitionFetcher(async (type) => FIXTURES[type]);
   });
 
+  it("uses the bundled core SD when meta.profile echoes the base type canonical", async () => {
+    // Some servers stamp resources with `meta.profile =
+    // ["http://hl7.org/fhir/StructureDefinition/<Type>"]`. That's not a real
+    // profile — the bundled base SD is exactly right, and we should not need
+    // the server (which usually doesn't store core SDs) to render the resource.
+    const instanceHit = vi.fn();
+    const searchHit = vi.fn();
+    server.use(
+      http.get(`${BASE}/StructureDefinition/Patient`, () => {
+        instanceHit();
+        return new HttpResponse(null, { status: 404 });
+      }),
+      http.get(`${BASE}/StructureDefinition`, () => {
+        searchHit();
+        return HttpResponse.json({ resourceType: "Bundle", type: "searchset", entry: [] });
+      }),
+    );
+    const result = await resolveStructureDefinition(mkClient(), "Patient", {
+      profile: "http://hl7.org/fhir/StructureDefinition/Patient",
+    });
+    expect(result.type).toBe("Patient");
+    expect(result.id).toBe("Patient"); // bundled fixture, not from the server
+    expect(instanceHit).not.toHaveBeenCalled();
+    expect(searchHit).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the bundled base-type SD when a real profile can't be resolved anywhere", async () => {
+    const profile = "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient";
+    server.use(
+      http.get(`${BASE}/StructureDefinition/us-core-patient`, () =>
+        new HttpResponse(null, { status: 404 }),
+      ),
+      http.get(`${BASE}/StructureDefinition`, () =>
+        HttpResponse.json({ resourceType: "Bundle", type: "searchset", entry: [] }),
+      ),
+    );
+    const result = await resolveStructureDefinition(mkClient(), "Patient", { profile });
+    // Falls back to the base R4 schema rather than throwing.
+    expect(result.type).toBe("Patient");
+    expect(result.id).toBe("Patient");
+  });
+
   it("resolves profiled canonicals via url search", async () => {
     const profile = "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient";
     server.use(
