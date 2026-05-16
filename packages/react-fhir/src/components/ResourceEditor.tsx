@@ -31,6 +31,13 @@ export interface ResourceEditorProps {
   /** Called on Save. Draft is `prune()`-d of empty values before handoff. */
   onSave?: (draft: Resource) => void | Promise<void>;
   onCancel?: () => void;
+  /**
+   * Optional guard run against the `prune()`-d draft on Save. Return a warning
+   * message to surface it inline and require an explicit confirm before the
+   * save proceeds; return `null` to save without prompting. Kept generic so
+   * resource-specific rules live in the caller, not the editor.
+   */
+  confirmOnSave?: (draft: Resource) => string | null;
   /** Override input components by FHIR datatype code. */
   inputs?: TypeInputs;
   /** Override input components by full ElementDefinition path (e.g. "Observation.dataAbsentReason"). Wins over `inputs`. */
@@ -80,9 +87,11 @@ const skipKeys = new Set([
 ]);
 
 export function ResourceEditor(props: ResourceEditorProps) {
-  const { resource, structureDefinition, onChange, onSave, onCancel, profile } = props;
+  const { resource, structureDefinition, onChange, onSave, onCancel, profile, confirmOnSave } =
+    props;
   const detectedProfile = profile === undefined ? resource.meta?.profile?.[0] : profile;
   const [draft, setDraft] = useState<Resource>(resource);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const sdQuery = useStructureDefinition({ type: resource.resourceType, profile: detectedProfile }, {
     enabled: !structureDefinition,
@@ -100,6 +109,7 @@ export function ResourceEditor(props: ResourceEditorProps) {
 
   const setAt = useCallback(
     (path: Path, value: unknown) => {
+      setWarning(null);
       setDraft((prev) => {
         const prevObj = prev as unknown as Record<string, unknown>;
         const next =
@@ -117,7 +127,17 @@ export function ResourceEditor(props: ResourceEditorProps) {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onSave) return;
-    await onSave(prune(draft));
+    const pruned = prune(draft);
+    if (confirmOnSave) {
+      const message = confirmOnSave(pruned);
+      if (message) {
+        setWarning(message);
+        if (!window.confirm(message)) return;
+      } else {
+        setWarning(null);
+      }
+    }
+    await onSave(pruned);
   };
 
   if (!sd) {
@@ -155,6 +175,16 @@ export function ResourceEditor(props: ResourceEditorProps) {
         pathInputs={pathInputs}
         setAt={setAt}
       />
+
+      {warning && (
+        <p
+          role="alert"
+          data-testid="resource-editor-warning"
+          className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800"
+        >
+          {warning}
+        </p>
+      )}
 
       <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
         {onCancel && (
